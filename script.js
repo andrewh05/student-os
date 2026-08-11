@@ -1,5 +1,20 @@
 const API_BASE = '/api';
 
+async function parseApiResponse(response) {
+  const body = await response.text();
+  let data;
+  try {
+    data = body ? JSON.parse(body) : {};
+  } catch {
+    const detail = body.trim().slice(0, 160) || `HTTP ${response.status}`;
+    throw new Error(`API returned ${response.status}: ${detail}`);
+  }
+  if (!response.ok && !data.error) {
+    data.error = `Request failed with HTTP ${response.status}`;
+  }
+  return data;
+}
+
 const form = document.querySelector('#studentForm');
 const loginForm = document.querySelector('#loginForm');
 const recordsGrid = document.querySelector('#recordsGrid');
@@ -82,7 +97,7 @@ if (loginForm) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })
       });
-      const json = await res.json();
+      const json = await parseApiResponse(res);
 
       if (json.success) {
         localStorage.setItem('hub_user', JSON.stringify(json.user));
@@ -106,7 +121,7 @@ async function checkDbConnection() {
   if (!dbStatusPill || !dbStatusText) return;
   try {
     const res = await fetch(`${API_BASE}/db-status`);
-    const data = await res.json();
+    const data = await parseApiResponse(res);
     if (data.connected) {
       dbStatusPill.classList.remove('disconnected');
       dbStatusPill.classList.add('connected');
@@ -131,7 +146,7 @@ async function checkDbConnection() {
 async function fetchStudents() {
   try {
     const res = await fetch(`${API_BASE}/students`);
-    const json = await res.json();
+    const json = await parseApiResponse(res);
     if (json.success) {
       students = json.data || [];
       renderStudents(searchInput ? searchInput.value : '');
@@ -254,7 +269,7 @@ async function deleteStudentRecord(id) {
   }
   try {
     const res = await fetch(`${API_BASE}/students/${id}`, { method: 'DELETE' });
-    const json = await res.json();
+    const json = await parseApiResponse(res);
     if (json.success) {
       showToast('Record deleted', 'The student record was removed.');
       fetchStudents();
@@ -301,7 +316,7 @@ if (form) {
         });
       }
 
-      json = await res.json();
+      json = await parseApiResponse(res);
 
       if (json.success) {
         showToast(
@@ -349,7 +364,7 @@ async function initFormEditMode() {
 
   try {
     const res = await fetch(`${API_BASE}/students/${editId}`);
-    const json = await res.json();
+    const json = await parseApiResponse(res);
     if (json.success && json.data) {
       const student = json.data;
       Object.entries(student).forEach(([key, value]) => {
