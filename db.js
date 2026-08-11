@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://tcwapqlphdxuqpgyrybq.supabase.co';
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseRequested = Boolean(process.env.SUPABASE_URL);
 
 // Create Supabase JS Client if credentials are fully configured
 const supabase = (supabaseUrl && supabaseKey && !supabaseKey.includes('...') && supabaseKey.length >= 40)
@@ -109,6 +110,15 @@ async function checkDbConnection() {
         message: 'Connected through the Supabase API'
       };
     }
+    if (supabaseRequested) {
+      return {
+        connected: false,
+        provider: 'Supabase',
+        database: 'Supabase students table',
+        count: 0,
+        message: 'SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY is missing or invalid'
+      };
+    }
     const client = await pool.connect();
     const res = await client.query('SELECT COUNT(*) FROM students;');
     client.release();
@@ -134,6 +144,7 @@ async function checkDbConnection() {
 module.exports = {
   pool,
   supabase,
+  supabaseRequested,
   initDb,
   checkDbConnection,
 };

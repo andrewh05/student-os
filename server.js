@@ -3,7 +3,7 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const { pool, supabase, initDb, checkDbConnection } = require('./db');
+const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -48,6 +48,16 @@ app.use(express.static(path.join(__dirname)));
 app.get('/api/db-status', async (req, res) => {
   const status = await checkDbConnection();
   res.json(status);
+});
+
+app.use('/api/students', (req, res, next) => {
+  if (supabaseRequested && !supabase) {
+    return res.status(503).json({
+      success: false,
+      error: 'Supabase is configured but its API key is missing or invalid. Update the Supabase environment variables and restart the server.'
+    });
+  }
+  next();
 });
 
 // LOGIN Endpoint (Username & Password authentication against PostgreSQL)
@@ -191,7 +201,7 @@ app.post('/api/students', async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('students').insert(toStudentRow(req.body)).select().single();
       if (error) throw error;
-      return res.status(201).json({ success: true, data: mapStudent(data), message: 'Student created successfully' });
+      return res.status(201).json({ success: true, provider: 'Supabase', data: mapStudent(data), message: 'Student created successfully in Supabase' });
     }
     const { rows } = await pool.query(
       `INSERT INTO students 
@@ -215,7 +225,7 @@ app.post('/api/students', async (req, res) => {
       [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email]
     );
 
-    res.status(201).json({ success: true, data: rows[0], message: 'Student created successfully' });
+    res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Student created successfully' });
   } catch (err) {
     console.error('Error creating student:', err.message);
     res.status(500).json({ success: false, error: err.message });
