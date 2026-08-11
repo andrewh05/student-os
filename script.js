@@ -249,6 +249,15 @@ function updateStats() {
   if (frenchBar) frenchBar.style.width = `${percent(french)}%`;
   if (englishBar) englishBar.style.width = `${percent(english)}%`;
   if (campusDonut) campusDonut.style.setProperty('--fanar', `${percent(fanar)}%`);
+
+  document.querySelectorAll('.major-stat').forEach(card => {
+    const major = card.dataset.major;
+    const majorCount = students.filter(student => (student.major || '').toLowerCase() === major.toLowerCase()).length;
+    const majorPercent = percent(majorCount);
+    card.querySelector('b').textContent = majorCount;
+    card.querySelector('i').style.width = `${majorPercent}%`;
+    card.querySelector('small').textContent = `${majorPercent}% of students`;
+  });
 }
 
 // Show Toast notification
