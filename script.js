@@ -189,6 +189,7 @@ function renderStudents(query = '') {
           </div>
         </div>
         <div class="student-details">
+          <div class="detail"><small>Major</small><span title="${escapeHtml(student.major)}">${escapeHtml(student.major)}</span></div>
           <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
           <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
           <div class="detail"><small>Phone</small><span>${escapeHtml(student.phone)}</span></div>
