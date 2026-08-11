@@ -87,7 +87,17 @@
         <div class="section-label"><span>University Details</span></div>
         <div class="fields two-cols">
           <label><span>Previous school *</span><input name="school" required placeholder="e.g. Collège des Apôtres"></label>
-          <label><span>University major *</span><input name="major" required placeholder="e.g. Computer Science"></label>
+          <label><span>University major *</span>
+            <select name="major" required>
+              <option value="" selected disabled>Select a major</option>
+              <option value="Mathematics">Mathematics</option>
+              <option value="Informatics">Informatics</option>
+              <option value="Statistics">Statistics</option>
+              <option value="Physics">Physics</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Electronics">Electronics</option>
+            </select>
+          </label>
         </div>
         <div class="fields three-cols choice-row">
           <fieldset>
