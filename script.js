@@ -189,8 +189,6 @@ function renderStudents(query = '') {
           </div>
         </div>
         <div class="student-details">
-          <div class="detail"><small>Username</small><span class="highlight-orange">@${escapeHtml(student.username || 'n/a')}</span></div>
-          <div class="detail"><small>Password</small><span>••••••••</span></div>
           <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
           <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
           <div class="detail"><small>Phone</small><span>${escapeHtml(student.phone)}</span></div>
@@ -395,7 +393,7 @@ const exportBtn = document.querySelector('#exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
     if (!students.length) return showToast('Nothing to export', 'No student records available.');
-    const columns = ['firstName','fatherName','familyName','username','password','school','address','origin','phone','major','status','language','campus','email'];
+    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','status','language','campus','email'];
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));

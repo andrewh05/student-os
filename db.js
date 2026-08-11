@@ -65,8 +65,6 @@ async function initDb() {
         first_name VARCHAR(100) NOT NULL,
         father_name VARCHAR(100) NOT NULL,
         family_name VARCHAR(100) NOT NULL,
-        username VARCHAR(100),
-        password VARCHAR(255),
         origin VARCHAR(100),
         address VARCHAR(255),
         school VARCHAR(150) NOT NULL,
@@ -80,22 +78,16 @@ async function initDb() {
       );
     `);
 
-    // Ensure username and password columns exist in case table was created earlier
-    await client.query(`
-      ALTER TABLE students ADD COLUMN IF NOT EXISTS username VARCHAR(100);
-      ALTER TABLE students ADD COLUMN IF NOT EXISTS password VARCHAR(255);
-    `);
-
     // Check if table is empty, insert sample records
     const res = await client.query('SELECT COUNT(*) FROM students;');
     if (parseInt(res.rows[0].count, 10) === 0) {
       console.log('Seeding initial student records into database...');
       const seedQuery = `
-        INSERT INTO students (first_name, father_name, family_name, username, password, origin, address, school, major, status, language, campus, phone, email)
+        INSERT INTO students (first_name, father_name, family_name, origin, address, school, major, status, language, campus, phone, email)
         VALUES 
-        ('Carla', 'Joseph', 'Khoury', 'carla_k', 'pass123', 'Batroun', 'Main Road, Batroun', 'Collège des Apôtres', 'Computer Science', 'New', 'French', 'Fanar', '+961 03 123 456', 'carla.khoury@example.com'),
-        ('Marc', 'Antoine', 'Sarkis', 'marc_s', 'pass123', 'Byblos', 'Port Area, Jbeil', 'Champville', 'Business Administration', 'Mu3id', 'English', 'Amshit', '+961 70 987 654', 'marc.sarkis@example.com'),
-        ('Yara', 'Elie', 'Haddad', 'yara_h', 'pass123', 'Zahle', 'Boulevard, Zahle', 'Collège Sagesse', 'Graphic Design', 'New', 'English', 'Fanar', '+961 71 456 789', 'yara.haddad@example.com');
+        ('Carla', 'Joseph', 'Khoury', 'Batroun', 'Main Road, Batroun', 'Collège des Apôtres', 'Informatics', 'New', 'French', 'Fanar', '+961 03 123 456', 'carla.khoury@example.com'),
+        ('Marc', 'Antoine', 'Sarkis', 'Byblos', 'Port Area, Jbeil', 'Champville', 'Mathematics', 'Mu3id', 'English', 'Amshit', '+961 70 987 654', 'marc.sarkis@example.com'),
+        ('Yara', 'Elie', 'Haddad', 'Zahle', 'Boulevard, Zahle', 'Collège Sagesse', 'Physics', 'New', 'English', 'Fanar', '+961 71 456 789', 'yara.haddad@example.com');
       `;
       await client.query(seedQuery);
     }

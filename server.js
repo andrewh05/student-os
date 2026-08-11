@@ -56,7 +56,7 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
-// GET all students (including username & password)
+// GET all students
 app.get('/api/students', async (req, res) => {
   try {
     const { rows } = await pool.query(`
@@ -65,8 +65,6 @@ app.get('/api/students', async (req, res) => {
         first_name AS "firstName", 
         father_name AS "fatherName", 
         family_name AS "familyName", 
-        username,
-        password,
         origin, 
         address, 
         school, 
@@ -97,8 +95,6 @@ app.get('/api/students/:id', async (req, res) => {
         first_name AS "firstName", 
         father_name AS "fatherName", 
         family_name AS "familyName", 
-        username,
-        password,
         origin, 
         address, 
         school, 
@@ -125,28 +121,22 @@ app.get('/api/students/:id', async (req, res) => {
 
 // POST create new student
 app.post('/api/students', async (req, res) => {
-  const { firstName, fatherName, familyName, username, password, origin, address, school, major, status, language, campus, phone, email } = req.body;
+  const { firstName, fatherName, familyName, origin, address, school, major, status, language, campus, phone, email } = req.body;
 
   if (!firstName || !fatherName || !familyName || !school || !major || !status || !language || !campus || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
   }
 
-  // Generate fallback username if not explicitly provided
-  const studentUsername = username ? username.trim() : `${firstName.toLowerCase()}_${familyName.toLowerCase()}`;
-  const studentPassword = password ? password : 'StudentPass123!';
-
   try {
     const { rows } = await pool.query(
       `INSERT INTO students 
-        (first_name, father_name, family_name, username, password, origin, address, school, major, status, language, campus, phone, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        (first_name, father_name, family_name, origin, address, school, major, status, language, campus, phone, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
        RETURNING 
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
         family_name AS "familyName", 
-        username,
-        password,
         origin, 
         address, 
         school, 
@@ -157,7 +147,7 @@ app.post('/api/students', async (req, res) => {
         phone, 
         email, 
         created_at AS "createdAt";`,
-      [firstName, fatherName, familyName, studentUsername, studentPassword, origin || '', address || '', school, major, status, language, campus, phone, email]
+      [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email]
     );
 
     res.status(201).json({ success: true, data: rows[0], message: 'Student created successfully' });
@@ -170,14 +160,11 @@ app.post('/api/students', async (req, res) => {
 // PUT update student
 app.put('/api/students/:id', async (req, res) => {
   const { id } = req.params;
-  const { firstName, fatherName, familyName, username, password, origin, address, school, major, status, language, campus, phone, email } = req.body;
+  const { firstName, fatherName, familyName, origin, address, school, major, status, language, campus, phone, email } = req.body;
 
   if (!firstName || !fatherName || !familyName || !school || !major || !status || !language || !campus || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
   }
-
-  const studentUsername = username ? username.trim() : `${firstName.toLowerCase()}_${familyName.toLowerCase()}`;
-  const studentPassword = password ? password : 'StudentPass123!';
 
   try {
     const { rows } = await pool.query(
@@ -185,25 +172,21 @@ app.put('/api/students/:id', async (req, res) => {
        SET first_name = $1, 
            father_name = $2, 
            family_name = $3, 
-           username = $4,
-           password = $5,
-           origin = $6, 
-           address = $7, 
-           school = $8, 
-           major = $9, 
-           status = $10, 
-           language = $11, 
-           campus = $12, 
-           phone = $13, 
-           email = $14
-       WHERE id = $15
+           origin = $4,
+           address = $5,
+           school = $6,
+           major = $7,
+           status = $8,
+           language = $9,
+           campus = $10,
+           phone = $11,
+           email = $12
+       WHERE id = $13
        RETURNING 
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
         family_name AS "familyName", 
-        username,
-        password,
         origin, 
         address, 
         school, 
@@ -214,7 +197,7 @@ app.put('/api/students/:id', async (req, res) => {
         phone, 
         email, 
         created_at AS "createdAt";`,
-      [firstName, fatherName, familyName, studentUsername, studentPassword, origin || '', address || '', school, major, status, language, campus, phone, email, id]
+      [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email, id]
     );
 
     if (rows.length === 0) {
