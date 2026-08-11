@@ -19,6 +19,7 @@ async function parseApiResponse(response) {
 
 const form = document.querySelector('#studentForm');
 const loginForm = document.querySelector('#loginForm');
+const userForm = document.querySelector('#userForm');
 const recordsGrid = document.querySelector('#recordsGrid');
 const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
@@ -115,6 +116,47 @@ if (loginForm) {
       if (loginError) loginError.textContent = `Server error: ${err.message}`;
       if (loginSubmitBtn) loginSubmitBtn.disabled = false;
     }
+  });
+}
+
+if (userForm) {
+  userForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const message = document.querySelector('#userFormMessage');
+    const submitButton = document.querySelector('#userSubmitBtn');
+    const values = Object.fromEntries(new FormData(userForm).entries());
+    userForm.querySelectorAll('[required]').forEach(input => input.classList.toggle('invalid', !input.validity.valid));
+    const invalid = userForm.querySelector(':invalid');
+    if (invalid) {
+      message.textContent = 'Please complete all required fields correctly.';
+      invalid.focus();
+      return;
+    }
+    if (values.password !== values.confirmPassword) {
+      message.textContent = 'The passwords do not match.';
+      userForm.elements.confirmPassword.classList.add('invalid');
+      userForm.elements.confirmPassword.focus();
+      return;
+    }
+    submitButton.disabled = true;
+    message.textContent = '';
+    delete values.confirmPassword;
+    try {
+      const response = await fetch(`${API_BASE}/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
+      const json = await parseApiResponse(response);
+      if (!json.success) throw new Error(json.error || 'Could not create user');
+      userForm.reset();
+      showToast('User created', `${values.fullName} can now sign in to the portal.`);
+    } catch (error) {
+      message.textContent = error.message;
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
+  userForm.addEventListener('input', event => {
+    event.target.classList.remove('invalid');
+    const message = document.querySelector('#userFormMessage');
+    if (message) message.textContent = '';
   });
 }
 

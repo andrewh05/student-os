@@ -1057,3 +1057,5 @@ select.invalid { border-color: var(--orange-primary); box-shadow: 0 0 0 3px rgba
 .popup-confirm.danger { border-color: #dc2626; background: #dc2626; }
 .popup-actions button:focus-visible { outline: 3px solid rgba(234, 88, 12, .2); outline-offset: 2px; }
 @media(max-width: 500px) { .popup-dialog { padding: 28px 21px; } .popup-actions { flex-direction: column-reverse; } .popup-actions button { width: 100%; } }
+
+.user-form-card { max-width: 900px; width: 100%; margin: 0 auto; }

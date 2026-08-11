@@ -50,7 +50,7 @@ app.get('/api/db-status', async (req, res) => {
   res.json(status);
 });
 
-app.use('/api/students', (req, res, next) => {
+app.use(['/api/students', '/api/users'], (req, res, next) => {
   if (supabaseRequested && !supabase) {
     return res.status(503).json({
       success: false,
@@ -58,6 +58,38 @@ app.use('/api/students', (req, res, next) => {
     });
   }
   next();
+});
+
+app.post('/api/users', async (req, res) => {
+  const { fullName, username, password, role = 'staff' } = req.body;
+  if (!fullName || !username || !password) {
+    return res.status(400).json({ success: false, error: 'Full name, username and password are required' });
+  }
+  if (username.trim().length < 3 || password.length < 8) {
+    return res.status(400).json({ success: false, error: 'Username must be at least 3 characters and password at least 8 characters' });
+  }
+  if (!['admin', 'staff'].includes(role)) {
+    return res.status(400).json({ success: false, error: 'Invalid user role' });
+  }
+  try {
+    if (supabase) {
+      const { data, error } = await supabase.from('users').insert({ username: username.trim(), password, full_name: fullName.trim(), role }).select('id, username, full_name, role').single();
+      if (error) {
+        if (error.code === '23505') return res.status(409).json({ success: false, error: 'This username already exists' });
+        throw error;
+      }
+      return res.status(201).json({ success: true, provider: 'Supabase', data, message: 'Portal user created successfully' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO users (username, password, full_name, role) VALUES ($1, $2, $3, $4) RETURNING id, username, full_name AS "fullName", role`,
+      [username.trim(), password, fullName.trim(), role]
+    );
+    return res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Portal user created successfully' });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ success: false, error: 'This username already exists' });
+    console.error('Error creating portal user:', err.message);
+    return res.status(500).json({ success: false, error: 'Could not create portal user' });
+  }
 });
 
 // LOGIN Endpoint (Username & Password authentication against PostgreSQL)
@@ -324,6 +356,10 @@ app.get('/form', (req, res) => {
 
 app.get('/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'dashboard.html'));
+});
+
+app.get('/users', (req, res) => {
+  res.sendFile(path.join(__dirname, 'users.html'));
 });
 
 // Initialize DB and start listening

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ea580c">
+  <title>Add Portal User - University Student Hub</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="users">
+  <header class="topbar">
+    <a class="brand" href="dashboard.html" aria-label="University Student Hub home">
+      <span class="brand-mark orange-mark">U</span><span>University<br><b>Student Hub</b></span>
+    </a>
+    <div class="header-center">
+      <div class="db-pill" id="dbStatusPill"><span class="db-dot"></span><span id="dbStatusText">Checking Supabase...</span></div>
+    </div>
+    <div class="header-right">
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-link">Dashboard</a>
+        <a href="form.html" class="nav-link btn-nav">Add Student</a>
+        <a href="users.html" class="nav-link active">Users</a>
+      </nav>
+      <div class="user-badge"><span class="user-name" id="userNameDisplay">Admin</span><button type="button" class="btn-logout" id="logoutBtn">Logout</button></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero compact-hero">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> Portal administration</div>
+        <h1>Add New <em>Portal User</em></h1>
+        <p>Create an account for an administrator or staff member who needs access to the student portal.</p>
+      </div>
+      <div class="hero-actions"><a href="dashboard.html" class="btn-secondary">← Back to Dashboard</a></div>
+    </section>
+
+    <section class="form-card user-form-card">
+      <div class="card-heading"><div><span class="step">USER</span><h2>Create portal account</h2></div><p>Fields marked <b>*</b> are required</p></div>
+      <form id="userForm" novalidate>
+        <div class="section-label"><span>User information</span></div>
+        <div class="fields two-cols">
+          <label><span>Full name *</span><input name="fullName" autocomplete="name" required placeholder="e.g. Maya Haddad"></label>
+          <label><span>Role *</span><select name="role" required><option value="staff">Staff</option><option value="admin">Administrator</option></select></label>
+        </div>
+        <div class="section-label"><span>Login credentials</span></div>
+        <div class="fields two-cols">
+          <label><span>Username *</span><input name="username" autocomplete="username" minlength="3" required placeholder="e.g. maya.haddad"></label>
+          <label><span>Password *</span><input name="password" type="password" autocomplete="new-password" minlength="8" required placeholder="Minimum 8 characters"></label>
+        </div>
+        <div class="fields two-cols">
+          <div></div>
+          <label><span>Confirm password *</span><input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required placeholder="Repeat password"></label>
+        </div>
+        <div class="form-actions"><button class="submit-btn" id="userSubmitBtn" type="submit"><span>Create user</span><svg viewBox="0 0 24 24"><path d="m5 12 14 0m-5-5 5 5-5 5"/></svg></button></div>
+        <p class="form-message" id="userFormMessage" role="status"></p>
+      </form>
+    </section>
+  </main>
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">User created</b><small id="toastMsg">The portal account is ready.</small></p></div>
+  <script src="script.js"></script>
+</body>
+</html>
