@@ -101,7 +101,7 @@ if (loginForm) {
   });
 }
 
-// Check PostgreSQL Database Connection Status
+// Check Database (Supabase / PostgreSQL) Connection Status
 async function checkDbConnection() {
   if (!dbStatusPill || !dbStatusText) return;
   try {
@@ -110,23 +110,24 @@ async function checkDbConnection() {
     if (data.connected) {
       dbStatusPill.classList.remove('disconnected');
       dbStatusPill.classList.add('connected');
-      dbStatusText.textContent = `PostgreSQL Connected`;
-      dbStatusPill.title = `Connected to PostgreSQL (${data.count} records stored)`;
+      const providerLabel = data.provider || 'Supabase / PostgreSQL';
+      dbStatusText.textContent = `${providerLabel} Connected`;
+      dbStatusPill.title = `Connected to ${data.database} (${data.count} records stored)`;
     } else {
       dbStatusPill.classList.remove('connected');
       dbStatusPill.classList.add('disconnected');
-      dbStatusText.textContent = `PostgreSQL Offline`;
-      dbStatusPill.title = `Database error: ${data.message || 'Could not connect to PostgreSQL'}`;
+      dbStatusText.textContent = `Database Offline`;
+      dbStatusPill.title = `Database error: ${data.message || 'Could not connect to database'}`;
     }
   } catch (err) {
     dbStatusPill.classList.remove('connected');
     dbStatusPill.classList.add('disconnected');
-    dbStatusText.textContent = `PostgreSQL Offline`;
+    dbStatusText.textContent = `Database Offline`;
     dbStatusPill.title = `Connection error: ${err.message}`;
   }
 }
 
-// Fetch all students from PostgreSQL backend
+// Fetch all students from backend
 async function fetchStudents() {
   try {
     const res = await fetch(`${API_BASE}/students`);
@@ -246,16 +247,16 @@ function showToast(title, message) {
   window.setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
-// Delete student record from PostgreSQL
+// Delete student record from backend
 async function deleteStudentRecord(id) {
-  if (!confirm('Are you sure you want to delete this student record from PostgreSQL? This action cannot be undone.')) {
+  if (!confirm('Are you sure you want to delete this student record? This action cannot be undone.')) {
     return;
   }
   try {
     const res = await fetch(`${API_BASE}/students/${id}`, { method: 'DELETE' });
     const json = await res.json();
     if (json.success) {
-      showToast('Record deleted', 'The student record was removed from PostgreSQL.');
+      showToast('Record deleted', 'The student record was removed.');
       fetchStudents();
       checkDbConnection();
     } else {
@@ -304,15 +305,15 @@ if (form) {
 
       if (json.success) {
         showToast(
-          editingId ? 'Record updated in PostgreSQL' : 'Student saved to PostgreSQL',
-          'The student profile and credentials were persisted to PostgreSQL.'
+          editingId ? 'Record updated in database' : 'Student saved to database',
+          'The student profile and credentials were saved successfully.'
         );
         setTimeout(() => {
           window.location.href = 'dashboard.html';
         }, 1200);
       } else {
         const msg = document.querySelector('#formMessage');
-        if (msg) msg.textContent = `Error: ${json.error || 'Failed to save to PostgreSQL'}`;
+        if (msg) msg.textContent = `Error: ${json.error || 'Failed to save to database'}`;
         if (submitBtn) submitBtn.disabled = false;
       }
     } catch (err) {
@@ -343,7 +344,7 @@ async function initFormEditMode() {
 
   if (formTitle) formTitle.textContent = 'Edit student profile';
   if (pageHeading) pageHeading.innerHTML = 'Edit <em>Student Record</em>';
-  if (submitText) submitText.textContent = 'Update student in PostgreSQL';
+  if (submitText) submitText.textContent = 'Update student profile';
   if (cancelEdit) cancelEdit.classList.remove('hidden');
 
   try {
@@ -381,7 +382,7 @@ if (exportBtn) {
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-    link.download = 'postgresql-student-records.csv';
+    link.download = 'student-records.csv';
     link.click();
     URL.revokeObjectURL(link.href);
   });
