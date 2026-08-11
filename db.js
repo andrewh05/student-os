@@ -3,11 +3,15 @@ const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
 const supabaseUrl = process.env.SUPABASE_URL || 'https://tcwapqlphdxuqpgyrybq.supabase.co';
-const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
+const supabaseKey = [
+  process.env.SUPABASE_SECRET_KEY,
+  process.env.SUPABASE_PUBLISHABLE_KEY,
+  process.env.SUPABASE_ANON_KEY
+].find(key => key && !key.includes('...') && key.length >= 40);
 const supabaseRequested = Boolean(process.env.SUPABASE_URL);
 
 // Create Supabase JS Client if credentials are fully configured
-const supabase = (supabaseUrl && supabaseKey && !supabaseKey.includes('...') && supabaseKey.length >= 40)
+const supabase = (supabaseUrl && supabaseKey)
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
