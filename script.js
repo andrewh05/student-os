@@ -272,9 +272,65 @@ function showToast(title, message) {
   window.setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
+function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false, danger = false }) {
+  let overlay = document.querySelector('#popupOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'popupOverlay';
+    overlay.className = 'popup-overlay';
+    overlay.innerHTML = `
+      <section class="popup-dialog" role="dialog" aria-modal="true" aria-labelledby="popupTitle" aria-describedby="popupMessage">
+        <div class="popup-icon" id="popupIcon">!</div>
+        <h2 id="popupTitle"></h2>
+        <p id="popupMessage"></p>
+        <div class="popup-actions">
+          <button type="button" class="popup-cancel" id="popupCancel"></button>
+          <button type="button" class="popup-confirm" id="popupConfirm"></button>
+        </div>
+      </section>`;
+    document.body.appendChild(overlay);
+  }
+
+  const dialog = overlay.querySelector('.popup-dialog');
+  const cancelButton = overlay.querySelector('#popupCancel');
+  const confirmButton = overlay.querySelector('#popupConfirm');
+  overlay.querySelector('#popupTitle').textContent = title;
+  overlay.querySelector('#popupMessage').textContent = message;
+  overlay.querySelector('#popupIcon').textContent = danger ? '!' : 'i';
+  cancelButton.textContent = cancelLabel;
+  cancelButton.hidden = !showCancel;
+  confirmButton.textContent = confirmLabel;
+  confirmButton.classList.toggle('danger', danger);
+  dialog.classList.toggle('is-danger', danger);
+  overlay.classList.add('show');
+
+  return new Promise(resolve => {
+    const close = result => {
+      overlay.classList.remove('show');
+      document.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    };
+    const onKeydown = event => {
+      if (event.key === 'Escape') close(false);
+    };
+    confirmButton.onclick = () => close(true);
+    cancelButton.onclick = () => close(false);
+    overlay.onclick = event => { if (event.target === overlay) close(false); };
+    document.addEventListener('keydown', onKeydown);
+    requestAnimationFrame(() => confirmButton.focus());
+  });
+}
+
 // Delete student record from backend
 async function deleteStudentRecord(id) {
-  if (!confirm('Are you sure you want to delete this student record? This action cannot be undone.')) {
+  const confirmed = await showPopup({
+    title: 'Delete student record?',
+    message: 'This student will be permanently removed. This action cannot be undone.',
+    confirmLabel: 'Delete record',
+    showCancel: true,
+    danger: true
+  });
+  if (!confirmed) {
     return;
   }
   try {
@@ -285,10 +341,10 @@ async function deleteStudentRecord(id) {
       fetchStudents();
       checkDbConnection();
     } else {
-      alert(`Could not delete record: ${json.error}`);
+      await showPopup({ title: 'Could not delete record', message: json.error || 'Please try again.', danger: true });
     }
   } catch (err) {
-    alert(`Error deleting record: ${err.message}`);
+    await showPopup({ title: 'Something went wrong', message: err.message, danger: true });
   }
 }
 

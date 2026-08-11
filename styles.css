@@ -1009,3 +1009,51 @@ select.invalid { border-color: var(--orange-primary); box-shadow: 0 0 0 3px rgba
 .major-stat small { display: block; margin-top: 7px; color: var(--muted); font-size: 9px; }
 @media(max-width: 800px) { .major-stats-grid { grid-template-columns: repeat(2, 1fr); } }
 @media(max-width: 500px) { .major-insight-card { padding: 21px; } .major-stats-grid { grid-template-columns: 1fr; gap: 18px; } }
+
+.popup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(67, 20, 7, .38);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease, visibility .2s ease;
+}
+.popup-overlay.show { opacity: 1; visibility: visible; }
+.popup-dialog {
+  width: min(430px, 100%);
+  padding: 34px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  text-align: center;
+  box-shadow: 0 28px 80px rgba(67, 20, 7, .24);
+  transform: translateY(12px) scale(.97);
+  transition: transform .22s ease;
+}
+.popup-overlay.show .popup-dialog { transform: none; }
+.popup-icon {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 18px;
+  border-radius: 15px;
+  background: var(--orange-soft);
+  color: var(--orange-primary);
+  font: 800 22px "Space Grotesk", sans-serif;
+}
+.popup-dialog.is-danger .popup-icon { background: #fff1f2; color: #dc2626; }
+.popup-dialog h2 { margin: 0 0 10px; color: var(--ink); font: 700 24px "Space Grotesk", sans-serif; }
+.popup-dialog p { margin: 0 auto; max-width: 340px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.popup-actions { display: flex; justify-content: center; gap: 10px; margin-top: 27px; }
+.popup-actions button { min-width: 125px; height: 45px; border-radius: 9px; padding: 0 18px; font: 800 10px "Manrope", sans-serif; letter-spacing: .08em; text-transform: uppercase; cursor: pointer; }
+.popup-cancel { border: 1px solid var(--line); background: #fff; color: var(--ink); }
+.popup-confirm { border: 1px solid var(--orange-primary); background: var(--orange-primary); color: #fff; }
+.popup-confirm.danger { border-color: #dc2626; background: #dc2626; }
+.popup-actions button:focus-visible { outline: 3px solid rgba(234, 88, 12, .2); outline-offset: 2px; }
+@media(max-width: 500px) { .popup-dialog { padding: 28px 21px; } .popup-actions { flex-direction: column-reverse; } .popup-actions button { width: 100%; } }
