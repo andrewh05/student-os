@@ -3,10 +3,42 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
-const { pool, initDb, checkDbConnection } = require('./db');
+const { pool, supabase, initDb, checkDbConnection } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const mapStudent = row => ({
+  id: row.id,
+  firstName: row.first_name,
+  fatherName: row.father_name,
+  familyName: row.family_name,
+  origin: row.origin,
+  address: row.address,
+  school: row.school,
+  major: row.major,
+  status: row.status,
+  language: row.language,
+  campus: row.campus,
+  phone: row.phone,
+  email: row.email,
+  createdAt: row.created_at
+});
+
+const toStudentRow = student => ({
+  first_name: student.firstName,
+  father_name: student.fatherName,
+  family_name: student.familyName,
+  origin: student.origin || '',
+  address: student.address || '',
+  school: student.school,
+  major: student.major,
+  status: student.status,
+  language: student.language,
+  campus: student.campus,
+  phone: student.phone,
+  email: student.email
+});
 
 app.use(cors());
 app.use(express.json());
@@ -27,6 +59,23 @@ app.post('/api/login', async (req, res) => {
   }
 
   try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username, password, full_name, role')
+        .ilike('username', username)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data || data.password !== password) {
+        return res.status(401).json({ success: false, error: 'Invalid username or password' });
+      }
+      return res.json({
+        success: true,
+        message: 'Login successful',
+        token: `token-${data.id}-${Date.now()}`,
+        user: { id: data.id, username: data.username, fullName: data.full_name || data.username, role: data.role }
+      });
+    }
     const { rows } = await pool.query(
       `SELECT id, username, password, full_name AS "fullName", role FROM users WHERE LOWER(username) = LOWER($1);`,
       [username]
@@ -59,6 +108,11 @@ app.post('/api/login', async (req, res) => {
 // GET all students
 app.get('/api/students', async (req, res) => {
   try {
+    if (supabase) {
+      const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      return res.json({ success: true, data: (data || []).map(mapStudent) });
+    }
     const { rows } = await pool.query(`
       SELECT 
         id, 
@@ -89,6 +143,12 @@ app.get('/api/students', async (req, res) => {
 app.get('/api/students/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    if (supabase) {
+      const { data, error } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, data: mapStudent(data) });
+    }
     const { rows } = await pool.query(`
       SELECT 
         id, 
@@ -128,6 +188,11 @@ app.post('/api/students', async (req, res) => {
   }
 
   try {
+    if (supabase) {
+      const { data, error } = await supabase.from('students').insert(toStudentRow(req.body)).select().single();
+      if (error) throw error;
+      return res.status(201).json({ success: true, data: mapStudent(data), message: 'Student created successfully' });
+    }
     const { rows } = await pool.query(
       `INSERT INTO students 
         (first_name, father_name, family_name, origin, address, school, major, status, language, campus, phone, email)
@@ -167,6 +232,12 @@ app.put('/api/students/:id', async (req, res) => {
   }
 
   try {
+    if (supabase) {
+      const { data, error } = await supabase.from('students').update(toStudentRow(req.body)).eq('id', id).select().maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, data: mapStudent(data), message: 'Student updated successfully' });
+    }
     const { rows } = await pool.query(
       `UPDATE students 
        SET first_name = $1, 
@@ -215,6 +286,12 @@ app.put('/api/students/:id', async (req, res) => {
 app.delete('/api/students/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    if (supabase) {
+      const { data, error } = await supabase.from('students').delete().eq('id', id).select('id').maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, message: 'Student deleted successfully' });
+    }
     const { rowCount } = await pool.query('DELETE FROM students WHERE id = $1;', [id]);
     if (rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Student not found' });

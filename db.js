@@ -6,7 +6,7 @@ const supabaseUrl = process.env.SUPABASE_URL || 'https://tcwapqlphdxuqpgyrybq.su
 const supabaseKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY;
 
 // Create Supabase JS Client if credentials are fully configured
-const supabase = (supabaseUrl && supabaseKey && !supabaseKey.includes('...'))
+const supabase = (supabaseUrl && supabaseKey && !supabaseKey.includes('...') && supabaseKey.length >= 40)
   ? createClient(supabaseUrl, supabaseKey)
   : null;
 
@@ -98,6 +98,17 @@ async function initDb() {
 
 async function checkDbConnection() {
   try {
+    if (supabase) {
+      const { count, error } = await supabase.from('students').select('*', { count: 'exact', head: true });
+      if (error) throw error;
+      return {
+        connected: true,
+        provider: 'Supabase',
+        database: 'Supabase students table',
+        count: count || 0,
+        message: 'Connected through the Supabase API'
+      };
+    }
     const client = await pool.connect();
     const res = await client.query('SELECT COUNT(*) FROM students;');
     client.release();
