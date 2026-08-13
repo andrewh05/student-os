@@ -58,7 +58,7 @@ async function initDb() {
     if (parseInt(userRes.rows[0].count, 10) === 0) {
       await client.query(`
         INSERT INTO users (username, password, full_name, role)
-        VALUES ('admin', 'admin123', 'Administrator', 'admin');
+        VALUES ('admin', 'admin123', 'Andrew Haddad', 'admin');
       `);
       console.log('Default admin user created (username: admin, password: admin123)');
     }
