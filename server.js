@@ -44,7 +44,10 @@ const toStudentRow = student => ({
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname)));
+const hasLocalFilesystem = typeof __dirname !== 'undefined';
+if (hasLocalFilesystem) {
+  app.use(express.static(path.join(__dirname)));
+}
 
 // Health & DB Status Endpoint
 app.get('/api/db-status', async (req, res) => {
@@ -407,21 +410,15 @@ app.delete('/api/students/:id', async (req, res) => {
 });
 
 // HTML page routing helpers
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'login.html'));
-});
+const servePage = page => (req, res) => {
+  if (hasLocalFilesystem) return res.sendFile(path.join(__dirname, `${page}.html`));
+  return res.redirect(302, `/${page}.html`);
+};
 
-app.get('/form', (req, res) => {
-  res.sendFile(path.join(__dirname, 'form.html'));
-});
-
-app.get('/dashboard', (req, res) => {
-  res.sendFile(path.join(__dirname, 'dashboard.html'));
-});
-
-app.get('/users', (req, res) => {
-  res.sendFile(path.join(__dirname, 'users.html'));
-});
+app.get('/login', servePage('login'));
+app.get('/form', servePage('form'));
+app.get('/dashboard', servePage('dashboard'));
+app.get('/users', servePage('users'));
 
 // Initialize DB and start listening
 async function startServer() {
