@@ -79,9 +79,11 @@ async function initDb() {
         campus VARCHAR(50) NOT NULL,
         phone VARCHAR(50) NOT NULL,
         email VARCHAR(150) NOT NULL,
+        in_group BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS in_group BOOLEAN NOT NULL DEFAULT FALSE;`);
 
     // Check if table is empty, insert sample records
     const res = await client.query('SELECT COUNT(*) FROM students;');

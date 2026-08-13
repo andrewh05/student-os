@@ -22,6 +22,7 @@ const mapStudent = row => ({
   campus: row.campus,
   phone: row.phone,
   email: row.email,
+  inGroup: Boolean(row.in_group),
   createdAt: row.created_at
 });
 
@@ -170,6 +171,7 @@ app.get('/api/students', async (req, res) => {
         campus, 
         phone, 
         email, 
+        in_group AS "inGroup",
         created_at AS "createdAt"
       FROM students 
       ORDER BY created_at DESC;
@@ -206,6 +208,7 @@ app.get('/api/students/:id', async (req, res) => {
         campus, 
         phone, 
         email, 
+        in_group AS "inGroup",
         created_at AS "createdAt"
       FROM students 
       WHERE id = $1;
@@ -253,6 +256,7 @@ app.post('/api/students', async (req, res) => {
         campus, 
         phone, 
         email, 
+        in_group AS "inGroup",
         created_at AS "createdAt";`,
       [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email]
     );
@@ -309,6 +313,7 @@ app.put('/api/students/:id', async (req, res) => {
         campus, 
         phone, 
         email, 
+        in_group AS "inGroup",
         created_at AS "createdAt";`,
       [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email, id]
     );
@@ -321,6 +326,45 @@ app.put('/api/students/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating student:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// PATCH group membership without changing the rest of the student record
+app.patch('/api/students/:id/group', async (req, res) => {
+  const { id } = req.params;
+  const { inGroup } = req.body;
+  if (typeof inGroup !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'inGroup must be true or false' });
+  }
+
+  try {
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('students')
+        .update({ in_group: inGroup })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, data: mapStudent(data) });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE students SET in_group = $1 WHERE id = $2 RETURNING id, in_group AS "inGroup";`,
+      [inGroup, id]
+    );
+    if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
+    return res.json({ success: true, data: rows[0] });
+  } catch (err) {
+    console.error('Error updating group membership:', err.message);
+    const needsMigration = err.code === '42703' || /in_group/i.test(err.message);
+    return res.status(500).json({
+      success: false,
+      error: needsMigration
+        ? 'Group membership is not enabled in the database yet. Run the migration in supabase_schema.sql.'
+        : err.message
+    });
   }
 });
 

@@ -477,7 +477,7 @@ legend { padding: 0; }
 /* Dashboard Metrics & Insights */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 15px;
   margin: 29px 0 15px;
 }
@@ -527,6 +527,8 @@ legend { padding: 0; }
 .stat-icon.coral { background: #ffedd5; color: var(--orange-primary); }
 .stat-icon.sand { background: #fef3c7; color: #d97706; }
 .stat-icon.mint { background: #dcfce7; color: #15803d; }
+.stat-icon.group { background: #dcfce7; color: #15803d; }
+.group-stat-card { border-color: #bbf7d0; }
 
 .insights-grid {
   display: grid;
@@ -741,7 +743,7 @@ legend { padding: 0; }
   font-weight: 700;
 }
 
-.card-actions { display: flex; gap: 10px; align-items: center; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .btn-action {
   display: inline-flex;
   align-items: center;
@@ -774,6 +776,25 @@ legend { padding: 0; }
   background: #dc2626;
   color: #ffffff;
 }
+.btn-action.group-toggle {
+  flex: 1 0 100%;
+  background: #fff;
+  color: var(--orange-dark);
+  border-color: #fdba74;
+}
+.btn-action.group-toggle:hover {
+  background: var(--orange-soft);
+  border-color: var(--orange-primary);
+}
+.btn-action.group-toggle.is-in-group {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+.btn-action.group-toggle.is-in-group:hover {
+  background: #bbf7d0;
+}
+.btn-action:disabled { cursor: wait; opacity: .65; }
 
 /* Empty State */
 .empty-state {

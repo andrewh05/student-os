@@ -32,8 +32,12 @@ CREATE TABLE IF NOT EXISTS students (
   campus VARCHAR(50) NOT NULL,
   phone VARCHAR(50) NOT NULL,
   email VARCHAR(150) NOT NULL,
+  in_group BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Safe migration for projects where the students table already exists
+ALTER TABLE students ADD COLUMN IF NOT EXISTS in_group BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- Seed initial sample students
 INSERT INTO students (first_name, father_name, family_name, username, password, origin, address, school, major, status, language, campus, phone, email)

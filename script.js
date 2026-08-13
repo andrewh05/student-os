@@ -244,6 +244,12 @@ function renderStudents(query = '') {
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
         </div>
         <div class="card-actions">
+          <button type="button"
+            class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
+            onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
+            aria-pressed="${student.inGroup ? 'true' : 'false'}">
+            ${student.inGroup ? '✓ In group' : '+ Add to group'}
+          </button>
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
           <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
         </div>
@@ -258,6 +264,7 @@ function updateStats() {
   const count = (key, value) => students.filter(s => s[key] === value).length;
   const newCount = count('status', 'New');
   const returningCount = count('status', 'Mu3id');
+  const groupCount = students.filter(student => student.inGroup).length;
   const fanar = count('campus', 'Fanar');
   const amshit = count('campus', 'Amshit');
   const french = count('language', 'French');
@@ -274,6 +281,8 @@ function updateStats() {
   setText('#newStudents', newCount);
   setText('#returningStudents', returningCount);
   setText('#schoolCount', schools);
+  setText('#groupStudents', groupCount);
+  setText('#groupPercentage', `${percent(groupCount)}% of total`);
   setText('#newPercentage', `${percent(newCount)}% of total`);
   setText('#returningPercentage', `${percent(returningCount)}% of total`);
   setText('#fanarCount', fanar);
@@ -305,6 +314,30 @@ function updateStats() {
     card.querySelector('i').style.width = `${majorPercent}%`;
     card.querySelector('small').textContent = `${majorPercent}% of students`;
   });
+}
+
+async function toggleGroupMembership(id, inGroup, button) {
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/students/${id}/group`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inGroup })
+    });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not update group membership');
+
+    const student = students.find(item => item.id === id);
+    if (student) student.inGroup = inGroup;
+    renderStudents(searchInput ? searchInput.value : '');
+    showToast(
+      inGroup ? 'Added to group' : 'Removed from group',
+      inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
+    );
+  } catch (err) {
+    if (button) button.disabled = false;
+    await showPopup({ title: 'Could not update group', message: err.message, danger: true });
+  }
 }
 
 // Show Toast notification
@@ -505,7 +538,7 @@ const exportBtn = document.querySelector('#exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
     if (!students.length) return showToast('Nothing to export', 'No student records available.');
-    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','status','language','campus','email'];
+    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','status','language','campus','email','inGroup'];
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
