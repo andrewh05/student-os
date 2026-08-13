@@ -133,6 +133,14 @@
         <input id="searchInput" type="search" placeholder="Search by name, username, school, major, phone or email..." aria-label="Search student records">
       </div>
 
+      <div class="student-filters" aria-label="Filter student records">
+        <label><span>Status</span><select id="statusFilter"><option value="">All statuses</option><option value="New">New</option><option value="Mu3id">Mu3id</option></select></label>
+        <label><span>Campus</span><select id="campusFilter"><option value="">All campuses</option><option value="Fanar">Fanar</option><option value="Amshit">Amshit</option></select></label>
+        <label><span>Language</span><select id="languageFilter"><option value="">All languages</option><option value="French">French</option><option value="English">English</option></select></label>
+        <label><span>Group</span><select id="groupFilter"><option value="">All students</option><option value="in">In group</option><option value="out">Not in group</option></select></label>
+        <button type="button" id="clearFilters" class="clear-filters">Clear filters</button>
+      </div>
+
       <div id="recordsGrid" class="records-grid"></div>
 
       <div id="emptyState" class="empty-state">

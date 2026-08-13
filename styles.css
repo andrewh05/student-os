@@ -662,6 +662,33 @@ legend { padding: 0; }
   border-radius: 12px;
 }
 
+.student-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(135px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  margin: -8px 0 22px;
+  padding: 15px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .75);
+}
+.student-filters label > span { margin: 0 0 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .1em; }
+.student-filters select { height: 42px; background-position: calc(100% - 18px) 18px, calc(100% - 13px) 18px; }
+.clear-filters {
+  height: 42px;
+  padding: 0 17px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--orange-soft);
+  color: var(--orange-dark);
+  font: 800 10px "Manrope", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  cursor: pointer;
+}
+.clear-filters:hover { border-color: var(--orange-primary); background: var(--orange-light); }
+
 /* Student Cards Grid */
 .records-grid {
   display: grid;
@@ -992,6 +1019,8 @@ legend { padding: 0; }
   .insights-grid { grid-template-columns: 1fr; }
   .three-cols { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .form-card { padding: 34px 30px; }
+  .student-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .clear-filters { grid-column: 1 / -1; }
 }
 
 @media(max-width: 650px) {
@@ -1050,6 +1079,11 @@ legend { padding: 0; }
   .login-header h2 { font-size: 24px; }
   .login-card { padding: 28px 20px; }
   .login-hint { align-items: flex-start; }
+}
+
+@media(max-width: 420px) {
+  .student-filters { grid-template-columns: 1fr; }
+  .clear-filters { grid-column: auto; }
 }
 
 @media(min-width: 381px) and (max-width: 650px) {
