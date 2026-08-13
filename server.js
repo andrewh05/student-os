@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
+const { encryptValue, decryptValue, hashPassword, verifyPassword } = require('./crypto');
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 
@@ -10,35 +11,35 @@ const PORT = process.env.PORT || 3000;
 
 const mapStudent = row => ({
   id: row.id,
-  firstName: row.first_name,
-  fatherName: row.father_name,
-  familyName: row.family_name,
-  origin: row.origin,
-  address: row.address,
-  school: row.school,
-  major: row.major,
-  status: row.status,
-  language: row.language,
-  campus: row.campus,
-  phone: row.phone,
-  email: row.email,
+  firstName: decryptValue(row.first_name, 'students.first_name'),
+  fatherName: decryptValue(row.father_name, 'students.father_name'),
+  familyName: decryptValue(row.family_name, 'students.family_name'),
+  origin: decryptValue(row.origin, 'students.origin'),
+  address: decryptValue(row.address, 'students.address'),
+  school: decryptValue(row.school, 'students.school'),
+  major: decryptValue(row.major, 'students.major'),
+  status: decryptValue(row.status, 'students.status'),
+  language: decryptValue(row.language, 'students.language'),
+  campus: decryptValue(row.campus, 'students.campus'),
+  phone: decryptValue(row.phone, 'students.phone'),
+  email: decryptValue(row.email, 'students.email'),
   inGroup: Boolean(row.in_group),
   createdAt: row.created_at
 });
 
 const toStudentRow = student => ({
-  first_name: student.firstName,
-  father_name: student.fatherName,
-  family_name: student.familyName,
-  origin: student.origin || '',
-  address: student.address || '',
-  school: student.school,
-  major: student.major,
-  status: student.status,
-  language: student.language,
-  campus: student.campus,
-  phone: student.phone,
-  email: student.email
+  first_name: encryptValue(student.firstName, 'students.first_name'),
+  father_name: encryptValue(student.fatherName, 'students.father_name'),
+  family_name: encryptValue(student.familyName, 'students.family_name'),
+  origin: encryptValue(student.origin || '', 'students.origin'),
+  address: encryptValue(student.address || '', 'students.address'),
+  school: encryptValue(student.school, 'students.school'),
+  major: encryptValue(student.major, 'students.major'),
+  status: encryptValue(student.status, 'students.status'),
+  language: encryptValue(student.language, 'students.language'),
+  campus: encryptValue(student.campus, 'students.campus'),
+  phone: encryptValue(student.phone, 'students.phone'),
+  email: encryptValue(student.email, 'students.email')
 });
 
 app.use(cors());
@@ -74,16 +75,26 @@ app.post('/api/users', async (req, res) => {
   }
   try {
     if (supabase) {
-      const { data, error } = await supabase.from('users').insert({ username: username.trim(), password, full_name: fullName.trim(), role }).select('id, username, full_name, role').single();
+      const { data: existingUsers, error: lookupError } = await supabase.from('users').select('id, username');
+      if (lookupError) throw lookupError;
+      const duplicate = (existingUsers || []).some(user => decryptValue(user.username, 'users.username').toLowerCase() === username.trim().toLowerCase());
+      if (duplicate) return res.status(409).json({ success: false, error: 'This username already exists' });
+      const encryptedUser = {
+        username: encryptValue(username.trim(), 'users.username'),
+        password: hashPassword(password),
+        full_name: encryptValue(fullName.trim(), 'users.full_name'),
+        role: encryptValue(role, 'users.role')
+      };
+      const { data, error } = await supabase.from('users').insert(encryptedUser).select('id, username, full_name, role').single();
       if (error) {
         if (error.code === '23505') return res.status(409).json({ success: false, error: 'This username already exists' });
         throw error;
       }
-      return res.status(201).json({ success: true, provider: 'Supabase', data, message: 'Portal user created successfully' });
+      return res.status(201).json({ success: true, provider: 'Supabase', data: { id: data.id, username: username.trim(), full_name: fullName.trim(), role }, message: 'Portal user created successfully' });
     }
     const { rows } = await pool.query(
       `INSERT INTO users (username, password, full_name, role) VALUES ($1, $2, $3, $4) RETURNING id, username, full_name AS "fullName", role`,
-      [username.trim(), password, fullName.trim(), role]
+      [encryptValue(username.trim(), 'users.username'), hashPassword(password), encryptValue(fullName.trim(), 'users.full_name'), encryptValue(role, 'users.role')]
     );
     return res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Portal user created successfully' });
   } catch (err) {
@@ -103,32 +114,36 @@ app.post('/api/login', async (req, res) => {
 
   try {
     if (supabase) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, username, password, full_name, role')
-        .ilike('username', username)
-        .maybeSingle();
+      const { data: users, error } = await supabase.from('users').select('id, username, password, full_name, role');
       if (error) throw error;
-      if (!data || data.password !== password) {
+      const data = (users || []).find(user => decryptValue(user.username, 'users.username').toLowerCase() === username.toLowerCase());
+      if (!data || !verifyPassword(password, data.password)) {
         return res.status(401).json({ success: false, error: 'Invalid username or password' });
       }
+      if (!String(data.password).startsWith('scrypt:v1:')) {
+        await supabase.from('users').update({ password: hashPassword(password) }).eq('id', data.id);
+      }
+      const decryptedUsername = decryptValue(data.username, 'users.username');
+      const decryptedName = decryptValue(data.full_name, 'users.full_name');
+      const decryptedRole = decryptValue(data.role, 'users.role');
       return res.json({
         success: true,
         message: 'Login successful',
         token: `token-${data.id}-${Date.now()}`,
-        user: { id: data.id, username: data.username, fullName: data.full_name || data.username, role: data.role }
+        user: { id: data.id, username: decryptedUsername, fullName: decryptedName || decryptedUsername, role: decryptedRole }
       });
     }
-    const { rows } = await pool.query(
-      `SELECT id, username, password, full_name AS "fullName", role FROM users WHERE LOWER(username) = LOWER($1);`,
-      [username]
-    );
+    const { rows } = await pool.query(`SELECT id, username, password, full_name AS "fullName", role FROM users;`);
+    const matched = rows.find(user => decryptValue(user.username, 'users.username').toLowerCase() === username.toLowerCase());
 
-    if (rows.length === 0 || rows[0].password !== password) {
+    if (!matched || !verifyPassword(password, matched.password)) {
       return res.status(401).json({ success: false, error: 'Invalid username or password' });
     }
 
-    const user = rows[0];
+    const user = matched;
+    if (!String(user.password).startsWith('scrypt:v1:')) {
+      await pool.query('UPDATE users SET password = $1 WHERE id = $2', [hashPassword(password), user.id]);
+    }
     delete user.password;
 
     res.json({
@@ -137,9 +152,9 @@ app.post('/api/login', async (req, res) => {
       token: `token-${user.id}-${Date.now()}`,
       user: {
         id: user.id,
-        username: user.username,
-        fullName: user.fullName || user.username,
-        role: user.role
+        username: decryptValue(user.username, 'users.username'),
+        fullName: decryptValue(user.fullName, 'users.full_name') || decryptValue(user.username, 'users.username'),
+        role: decryptValue(user.role, 'users.role')
       }
     });
   } catch (err) {
@@ -238,6 +253,7 @@ app.post('/api/students', async (req, res) => {
       if (error) throw error;
       return res.status(201).json({ success: true, provider: 'Supabase', data: mapStudent(data), message: 'Student created successfully in Supabase' });
     }
+    const encrypted = toStudentRow(req.body);
     const { rows } = await pool.query(
       `INSERT INTO students 
         (first_name, father_name, family_name, origin, address, school, major, status, language, campus, phone, email)
@@ -258,7 +274,7 @@ app.post('/api/students', async (req, res) => {
         email, 
         in_group AS "inGroup",
         created_at AS "createdAt";`,
-      [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email]
+      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email]
     );
 
     res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Student created successfully' });
@@ -284,6 +300,7 @@ app.put('/api/students/:id', async (req, res) => {
       if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
       return res.json({ success: true, data: mapStudent(data), message: 'Student updated successfully' });
     }
+    const encrypted = toStudentRow(req.body);
     const { rows } = await pool.query(
       `UPDATE students 
        SET first_name = $1, 
@@ -315,7 +332,7 @@ app.put('/api/students/:id', async (req, res) => {
         email, 
         in_group AS "inGroup",
         created_at AS "createdAt";`,
-      [firstName, fatherName, familyName, origin || '', address || '', school, major, status, language, campus, phone, email, id]
+      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email, id]
     );
 
     if (rows.length === 0) {
