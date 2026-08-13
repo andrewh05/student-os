@@ -2,6 +2,37 @@ const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:3000/api'
   : '/api';
 
+// Shared light/dark appearance
+const savedTheme = localStorage.getItem('student_os_theme');
+const preferredTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+document.documentElement.dataset.theme = savedTheme || preferredTheme;
+
+function setupThemeToggle() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.id = 'themeToggle';
+  button.className = 'theme-toggle';
+
+  const updateButton = () => {
+    const dark = document.documentElement.dataset.theme === 'dark';
+    button.innerHTML = `<span aria-hidden="true">${dark ? '☀' : '☾'}</span><b>${dark ? 'Light' : 'Dark'}</b>`;
+    button.setAttribute('aria-label', `Switch to ${dark ? 'light' : 'dark'} mode`);
+    button.title = `Switch to ${dark ? 'light' : 'dark'} mode`;
+  };
+
+  button.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('student_os_theme', next);
+    updateButton();
+  });
+
+  updateButton();
+  const headerRight = document.querySelector('.header-right');
+  if (headerRight) headerRight.appendChild(button);
+  else document.body.appendChild(button);
+}
+
 async function parseApiResponse(response) {
   const body = await response.text();
   let data;
@@ -581,6 +612,7 @@ if (exportBtn) {
 
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
+  setupThemeToggle();
   if (!checkAuth()) return;
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();

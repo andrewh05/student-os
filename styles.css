@@ -1205,3 +1205,91 @@ select.invalid { border-color: var(--orange-primary); box-shadow: 0 0 0 3px rgba
 @media(max-width: 500px) { .popup-dialog { padding: 28px 21px; } .popup-actions { flex-direction: column-reverse; } .popup-actions button { width: 100%; } }
 
 .user-form-card { max-width: 900px; width: 100%; margin: 0 auto; }
+
+/* Light / dark appearance */
+.theme-toggle {
+  height: 34px;
+  padding: 0 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  font: 700 10px "Manrope", sans-serif;
+  transition: background .2s, border-color .2s, color .2s, transform .2s;
+}
+.theme-toggle:hover { border-color: var(--orange-primary); transform: translateY(-1px); }
+.theme-toggle span { color: var(--orange-primary); font-size: 16px; line-height: 1; }
+.login-page > .theme-toggle { position: fixed; top: 18px; right: 18px; z-index: 20; }
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #fff7ed;
+  --ink-2: #fed7aa;
+  --cream: #120b08;
+  --paper: #211713;
+  --line: #563225;
+  --orange-light: #3a2118;
+  --orange-soft: #2b1b15;
+  --muted: #c4aaa0;
+  --shadow: 0 20px 50px rgba(0, 0, 0, .32);
+}
+html[data-theme="dark"] body { background: linear-gradient(180deg, #120b08 0%, #1a100c 100%); }
+html[data-theme="dark"] .login-page { background: radial-gradient(circle at 50% 10%, #3b2115 0%, #1b100c 48%, #100907 100%); }
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .header-right .nav-links { background: rgba(26, 16, 12, .95); border-color: var(--line); }
+html[data-theme="dark"] .brand,
+html[data-theme="dark"] .card-heading h2,
+html[data-theme="dark"] .student-top h3,
+html[data-theme="dark"] .major-stat-top span,
+html[data-theme="dark"] .popup-dialog h2 { color: var(--ink); }
+html[data-theme="dark"] .nav-link,
+html[data-theme="dark"] label > span,
+html[data-theme="dark"] legend,
+html[data-theme="dark"] .detail span,
+html[data-theme="dark"] .metric-row,
+html[data-theme="dark"] .language-split span,
+html[data-theme="dark"] .form-group label { color: #f6d4c4; }
+html[data-theme="dark"] .form-card,
+html[data-theme="dark"] .stat-card,
+html[data-theme="dark"] .insight-card,
+html[data-theme="dark"] .major-insight-card,
+html[data-theme="dark"] .student-card,
+html[data-theme="dark"] .login-card,
+html[data-theme="dark"] .popup-dialog,
+html[data-theme="dark"] .empty-state,
+html[data-theme="dark"] .student-filters,
+html[data-theme="dark"] .user-badge { background: var(--paper); border-color: var(--line); }
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] .segmented span { background-color: #170e0b; border-color: var(--line); color: var(--ink); }
+html[data-theme="dark"] input::placeholder { color: #80675e; }
+html[data-theme="dark"] input:focus,
+html[data-theme="dark"] select:focus { background-color: #1b110d; }
+html[data-theme="dark"] .search-wrap input { background: #170e0b; }
+html[data-theme="dark"] .popup-cancel,
+html[data-theme="dark"] .btn-secondary,
+html[data-theme="dark"] .theme-toggle { background: #291912; color: var(--ink); border-color: var(--line); }
+html[data-theme="dark"] .tag,
+html[data-theme="dark"] .step,
+html[data-theme="dark"] .btn-action.edit,
+html[data-theme="dark"] .clear-filters,
+html[data-theme="dark"] .login-hint { background: #392117; border-color: var(--line); color: #fdba74; }
+html[data-theme="dark"] .student-details,
+html[data-theme="dark"] .card-heading { border-color: var(--line); }
+html[data-theme="dark"] .avatar { background: #402318; color: #fb923c; }
+html[data-theme="dark"] .donut:before { background: var(--paper); }
+html[data-theme="dark"] .btn-action.group-toggle { background: #28170f; }
+html[data-theme="dark"] .btn-action.group-toggle.is-in-group { background: #12351f; color: #86efac; border-color: #267044; }
+html[data-theme="dark"] .btn-action.delete { background: #351416; color: #fca5a5; border-color: #6b2529; }
+html[data-theme="dark"] .popup-dialog.is-danger .popup-icon { background: #351416; color: #fca5a5; }
+html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line); }
+
+@media(max-width: 650px) {
+  .theme-toggle b { display: none; }
+  .theme-toggle { width: 34px; padding: 0; }
+}
