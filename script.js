@@ -42,14 +42,15 @@ function checkAuth() {
 
   if (currentPage === 'login') {
     if (userJson) {
-      window.location.href = 'dashboard.html';
+      window.location.replace('dashboard.html');
+      return false;
     }
-    return;
+    return true;
   }
 
   if (!userJson) {
-    window.location.href = 'index.html';
-    return;
+    window.location.replace('login.html');
+    return false;
   }
 
   try {
@@ -59,8 +60,11 @@ function checkAuth() {
     }
   } catch (err) {
     localStorage.removeItem('hub_user');
-    window.location.href = 'index.html';
+    window.location.replace('login.html');
+    return false;
   }
+
+  return true;
 }
 
 // Logout handler
@@ -69,7 +73,7 @@ if (logoutBtn) {
     localStorage.removeItem('hub_user');
     showToast('Logged out', 'You have been signed out successfully.');
     setTimeout(() => {
-      window.location.href = 'index.html';
+      window.location.replace('login.html');
     }, 800);
   });
 }
@@ -513,7 +517,8 @@ if (exportBtn) {
 
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
-  checkAuth();
+  if (!checkAuth()) return;
+  if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   fetchStudents();
   initFormEditMode();
