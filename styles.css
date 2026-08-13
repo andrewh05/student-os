@@ -673,12 +673,15 @@ legend { padding: 0; }
   padding: 24px;
   position: relative;
   box-shadow: 0 4px 16px rgba(234, 88, 12, 0.04);
+  min-width: 0;
 }
 .student-top { display: flex; gap: 13px; align-items: center; }
-.student-top > div { min-width: 0; padding-right: 48px; }
+.student-top > div:not(.avatar) { min-width: 0; padding-right: 48px; }
 .avatar {
   width: 44px;
   height: 44px;
+  flex: 0 0 44px;
+  padding: 0;
   border-radius: 12px;
   background: #ffedd5;
   color: var(--orange-dark);
@@ -686,7 +689,12 @@ legend { padding: 0; }
   place-items: center;
   font: 700 18px "Space Grotesk";
 }
-.student-top h3 { font: 700 17px "Space Grotesk"; margin: 0 0 4px; color: var(--ink); }
+.student-top h3 {
+  font: 700 17px/1.25 "Space Grotesk";
+  margin: 0 0 4px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
 .student-top p { margin: 0; color: var(--orange-primary); font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; }
 .tag {
   position: absolute;
@@ -724,9 +732,9 @@ legend { padding: 0; }
   display: block;
   font-size: 12px;
   font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 .detail span.highlight-orange {
   color: var(--orange-primary);
@@ -1003,21 +1011,29 @@ legend { padding: 0; }
   .directory-heading h3 { font-size: 24px; }
   .major-insight-card { margin-top: -24px; }
   .toast { left: 14px; right: 14px; bottom: 14px; min-width: 0; }
+  .student-card { padding: 20px; }
+  .student-details { gap: 12px 20px; margin: 18px 0; padding: 16px 0; }
+  .card-actions .btn-action { min-height: 36px; }
 }
 
-@media(max-width: 480px) {
+@media(max-width: 380px) {
   .brand > span:last-child { display: none; }
   .stats-grid { grid-template-columns: 1fr; }
   .stat-card { min-height: 145px; }
   .insight-card { padding: 21px 18px; }
   .language-split { gap: 13px; }
-  .student-card { padding: 20px 16px; }
+  .student-card { padding: 18px 15px; }
   .student-details { grid-template-columns: 1fr; }
   .login-page { align-items: flex-start; padding: 28px 14px; }
   .login-header { margin-bottom: 20px; }
   .login-header h2 { font-size: 24px; }
   .login-card { padding: 28px 20px; }
   .login-hint { align-items: flex-start; }
+}
+
+@media(min-width: 381px) and (max-width: 650px) {
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .student-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 select {
