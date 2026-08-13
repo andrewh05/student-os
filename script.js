@@ -150,7 +150,7 @@ if (userForm) {
       const json = await parseApiResponse(response);
       if (!json.success) throw new Error(json.error || 'Could not create user');
       userForm.reset();
-      showToast('User created', `${values.fullName} can now sign in to the portal.`);
+      showToast('User created', `${values.fullName} can now sign in to student-os.com.`);
     } catch (error) {
       message.textContent = error.message;
     } finally {
@@ -164,7 +164,7 @@ if (userForm) {
   });
 }
 
-// Check Database (Supabase / PostgreSQL) Connection Status
+// Check student-os.com system connection status
 async function checkDbConnection() {
   if (!dbStatusPill || !dbStatusText) return;
   try {
@@ -173,19 +173,18 @@ async function checkDbConnection() {
     if (data.connected) {
       dbStatusPill.classList.remove('disconnected');
       dbStatusPill.classList.add('connected');
-      const providerLabel = data.provider || 'Supabase / PostgreSQL';
-      dbStatusText.textContent = `${providerLabel} Connected`;
-      dbStatusPill.title = `Connected to ${data.database} (${data.count} records stored)`;
+      dbStatusText.textContent = 'student-os.com Online';
+      dbStatusPill.title = `Secure system online (${data.count} records stored)`;
     } else {
       dbStatusPill.classList.remove('connected');
       dbStatusPill.classList.add('disconnected');
-      dbStatusText.textContent = `Database Offline`;
-      dbStatusPill.title = `Database error: ${data.message || 'Could not connect to database'}`;
+      dbStatusText.textContent = `System Offline`;
+      dbStatusPill.title = `System error: ${data.message || 'Could not connect to the system'}`;
     }
   } catch (err) {
     dbStatusPill.classList.remove('connected');
     dbStatusPill.classList.add('disconnected');
-    dbStatusText.textContent = `Database Offline`;
+    dbStatusText.textContent = `System Offline`;
     dbStatusPill.title = `Connection error: ${err.message}`;
   }
 }
@@ -465,7 +464,7 @@ if (form) {
 
       if (json.success) {
         showToast(
-          editingId ? 'Record updated in database' : 'Student saved to database',
+          editingId ? 'Student record updated' : 'Student saved',
           'The student profile and credentials were saved successfully.'
         );
         setTimeout(() => {
@@ -504,7 +503,7 @@ async function initFormEditMode() {
 
   if (formTitle) formTitle.textContent = 'Edit student profile';
   if (pageHeading) pageHeading.innerHTML = 'Edit <em>Student Record</em>';
-  if (submitText) submitText.textContent = 'Update student profile';
+  if (submitText) submitText.textContent = 'Update Student';
   if (cancelEdit) cancelEdit.classList.remove('hidden');
 
   try {
@@ -542,7 +541,7 @@ if (exportBtn) {
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
-    link.download = 'student-records.csv';
+    link.download = 'student-os-records.csv';
     link.click();
     URL.revokeObjectURL(link.href);
   });

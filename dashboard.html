@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#ea580c">
-  <title>Student Dashboard - PostgreSQL Connected</title>
+  <title>Dashboard | student-os.com</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
@@ -13,15 +13,15 @@
 <body data-page="dashboard">
   <div class="grain"></div>
   <header class="topbar">
-    <a href="dashboard.html" class="brand" aria-label="University Student Hub home">
-      <span class="brand-mark orange-mark">U</span>
-      <span>University<br><b>Student Hub</b></span>
+    <a href="dashboard.html" class="brand" aria-label="student-os.com home">
+      <span class="brand-mark orange-mark">S</span>
+      <span>student-os<br><b>.com</b></span>
     </a>
 
     <div class="header-center">
-      <div class="db-pill" id="dbStatusPill" title="PostgreSQL Database Connection Status">
+      <div class="db-pill" id="dbStatusPill" title="student-os.com system status">
         <span class="db-dot"></span>
-        <span id="dbStatusText">Checking PostgreSQL...</span>
+        <span id="dbStatusText">Checking system...</span>
       </div>
     </div>
 
@@ -47,9 +47,9 @@
   <main>
     <section class="hero compact-hero">
       <div class="hero-content">
-        <div class="eyebrow"><span></span> Live PostgreSQL Database Overview</div>
+        <div class="eyebrow"><span></span> Live student management overview</div>
         <h1>Student <em>Dashboard</em></h1>
-        <p>Real-time university enrollment statistics, campus distributions, and active student directory powered by PostgreSQL.</p>
+        <p>Manage enrollment, group membership, campus insights, and student records securely from student-os.com.</p>
       </div>
       <div class="hero-actions">
         <a href="form.html" class="btn-primary">
@@ -69,7 +69,7 @@
           <div class="stat-icon">↗</div>
           <span>Total students</span>
           <strong id="totalStudents">0</strong>
-          <small>PostgreSQL total records</small>
+          <small>All student-os.com records</small>
         </article>
         <article class="stat-card">
           <div class="stat-icon coral">＋</div>
@@ -139,7 +139,7 @@
       </article>
 
       <div class="directory-heading">
-        <div><span>Student directory</span><h3>All PostgreSQL Records</h3></div>
+        <div><span>Student directory</span><h3>All Student Records</h3></div>
         <small id="directorySummary">0 students</small>
       </div>
 
@@ -159,7 +159,7 @@
     </section>
   </main>
 
-  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved to PostgreSQL successfully.</small></p></div>
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved securely to student-os.com.</small></p></div>
 
   <script src="script.js"></script>
 </body>
