@@ -1254,6 +1254,18 @@ html[data-theme="dark"] .detail span,
 html[data-theme="dark"] .metric-row,
 html[data-theme="dark"] .language-split span,
 html[data-theme="dark"] .form-group label { color: #f6d4c4; }
+html[data-theme="dark"] .nav-link { color: #f6d4c4; }
+html[data-theme="dark"] .nav-link:hover,
+html[data-theme="dark"] .nav-link.active {
+  color: #fb923c;
+  background: #3a2118;
+}
+html[data-theme="dark"] .nav-link.btn-nav,
+html[data-theme="dark"] .nav-link.btn-nav:hover,
+html[data-theme="dark"] .nav-link.btn-nav.active {
+  color: #fff;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+}
 html[data-theme="dark"] .form-card,
 html[data-theme="dark"] .stat-card,
 html[data-theme="dark"] .insight-card,
