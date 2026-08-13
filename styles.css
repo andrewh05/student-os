@@ -989,6 +989,31 @@ legend { padding: 0; }
   stroke-width: 2;
   flex-shrink: 0;
 }
+.login-secondary-link { display: block; margin-top: 18px; text-align: center; color: var(--orange-primary); font-size: 12px; font-weight: 800; text-decoration: none; }
+.login-secondary-link:hover { text-decoration: underline; }
+.success-message { color: #15803d; }
+.signup-container { max-width: 500px; }
+.approval-card { margin-top: -25px; }
+.pending-users { display: grid; gap: 11px; margin-top: 24px; }
+.pending-user { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 12px; background: var(--orange-soft); }
+.pending-user strong, .pending-user span, .pending-user small { display: block; }
+.pending-user strong { font: 700 16px "Space Grotesk"; }
+.pending-user span { margin-top: 3px; color: var(--orange-primary); font-size: 11px; font-weight: 800; }
+.pending-user small { margin-top: 5px; color: var(--muted); font-size: 9px; }
+.pending-actions { display: flex; gap: 8px; }
+.pending-actions button { min-height: 38px; padding: 0 15px; border-radius: 8px; font: 800 10px "Manrope"; cursor: pointer; }
+.approve-user { border: 1px solid #22c55e; background: #dcfce7; color: #15803d; }
+.reject-user { border: 1px solid #fca5a5; background: #fff1f2; color: #dc2626; }
+.no-pending { margin: 0; padding: 25px; text-align: center; color: var(--muted); }
+.error-text { color: #dc2626; }
+html[data-theme="dark"] .pending-user { background: #170e0b; }
+html[data-theme="dark"] .approve-user { background: #12351f; color: #86efac; border-color: #267044; }
+html[data-theme="dark"] .reject-user { background: #351416; color: #fca5a5; border-color: #6b2529; }
+
+@media(max-width: 520px) {
+  .pending-user { align-items: flex-start; flex-direction: column; }
+  .pending-actions, .pending-actions button { width: 100%; }
+}
 
 @media(max-width: 1100px) {
   .topbar {

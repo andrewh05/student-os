@@ -58,4 +58,22 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-module.exports = { encryptValue, decryptValue, hashPassword, verifyPassword };
+function signSession(user) {
+  const payload = Buffer.from(JSON.stringify({ id: user.id, role: user.role, exp: Date.now() + 12 * 60 * 60 * 1000 })).toString('base64url');
+  const signature = crypto.createHmac('sha256', getEncryptionKey()).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+}
+
+function verifySession(token) {
+  try {
+    const [payload, signature] = String(token || '').split('.');
+    const expected = crypto.createHmac('sha256', getEncryptionKey()).update(payload).digest('base64url');
+    if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return session.exp > Date.now() ? session : null;
+  } catch {
+    return null;
+  }
+}
+
+module.exports = { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, verifySession };

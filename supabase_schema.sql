@@ -7,8 +7,10 @@ CREATE TABLE IF NOT EXISTS users (
   password VARCHAR(255) NOT NULL,
   full_name VARCHAR(150),
   role VARCHAR(50) DEFAULT 'admin',
+  approved BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT TRUE;
 
 -- Seed default admin user (username: admin, password: admin123)
 INSERT INTO users (username, password, full_name, role)

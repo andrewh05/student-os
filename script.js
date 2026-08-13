@@ -51,6 +51,8 @@ async function parseApiResponse(response) {
 const form = document.querySelector('#studentForm');
 const loginForm = document.querySelector('#loginForm');
 const userForm = document.querySelector('#userForm');
+const signupForm = document.querySelector('#signupForm');
+const pendingUsers = document.querySelector('#pendingUsers');
 const recordsGrid = document.querySelector('#recordsGrid');
 const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
@@ -84,6 +86,8 @@ function checkAuth() {
     return true;
   }
 
+  if (currentPage === 'signup') return true;
+
   if (!userJson) {
     window.location.replace('login.html');
     return false;
@@ -96,6 +100,7 @@ function checkAuth() {
     }
   } catch (err) {
     localStorage.removeItem('hub_user');
+    localStorage.removeItem('hub_token');
     window.location.replace('login.html');
     return false;
   }
@@ -144,6 +149,7 @@ if (loginForm) {
 
       if (json.success) {
         localStorage.setItem('hub_user', JSON.stringify(json.user));
+        localStorage.setItem('hub_token', json.token);
         showToast('Login Successful', `Welcome back, ${json.user.fullName || json.user.username}!`);
         setTimeout(() => {
           window.location.href = 'dashboard.html';
@@ -157,6 +163,69 @@ if (loginForm) {
       if (loginSubmitBtn) loginSubmitBtn.disabled = false;
     }
   });
+}
+
+if (signupForm) {
+  signupForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const message = document.querySelector('#signupMessage');
+    const button = document.querySelector('#signupSubmitBtn');
+    const values = Object.fromEntries(new FormData(signupForm).entries());
+    if (values.password !== values.confirmPassword) {
+      message.textContent = 'The passwords do not match.';
+      return;
+    }
+    button.disabled = true;
+    message.textContent = '';
+    delete values.confirmPassword;
+    try {
+      const response = await fetch(`${API_BASE}/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
+      const json = await parseApiResponse(response);
+      if (!json.success) throw new Error(json.error || 'Could not submit request');
+      signupForm.reset();
+      message.classList.add('success-message');
+      message.textContent = 'Request sent. You can sign in after an administrator approves your account.';
+    } catch (error) {
+      message.classList.remove('success-message');
+      message.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+}
+
+async function loadPendingUsers() {
+  if (!pendingUsers) return;
+  const count = document.querySelector('#pendingCount');
+  try {
+    const response = await fetch(`${API_BASE}/users/pending`, { headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not load requests');
+    count.textContent = `${json.data.length} pending`;
+    pendingUsers.innerHTML = json.data.length ? json.data.map(user => `
+      <article class="pending-user">
+        <div><strong>${escapeHtml(user.fullName)}</strong><span>@${escapeHtml(user.username)}</span><small>Requested ${new Date(user.createdAt).toLocaleDateString()}</small></div>
+        <div class="pending-actions"><button type="button" class="approve-user" onclick="reviewUser('${user.id}', true)">Approve</button><button type="button" class="reject-user" onclick="reviewUser('${user.id}', false)">Reject</button></div>
+      </article>`).join('') : '<p class="no-pending">No pending account requests.</p>';
+  } catch (error) {
+    count.textContent = 'Unavailable';
+    pendingUsers.innerHTML = `<p class="no-pending error-text">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function reviewUser(id, approved) {
+  try {
+    const response = await fetch(`${API_BASE}/users/${id}/approval`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` },
+      body: JSON.stringify({ approved })
+    });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not update request');
+    showToast(approved ? 'Account approved' : 'Request rejected', approved ? 'The user can now sign in.' : 'The request was removed.');
+    loadPendingUsers();
+  } catch (error) {
+    await showPopup({ title: 'Could not review account', message: error.message, danger: true });
+  }
 }
 
 if (userForm) {
@@ -617,6 +686,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   fetchStudents();
+  loadPendingUsers();
   initFormEditMode();
   // Periodically re-verify DB connection status
   setInterval(checkDbConnection, 15000);

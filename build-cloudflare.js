@@ -8,6 +8,7 @@ const assets = [
   'form.html',
   'users.html',
   'login.html',
+  'signup.html',
   'styles.css',
   'script.js'
 ];

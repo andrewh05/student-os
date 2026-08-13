@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
-const { encryptValue, decryptValue, hashPassword, verifyPassword } = require('./crypto');
+const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, verifySession } = require('./crypto');
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 
@@ -48,6 +48,13 @@ const hasLocalFilesystem = typeof __dirname !== 'undefined';
 if (hasLocalFilesystem) {
   app.use(express.static(path.join(__dirname)));
 }
+
+const requireAdmin = (req, res, next) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Administrator approval required' });
+  next();
+};
 
 // Health & DB Status Endpoint
 app.get('/api/db-status', async (req, res) => {
@@ -107,6 +114,64 @@ app.post('/api/users', async (req, res) => {
   }
 });
 
+// Public registration request. Accounts remain disabled until an admin approves them.
+app.post('/api/signup', async (req, res) => {
+  const { fullName, username, password } = req.body;
+  if (!fullName || !username || !password || username.trim().length < 3 || password.length < 8) {
+    return res.status(400).json({ success: false, error: 'Enter a full name, username of at least 3 characters, and password of at least 8 characters' });
+  }
+  try {
+    const { data: users, error: lookupError } = await supabase.from('users').select('id, username');
+    if (lookupError) throw lookupError;
+    const duplicate = (users || []).some(user => decryptValue(user.username, 'users.username').toLowerCase() === username.trim().toLowerCase());
+    if (duplicate) return res.status(409).json({ success: false, error: 'This username is already registered or awaiting approval' });
+    const { error } = await supabase.from('users').insert({
+      username: encryptValue(username.trim(), 'users.username'),
+      password: hashPassword(password),
+      full_name: encryptValue(fullName.trim(), 'users.full_name'),
+      role: encryptValue('staff', 'users.role'),
+      approved: false
+    });
+    if (error) throw error;
+    return res.status(201).json({ success: true, message: 'Your account request was sent for approval.' });
+  } catch (err) {
+    const migration = err.code === '42703' || /approved/i.test(err.message);
+    return res.status(500).json({ success: false, error: migration ? 'Account approvals need the database migration before registration can open.' : 'Could not submit account request' });
+  }
+});
+
+app.get('/api/users/pending', requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('users').select('id, username, full_name, role, created_at').eq('approved', false).order('created_at');
+    if (error) throw error;
+    return res.json({ success: true, data: (data || []).map(user => ({
+      id: user.id,
+      username: decryptValue(user.username, 'users.username'),
+      fullName: decryptValue(user.full_name, 'users.full_name'),
+      role: decryptValue(user.role, 'users.role'),
+      createdAt: user.created_at
+    })) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/users/:id/approval', requireAdmin, async (req, res) => {
+  const { approved } = req.body;
+  if (typeof approved !== 'boolean') return res.status(400).json({ success: false, error: 'approved must be true or false' });
+  try {
+    const query = approved
+      ? supabase.from('users').update({ approved: true }).eq('id', req.params.id).select('id').maybeSingle()
+      : supabase.from('users').delete().eq('id', req.params.id).select('id').maybeSingle();
+    const { data, error } = await query;
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Request not found' });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // LOGIN Endpoint (Username & Password authentication against PostgreSQL)
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;
@@ -117,12 +182,13 @@ app.post('/api/login', async (req, res) => {
 
   try {
     if (supabase) {
-      const { data: users, error } = await supabase.from('users').select('id, username, password, full_name, role');
+      const { data: users, error } = await supabase.from('users').select('id, username, password, full_name, role, approved');
       if (error) throw error;
       const data = (users || []).find(user => decryptValue(user.username, 'users.username').toLowerCase() === username.toLowerCase());
       if (!data || !verifyPassword(password, data.password)) {
         return res.status(401).json({ success: false, error: 'Invalid username or password' });
       }
+      if (data.approved === false) return res.status(403).json({ success: false, error: 'Your account is waiting for administrator approval' });
       if (!String(data.password).startsWith('scrypt:v1:')) {
         await supabase.from('users').update({ password: hashPassword(password) }).eq('id', data.id);
       }
@@ -132,7 +198,7 @@ app.post('/api/login', async (req, res) => {
       return res.json({
         success: true,
         message: 'Login successful',
-        token: `token-${data.id}-${Date.now()}`,
+        token: signSession({ id: data.id, role: decryptedRole }),
         user: { id: data.id, username: decryptedUsername, fullName: decryptedName || decryptedUsername, role: decryptedRole }
       });
     }
@@ -152,7 +218,7 @@ app.post('/api/login', async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
-      token: `token-${user.id}-${Date.now()}`,
+      token: signSession({ id: user.id, role: decryptValue(user.role, 'users.role') }),
       user: {
         id: user.id,
         username: decryptValue(user.username, 'users.username'),
