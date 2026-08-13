@@ -48,7 +48,7 @@ function checkAuth() {
   }
 
   if (!userJson) {
-    window.location.href = 'login.html';
+    window.location.href = 'index.html';
     return;
   }
 
@@ -59,7 +59,7 @@ function checkAuth() {
     }
   } catch (err) {
     localStorage.removeItem('hub_user');
-    window.location.href = 'login.html';
+    window.location.href = 'index.html';
   }
 }
 
@@ -69,7 +69,7 @@ if (logoutBtn) {
     localStorage.removeItem('hub_user');
     showToast('Logged out', 'You have been signed out successfully.');
     setTimeout(() => {
-      window.location.href = 'login.html';
+      window.location.href = 'index.html';
     }, 800);
   });
 }
