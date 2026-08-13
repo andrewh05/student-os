@@ -17,5 +17,6 @@
   },
   "vars": {
     "SUPABASE_URL": "https://tcwapqlphdxuqpgyrybq.supabase.co"
-  }
+  },
+  "triggers": { "crons": ["0 1 * * *"] }
 }

@@ -68,6 +68,7 @@ const dbStatusPill = document.querySelector('#dbStatusPill');
 const dbStatusText = document.querySelector('#dbStatusText');
 const logoutBtn = document.querySelector('#logoutBtn');
 const userNameDisplay = document.querySelector('#userNameDisplay');
+const backupStatus = document.querySelector('#backupStatus');
 
 let students = [];
 let editingId = null;
@@ -319,6 +320,55 @@ async function deleteSystemUser(id) {
     loadPendingUsers();
   } catch (error) { await showPopup({ title: 'Could not delete user', message: error.message, danger: true }); }
 }
+
+async function loadBackupStatus() {
+  if (!backupStatus) return;
+  const message = document.querySelector('#backupMessage');
+  try {
+    const response = await fetch(`${API_BASE}/backup/status`, { headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error);
+    backupStatus.textContent = json.connected ? 'Google Drive connected' : (json.configured ? 'Ready to connect' : 'Google OAuth setup required');
+    backupStatus.classList.toggle('connected', json.connected);
+    document.querySelector('#retentionDays').value = String(json.retentionDays);
+    document.querySelector('#backupEnabled').value = String(json.enabled);
+    document.querySelector('#lastBackup').textContent = json.lastBackupAt ? `${new Date(json.lastBackupAt).toLocaleString()} — ${json.lastBackupName}` : 'Never';
+    document.querySelector('#runBackupNow').disabled = !json.connected;
+    if (json.lastError) message.textContent = json.lastError;
+  } catch (error) { backupStatus.textContent = 'Unavailable'; message.textContent = error.message; }
+}
+
+const connectDrive = document.querySelector('#connectDrive');
+if (connectDrive) connectDrive.addEventListener('click', async () => {
+  try {
+    const response = await fetch(`${API_BASE}/backup/connect`, { headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error);
+    window.location.href = json.url;
+  } catch (error) { document.querySelector('#backupMessage').textContent = error.message; }
+});
+
+const runBackupNow = document.querySelector('#runBackupNow');
+if (runBackupNow) runBackupNow.addEventListener('click', async () => {
+  runBackupNow.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/backup/run`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error);
+    showToast('Backup complete', `${json.data.name} was saved to Google Drive.`);
+    loadBackupStatus();
+  } catch (error) { document.querySelector('#backupMessage').textContent = error.message; runBackupNow.disabled = false; }
+});
+
+const saveBackupSettings = document.querySelector('#saveBackupSettings');
+if (saveBackupSettings) saveBackupSettings.addEventListener('click', async () => {
+  try {
+    const response = await fetch(`${API_BASE}/backup/settings`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }, body: JSON.stringify({ retentionDays: Number(document.querySelector('#retentionDays').value), enabled: document.querySelector('#backupEnabled').value === 'true' }) });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error);
+    showToast('Settings saved', 'Your daily backup preferences were updated.');
+  } catch (error) { document.querySelector('#backupMessage').textContent = error.message; }
+});
 
 if (userForm) {
   userForm.addEventListener('submit', async event => {
@@ -780,6 +830,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fetchStudents();
   loadPendingUsers();
   loadAllUsers();
+  loadBackupStatus();
   initFormEditMode();
   // Periodically re-verify DB connection status
   setInterval(checkDbConnection, 15000);

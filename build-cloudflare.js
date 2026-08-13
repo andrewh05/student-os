@@ -9,6 +9,7 @@ const assets = [
   'users.html',
   'login.html',
   'signup.html',
+  'backup.html',
   'styles.css',
   'script.js'
 ];

@@ -5,6 +5,7 @@ require('dotenv').config();
 const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, verifySession } = require('./crypto');
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
+const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl } = require('./backup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -60,6 +61,42 @@ const requireAdmin = (req, res, next) => {
 app.get('/api/db-status', async (req, res) => {
   const status = await checkDbConnection();
   res.json(status);
+});
+
+app.get('/api/backup/status', requireAdmin, async (req, res) => {
+  try {
+    const settings = await getSettings();
+    res.json({ success: true, configured: Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET), connected: Boolean(settings?.refresh_token), enabled: Boolean(settings?.enabled), retentionDays: settings?.retention_days || 30, lastBackupAt: settings?.last_backup_at || null, lastBackupName: settings?.last_backup_name || null, lastError: settings?.last_error || null });
+  } catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.get('/api/backup/connect', requireAdmin, (req, res) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) return res.status(503).json({ success: false, error: 'Google OAuth secrets are not configured in Cloudflare' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  res.json({ success: true, url: googleAuthorizationUrl(token) });
+});
+
+app.get('/api/google-drive/callback', async (req, res) => {
+  const session = verifySession(req.query.state);
+  if (!session || session.role !== 'admin') return res.status(403).send('Invalid or expired administrator session.');
+  try {
+    if (!req.query.code) throw new Error(req.query.error || 'Google authorization was cancelled');
+    await exchangeGoogleCode(req.query.code);
+    res.redirect(302, '/backup.html?connected=1');
+  } catch (error) { res.redirect(302, `/backup.html?error=${encodeURIComponent(error.message)}`); }
+});
+
+app.post('/api/backup/run', requireAdmin, async (req, res) => {
+  try { res.json({ success: true, data: await runGoogleDriveBackup() }); }
+  catch (error) { res.status(500).json({ success: false, error: error.message }); }
+});
+
+app.patch('/api/backup/settings', requireAdmin, async (req, res) => {
+  const retentionDays = Number(req.body.retentionDays);
+  if (!Number.isInteger(retentionDays) || retentionDays < 1 || retentionDays > 365) return res.status(400).json({ success: false, error: 'Retention must be between 1 and 365 days' });
+  const { error } = await supabase.from('backup_settings').update({ enabled: Boolean(req.body.enabled), retention_days: retentionDays }).eq('id', 1);
+  if (error) return res.status(500).json({ success: false, error: error.message });
+  res.json({ success: true });
 });
 
 app.use(['/api/students', '/api/users'], (req, res, next) => {
