@@ -71,6 +71,7 @@ const userNameDisplay = document.querySelector('#userNameDisplay');
 
 let students = [];
 let editingId = null;
+let systemUsers = [];
 
 const escapeHtml = (value = '') => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
 
@@ -238,6 +239,7 @@ async function loadAllUsers() {
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not load users');
     count.textContent = `${json.data.length} user${json.data.length === 1 ? '' : 's'}`;
+    systemUsers = json.data;
     allUsersList.innerHTML = json.data.length ? json.data.map(user => `
       <article class="system-user">
         <div class="system-user-avatar">${escapeHtml(`${user.fullName?.[0] || user.username?.[0] || 'U'}`.toUpperCase())}</div>
@@ -245,11 +247,77 @@ async function loadAllUsers() {
         <span class="user-role">${escapeHtml(user.role)}</span>
         <span class="user-status ${user.approved ? 'approved' : 'pending'}">${user.approved ? 'Approved' : 'Pending'}</span>
         <small>${new Date(user.createdAt).toLocaleDateString()}</small>
+        <div class="system-user-actions"><button type="button" class="edit-user" onclick="openUserEditor('${user.id}')">Edit</button><button type="button" class="delete-user" onclick="deleteSystemUser('${user.id}')">Delete</button></div>
       </article>`).join('') : '<p class="no-pending">No user accounts found.</p>';
   } catch (error) {
     count.textContent = 'Unavailable';
     allUsersList.innerHTML = `<p class="no-pending error-text">${escapeHtml(error.message)}</p>`;
   }
+}
+
+function openUserEditor(id) {
+  const user = systemUsers.find(item => item.id === id);
+  const overlay = document.querySelector('#userEditorOverlay');
+  const editor = document.querySelector('#userEditorForm');
+  if (!user || !overlay || !editor) return;
+  editor.elements.id.value = user.id;
+  editor.elements.fullName.value = user.fullName || '';
+  editor.elements.username.value = user.username || '';
+  editor.elements.role.value = user.role;
+  editor.elements.approved.value = String(user.approved);
+  editor.elements.password.value = '';
+  document.querySelector('#userEditorMessage').textContent = '';
+  overlay.classList.add('show');
+  overlay.setAttribute('aria-hidden', 'false');
+  editor.elements.fullName.focus();
+}
+
+function closeUserEditor() {
+  const overlay = document.querySelector('#userEditorOverlay');
+  if (overlay) { overlay.classList.remove('show'); overlay.setAttribute('aria-hidden', 'true'); }
+}
+
+const userEditorForm = document.querySelector('#userEditorForm');
+if (userEditorForm) {
+  userEditorForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(userEditorForm).entries());
+    const id = values.id;
+    values.approved = values.approved === 'true';
+    delete values.id;
+    if (!values.password) delete values.password;
+    const message = document.querySelector('#userEditorMessage');
+    const submit = userEditorForm.querySelector('[type="submit"]');
+    submit.disabled = true;
+    try {
+      const response = await fetch(`${API_BASE}/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }, body: JSON.stringify(values) });
+      const json = await parseApiResponse(response);
+      if (!json.success) throw new Error(json.error || 'Could not update user');
+      closeUserEditor();
+      showToast('User updated', 'The account changes were saved.');
+      loadAllUsers();
+      loadPendingUsers();
+    } catch (error) { message.textContent = error.message; }
+    finally { submit.disabled = false; }
+  });
+  document.querySelector('#userEditorClose').addEventListener('click', closeUserEditor);
+  document.querySelector('#userEditorCancel').addEventListener('click', closeUserEditor);
+  document.querySelector('#userEditorOverlay').addEventListener('click', event => { if (event.target.id === 'userEditorOverlay') closeUserEditor(); });
+}
+
+async function deleteSystemUser(id) {
+  const user = systemUsers.find(item => item.id === id);
+  const name = user?.fullName || user?.username || 'This user';
+  const confirmed = await showPopup({ title: 'Delete user account?', message: `${name} will permanently lose access to student-os.com.`, confirmLabel: 'Delete user', showCancel: true, danger: true });
+  if (!confirmed) return;
+  try {
+    const response = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not delete user');
+    showToast('User deleted', 'The account was permanently removed.');
+    loadAllUsers();
+    loadPendingUsers();
+  } catch (error) { await showPopup({ title: 'Could not delete user', message: error.message, danger: true }); }
 }
 
 if (userForm) {

@@ -189,6 +189,52 @@ app.patch('/api/users/:id/approval', requireAdmin, async (req, res) => {
   }
 });
 
+app.put('/api/users/:id', requireAdmin, async (req, res) => {
+  const { fullName, username, role, approved, password } = req.body;
+  if (!fullName || !username || username.trim().length < 3 || !['admin', 'staff'].includes(role) || typeof approved !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'Enter a valid name, username, role, and approval status' });
+  }
+  if (password && password.length < 8) return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (session.id === req.params.id && (role !== 'admin' || !approved)) {
+    return res.status(400).json({ success: false, error: 'You cannot demote or disable your own administrator account' });
+  }
+  try {
+    const { data: users, error: lookupError } = await supabase.from('users').select('id, username');
+    if (lookupError) throw lookupError;
+    const duplicate = (users || []).some(user => user.id !== req.params.id && decryptValue(user.username, 'users.username').toLowerCase() === username.trim().toLowerCase());
+    if (duplicate) return res.status(409).json({ success: false, error: 'This username already exists' });
+    const update = {
+      full_name: encryptValue(fullName.trim(), 'users.full_name'),
+      username: encryptValue(username.trim(), 'users.username'),
+      role: encryptValue(role, 'users.role'),
+      approved
+    };
+    if (password) update.password = hashPassword(password);
+    const { data, error } = await supabase.from('users').update(update).eq('id', req.params.id).select('id').maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'User not found' });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/users/:id', requireAdmin, async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (session.id === req.params.id) return res.status(400).json({ success: false, error: 'You cannot delete your own administrator account' });
+  try {
+    const { data, error } = await supabase.from('users').delete().eq('id', req.params.id).select('id').maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'User not found' });
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // LOGIN Endpoint (Username & Password authentication against PostgreSQL)
 app.post('/api/login', async (req, res) => {
   const { username, password } = req.body;

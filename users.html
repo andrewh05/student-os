@@ -69,6 +69,24 @@
       <div class="card-heading"><div><span class="step">DIRECTORY</span><h2>All system users</h2></div><p id="allUsersCount">Loading…</p></div>
       <div id="allUsersList" class="all-users-list"></div>
     </section>
+
+    <div class="user-editor-overlay" id="userEditorOverlay" aria-hidden="true">
+      <section class="user-editor" role="dialog" aria-modal="true" aria-labelledby="userEditorTitle">
+        <div class="card-heading"><div><span class="step">EDIT</span><h2 id="userEditorTitle">Edit user account</h2></div><button type="button" class="editor-close" id="userEditorClose" aria-label="Close">×</button></div>
+        <form id="userEditorForm">
+          <input type="hidden" name="id">
+          <div class="fields two-cols editor-fields">
+            <label><span>Full name *</span><input name="fullName" required></label>
+            <label><span>Username *</span><input name="username" minlength="3" required></label>
+            <label><span>Role *</span><select name="role"><option value="staff">Staff</option><option value="admin">Administrator</option></select></label>
+            <label><span>Status *</span><select name="approved"><option value="true">Approved</option><option value="false">Pending</option></select></label>
+            <label class="editor-password"><span>New password</span><input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
+          </div>
+          <p class="form-message" id="userEditorMessage" role="status"></p>
+          <div class="form-actions"><button type="button" class="cancel-btn" id="userEditorCancel">Cancel</button><button type="submit" class="submit-btn">Save changes</button></div>
+        </form>
+      </section>
+    </div>
   </main>
   <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">User created</b><small id="toastMsg">The student-os.com account is ready.</small></p></div>
   <script src="script.js"></script>
