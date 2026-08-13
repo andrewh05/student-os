@@ -156,6 +156,23 @@ app.get('/api/users/pending', requireAdmin, async (req, res) => {
   }
 });
 
+app.get('/api/users/all', requireAdmin, async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('users').select('id, username, full_name, role, approved, created_at').order('created_at');
+    if (error) throw error;
+    return res.json({ success: true, data: (data || []).map(user => ({
+      id: user.id,
+      username: decryptValue(user.username, 'users.username'),
+      fullName: decryptValue(user.full_name, 'users.full_name'),
+      role: decryptValue(user.role, 'users.role'),
+      approved: user.approved !== false,
+      createdAt: user.created_at
+    })) });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.patch('/api/users/:id/approval', requireAdmin, async (req, res) => {
   const { approved } = req.body;
   if (typeof approved !== 'boolean') return res.status(400).json({ success: false, error: 'approved must be true or false' });

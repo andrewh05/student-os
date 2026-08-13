@@ -53,6 +53,7 @@ const loginForm = document.querySelector('#loginForm');
 const userForm = document.querySelector('#userForm');
 const signupForm = document.querySelector('#signupForm');
 const pendingUsers = document.querySelector('#pendingUsers');
+const allUsersList = document.querySelector('#allUsersList');
 const recordsGrid = document.querySelector('#recordsGrid');
 const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
@@ -223,8 +224,31 @@ async function reviewUser(id, approved) {
     if (!json.success) throw new Error(json.error || 'Could not update request');
     showToast(approved ? 'Account approved' : 'Request rejected', approved ? 'The user can now sign in.' : 'The request was removed.');
     loadPendingUsers();
+    loadAllUsers();
   } catch (error) {
     await showPopup({ title: 'Could not review account', message: error.message, danger: true });
+  }
+}
+
+async function loadAllUsers() {
+  if (!allUsersList) return;
+  const count = document.querySelector('#allUsersCount');
+  try {
+    const response = await fetch(`${API_BASE}/users/all`, { headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not load users');
+    count.textContent = `${json.data.length} user${json.data.length === 1 ? '' : 's'}`;
+    allUsersList.innerHTML = json.data.length ? json.data.map(user => `
+      <article class="system-user">
+        <div class="system-user-avatar">${escapeHtml(`${user.fullName?.[0] || user.username?.[0] || 'U'}`.toUpperCase())}</div>
+        <div class="system-user-identity"><strong>${escapeHtml(user.fullName || user.username)}</strong><span>@${escapeHtml(user.username)}</span></div>
+        <span class="user-role">${escapeHtml(user.role)}</span>
+        <span class="user-status ${user.approved ? 'approved' : 'pending'}">${user.approved ? 'Approved' : 'Pending'}</span>
+        <small>${new Date(user.createdAt).toLocaleDateString()}</small>
+      </article>`).join('') : '<p class="no-pending">No user accounts found.</p>';
+  } catch (error) {
+    count.textContent = 'Unavailable';
+    allUsersList.innerHTML = `<p class="no-pending error-text">${escapeHtml(error.message)}</p>`;
   }
 }
 
@@ -687,6 +711,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkDbConnection();
   fetchStudents();
   loadPendingUsers();
+  loadAllUsers();
   initFormEditMode();
   // Periodically re-verify DB connection status
   setInterval(checkDbConnection, 15000);

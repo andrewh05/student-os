@@ -1006,13 +1006,33 @@ legend { padding: 0; }
 .reject-user { border: 1px solid #fca5a5; background: #fff1f2; color: #dc2626; }
 .no-pending { margin: 0; padding: 25px; text-align: center; color: var(--muted); }
 .error-text { color: #dc2626; }
+.user-directory-card { margin-top: -25px; }
+.all-users-list { display: grid; gap: 9px; margin-top: 24px; }
+.system-user { display: grid; grid-template-columns: 42px minmax(150px, 1fr) auto auto auto; align-items: center; gap: 14px; padding: 13px 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--orange-soft); }
+.system-user-avatar { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 11px; background: var(--orange-light); color: var(--orange-primary); font: 800 16px "Space Grotesk"; }
+.system-user-identity { min-width: 0; }
+.system-user-identity strong, .system-user-identity span { display: block; overflow-wrap: anywhere; }
+.system-user-identity strong { font: 700 14px "Space Grotesk"; }
+.system-user-identity span { margin-top: 3px; color: var(--muted); font-size: 10px; }
+.user-role, .user-status { padding: 5px 9px; border-radius: 15px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
+.user-role { background: var(--orange-light); color: var(--orange-dark); }
+.user-status.approved { background: #dcfce7; color: #15803d; }
+.user-status.pending { background: #fef3c7; color: #a16207; }
+.system-user > small { color: var(--muted); font-size: 9px; white-space: nowrap; }
 html[data-theme="dark"] .pending-user { background: #170e0b; }
+html[data-theme="dark"] .system-user { background: #170e0b; }
+html[data-theme="dark"] .user-status.approved { background: #12351f; color: #86efac; }
+html[data-theme="dark"] .user-status.pending { background: #3b2d0d; color: #fde68a; }
 html[data-theme="dark"] .approve-user { background: #12351f; color: #86efac; border-color: #267044; }
 html[data-theme="dark"] .reject-user { background: #351416; color: #fca5a5; border-color: #6b2529; }
 
 @media(max-width: 520px) {
   .pending-user { align-items: flex-start; flex-direction: column; }
   .pending-actions, .pending-actions button { width: 100%; }
+  .system-user { grid-template-columns: 42px minmax(0, 1fr) auto; }
+  .system-user > small { grid-column: 2; }
+  .user-role { grid-column: 3; grid-row: 1; }
+  .user-status { grid-column: 3; grid-row: 2; }
 }
 
 @media(max-width: 1100px) {
