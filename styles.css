@@ -1043,8 +1043,8 @@ legend { padding: 0; }
     background: rgba(255, 255, 255, .97);
     border-bottom: 1px solid var(--orange-light);
   }
-  .nav-link { min-height: 36px; padding: 7px 10px; font-size: 11px; }
-  .nav-link svg { display: none; }
+  .nav-link { min-height: 36px; padding: 7px 9px; font-size: 11px; gap: 5px; }
+  .nav-link svg { display: block; width: 14px; height: 14px; flex: 0 0 14px; }
   main { padding: 74px 16px 60px; }
   .hero h1 { font-size: 34px; }
   .hero > p, .hero-content > p { font-size: 13px; line-height: 1.65; }
