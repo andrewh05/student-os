@@ -1339,6 +1339,14 @@ html[data-theme="dark"] .user-badge { background: var(--paper); border-color: va
 html[data-theme="dark"] input,
 html[data-theme="dark"] select,
 html[data-theme="dark"] .segmented span { background-color: #170e0b; border-color: var(--line); color: var(--ink); }
+html[data-theme="dark"] .segmented input:checked + span {
+  background: var(--orange-primary);
+  color: #fff;
+}
+.segmented input:focus-visible + span {
+  outline: 3px solid rgba(249, 115, 22, .35);
+  outline-offset: -3px;
+}
 html[data-theme="dark"] input::placeholder { color: #80675e; }
 html[data-theme="dark"] input:focus,
 html[data-theme="dark"] select:focus { background-color: #1b110d; }
