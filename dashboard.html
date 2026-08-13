@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ea580c">
+  <title>Dashboard | student-os.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="dashboard">
+  <div class="grain"></div>
+  <header class="topbar">
+    <a href="dashboard.html" class="brand" aria-label="student-os.com home">
+      <span class="brand-mark orange-mark">S</span>
+      <span>student-os<br><b>.com</b></span>
+    </a>
+
+    <div class="header-center">
+      <div class="db-pill" id="dbStatusPill" title="student-os.com system status">
+        <span class="db-dot"></span>
+        <span id="dbStatusText">Checking system...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <nav class="nav-links">
+        <span class="nav-link active">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </span>
+        <a href="form.html" class="nav-link btn-nav">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add Student
+        </a>
+        <a href="users.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 11a4 4 0 0 1 5 4v2"/></svg>Users</a>
+      </nav>
+      <div class="user-badge" id="userBadge">
+        <span class="user-name" id="userNameDisplay">Admin</span>
+        <button type="button" class="btn-logout" id="logoutBtn" title="Sign Out">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero compact-hero">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> Live student management overview</div>
+        <h1>Student <em>Dashboard</em></h1>
+        <p>Manage enrollment, group membership, campus insights, and student records securely from student-os.com.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="form.html" class="btn-primary">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add New Student
+        </a>
+        <button id="exportBtn" class="export-btn" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+        </button>
+      </div>
+    </section>
+
+    <section class="records" id="recordsSection">
+      <div class="stats-grid">
+        <article class="stat-card featured">
+          <div class="stat-icon">↗</div>
+          <span>Total students</span>
+          <strong id="totalStudents">0</strong>
+          <small>All student-os.com records</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon coral">＋</div>
+          <span>New students</span>
+          <strong id="newStudents">0</strong>
+          <small id="newPercentage">0% of total</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon sand">↻</div>
+          <span>Mu3id students</span>
+          <strong id="returningStudents">0</strong>
+          <small id="returningPercentage">0% of total</small>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon mint">⌂</div>
+          <span>Schools</span>
+          <strong id="schoolCount">0</strong>
+          <small>Unique secondary schools</small>
+        </article>
+        <article class="stat-card group-stat-card">
+          <div class="stat-icon group">✓</div>
+          <span>Students in group</span>
+          <strong id="groupStudents">0</strong>
+          <small id="groupPercentage">0% of total</small>
+        </article>
+      </div>
+
+      <div class="insights-grid">
+        <article class="insight-card">
+          <div class="insight-heading">
+            <div><span>Campus distribution</span><h3>Students by campus</h3></div>
+            <div class="donut" id="campusDonut"><b id="donutTotal">0</b><small>Total</small></div>
+          </div>
+          <div class="metric-row"><div><i class="dot fanar"></i><span>Fanar</span></div><b id="fanarCount">0</b></div>
+          <div class="progress"><i id="fanarBar"></i></div>
+          <div class="metric-row"><div><i class="dot amshit"></i><span>Amshit</span></div><b id="amshitCount">0</b></div>
+          <div class="progress amshit-progress"><i id="amshitBar"></i></div>
+        </article>
+
+        <article class="insight-card">
+          <div class="insight-heading">
+            <div><span>Language preference</span><h3>French vs. English</h3></div>
+            <span class="insight-badge">Live DB</span>
+          </div>
+          <div class="language-split">
+            <div><strong id="frenchPercent">0%</strong><span>French</span><small id="frenchCount">0 students</small></div>
+            <div class="split-line"></div>
+            <div><strong id="englishPercent">0%</strong><span>English</span><small id="englishCount">0 students</small></div>
+          </div>
+          <div class="stacked-bar"><i id="frenchBar"></i><i id="englishBar"></i></div>
+        </article>
+      </div>
+
+      <article class="major-insight-card">
+        <div class="major-insight-heading">
+          <div><span>Academic distribution</span><h3>Students by major</h3></div>
+          <span class="insight-badge">6 majors</span>
+        </div>
+        <div class="major-stats-grid">
+          <div class="major-stat" data-major="Mathematics"><div class="major-stat-top"><span>Mathematics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Informatics"><div class="major-stat-top"><span>Informatics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Statistics"><div class="major-stat-top"><span>Statistics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Physics"><div class="major-stat-top"><span>Physics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Chemistry"><div class="major-stat-top"><span>Chemistry</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Electronics"><div class="major-stat-top"><span>Electronics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+        </div>
+      </article>
+
+      <div class="directory-heading">
+        <div><span>Student directory</span><h3>All Student Records</h3></div>
+        <small id="directorySummary">0 students</small>
+      </div>
+
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
+        <input id="searchInput" type="search" placeholder="Search by name, school, major, phone or email..." aria-label="Search student records">
+      </div>
+
+      <div class="student-filters" aria-label="Filter student records">
+        <label><span>Status</span><select id="statusFilter"><option value="">All statuses</option><option value="New">New</option><option value="Mu3id">Mu3id</option></select></label>
+        <label><span>Campus</span><select id="campusFilter"><option value="">All campuses</option><option value="Fanar">Fanar</option><option value="Amshit">Amshit</option></select></label>
+        <label><span>Language</span><select id="languageFilter"><option value="">All languages</option><option value="French">French</option><option value="English">English</option></select></label>
+        <label><span>Group</span><select id="groupFilter"><option value="">All students</option><option value="in">In group</option><option value="out">Not in group</option></select></label>
+        <button type="button" id="clearFilters" class="clear-filters">Clear filters</button>
+      </div>
+
+      <div id="recordsGrid" class="records-grid"></div>
+
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">📁</div>
+        <h3>No students found</h3>
+        <p>No student records match your filter or the database is currently empty.</p>
+        <a href="form.html" class="btn-primary inline-btn">+ Add First Student</a>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved securely to student-os.com.</small></p></div>
+
+  <script src="script.js"></script>
+</body>
+</html>

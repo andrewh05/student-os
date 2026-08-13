@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ea580c">
+  <title>Add Student | student-os.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="form">
+  <div class="grain"></div>
+  <header class="topbar">
+    <a href="dashboard.html" class="brand" aria-label="student-os.com home">
+      <span class="brand-mark orange-mark">S</span>
+      <span>student-os<br><b>.com</b></span>
+    </a>
+
+    <div class="header-center">
+      <div class="db-pill" id="dbStatusPill" title="student-os.com system status">
+        <span class="db-dot"></span>
+        <span id="dbStatusText">Checking system...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <nav class="nav-links">
+        <a href="dashboard.html" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a href="form.html" class="nav-link active btn-nav">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add Student
+        </a>
+        <a href="users.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 11a4 4 0 0 1 5 4v2"/></svg>Users</a>
+      </nav>
+      <div class="user-badge" id="userBadge">
+        <span class="user-name" id="userNameDisplay">Admin</span>
+        <button type="button" class="btn-logout" id="logoutBtn" title="Sign Out">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero compact-hero">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> Secure student registration</div>
+        <h1 id="pageHeading">Add New <em>Student Profile</em></h1>
+        <p>Add a complete student profile securely to student-os.com.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="dashboard.html" class="btn-secondary">
+          ← Back to Dashboard
+        </a>
+      </div>
+    </section>
+
+    <section class="form-card" id="formCard">
+      <div class="card-heading">
+        <div>
+          <span class="step" id="formBadge">STUDENT OS</span>
+          <h2 id="formTitle">Create student profile</h2>
+        </div>
+        <p>Fields marked <b>*</b> are required</p>
+      </div>
+
+      <form id="studentForm" novalidate>
+        <div class="section-label"><span>Personal Information</span></div>
+        <div class="fields three-cols">
+          <label><span>First name *</span><input name="firstName" autocomplete="given-name" required placeholder="e.g. Carla"></label>
+          <label><span>Father's name *</span><input name="fatherName" required placeholder="e.g. Joseph"></label>
+          <label><span>Family name *</span><input name="familyName" autocomplete="family-name" required placeholder="e.g. Khoury"></label>
+        </div>
+        <div class="fields two-cols">
+          <label><span>Origin <small>Town / Village</small></span><input name="origin" placeholder="e.g. Batroun"></label>
+          <label><span>Address</span><input name="address" autocomplete="street-address" placeholder="Street, city"></label>
+        </div>
+
+        <div class="section-label"><span>University Details</span></div>
+        <div class="fields two-cols">
+          <label><span>Previous school *</span><input name="school" required placeholder="e.g. Collège des Apôtres"></label>
+          <label><span>University major *</span>
+            <select name="major" required>
+              <option value="" selected disabled>Select a major</option>
+              <option value="Mathematics">Mathematics</option>
+              <option value="Informatics">Informatics</option>
+              <option value="Statistics">Statistics</option>
+              <option value="Physics">Physics</option>
+              <option value="Chemistry">Chemistry</option>
+              <option value="Electronics">Electronics</option>
+            </select>
+          </label>
+        </div>
+        <div class="fields three-cols choice-row">
+          <fieldset>
+            <legend>Student status *</legend>
+            <div class="segmented">
+              <label><input type="radio" name="status" value="New" checked><span>New</span></label>
+              <label><input type="radio" name="status" value="Mu3id"><span>Mu3id</span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Language *</legend>
+            <div class="segmented">
+              <label><input type="radio" name="language" value="French" checked><span>French</span></label>
+              <label><input type="radio" name="language" value="English"><span>English</span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Campus *</legend>
+            <div class="segmented">
+              <label><input type="radio" name="campus" value="Fanar" checked><span>Fanar</span></label>
+              <label><input type="radio" name="campus" value="Amshit"><span>Amshit</span></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <div class="section-label"><span>Contact Information</span></div>
+        <div class="fields two-cols">
+          <label><span>Phone number *</span><input name="phone" type="tel" autocomplete="tel" required placeholder="+961 03 123 456"></label>
+          <label><span>Email address *</span><input name="email" type="email" autocomplete="email" required placeholder="student@example.com"></label>
+        </div>
+
+        <div class="form-actions">
+          <button class="cancel-btn hidden" id="cancelEdit" type="button">Cancel edit</button>
+          <button class="submit-btn" type="submit" id="submitBtn">
+            <span id="submitText">Save Student</span>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 14 0m-5-5 5 5-5 5"/></svg>
+          </button>
+        </div>
+        <p class="form-message" id="formMessage" role="status"></p>
+      </form>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved securely to student-os.com.</small></p></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
