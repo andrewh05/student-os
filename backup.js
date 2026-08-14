@@ -33,10 +33,48 @@ async function createFolder(accessToken) {
   return driveRequest('https://www.googleapis.com/drive/v3/files', accessToken, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'student-os-backups', mimeType: 'application/vnd.google-apps.folder' }) });
 }
 
-async function uploadBackup(accessToken, folderId, backup) {
+const quoteIdentifier = identifier => `"${String(identifier).replace(/"/g, '""')}"`;
+
+const sqlLiteral = value => {
+  if (value === null || value === undefined) return 'NULL';
+  if (typeof value === 'boolean') return value ? 'TRUE' : 'FALSE';
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  return `'${String(value).replace(/'/g, "''")}'`;
+};
+
+function insertStatements(table, rows) {
+  if (!rows.length) return `-- ${table}: no rows`;
+  const columns = Object.keys(rows[0]);
+  const columnList = columns.map(quoteIdentifier).join(', ');
+  return rows.map(row => {
+    const values = columns.map(column => sqlLiteral(row[column])).join(', ');
+    return `INSERT INTO public.${quoteIdentifier(table)} (${columnList}) VALUES (${values});`;
+  }).join('\n');
+}
+
+function buildSqlBackup(students, users, createdAt = new Date().toISOString()) {
+  return [
+    '-- student-os.com encrypted PostgreSQL backup',
+    `-- Created: ${createdAt}`,
+    '-- Restore with the same DATA_ENCRYPTION_KEY used when this backup was created.',
+    '-- Run supabase_schema.sql first if the tables do not exist.',
+    '',
+    'BEGIN;',
+    'TRUNCATE TABLE public.students, public.users;',
+    '',
+    insertStatements('users', users),
+    '',
+    insertStatements('students', students),
+    '',
+    'COMMIT;',
+    ''
+  ].join('\n');
+}
+
+async function uploadBackup(accessToken, folderId, sql) {
   const boundary = `student_os_${crypto.randomUUID()}`;
-  const name = `student-os-backup_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [folderId] })}\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${JSON.stringify(backup)}\r\n--${boundary}--`;
+  const name = `student-os-backup_${new Date().toISOString().replace(/[:.]/g, '-')}.sql`;
+  const body = `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [folderId] })}\r\n--${boundary}\r\nContent-Type: application/sql; charset=UTF-8\r\n\r\n${sql}\r\n--${boundary}--`;
   return driveRequest('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,createdTime', accessToken, { method: 'POST', headers: { 'Content-Type': `multipart/related; boundary=${boundary}` }, body });
 }
 
@@ -56,7 +94,7 @@ async function runGoogleDriveBackup() {
   const [{ data: students, error: studentsError }, { data: users, error: usersError }] = await Promise.all([supabase.from('students').select('*'), supabase.from('users').select('*')]);
   if (studentsError) throw studentsError;
   if (usersError) throw usersError;
-  const file = await uploadBackup(accessToken, settings.folder_id, { version: 1, createdAt: new Date().toISOString(), encrypted: true, tables: { students, users } });
+  const file = await uploadBackup(accessToken, settings.folder_id, buildSqlBackup(students || [], users || []));
   await cleanupOldBackups(accessToken, settings.folder_id, settings.retention_days || 30);
   await supabase.from('backup_settings').update({ last_backup_at: new Date().toISOString(), last_backup_name: file.name, last_error: null }).eq('id', 1);
   return file;
@@ -75,4 +113,4 @@ function googleAuthorizationUrl(state) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${new URLSearchParams({ client_id: process.env.GOOGLE_CLIENT_ID, redirect_uri: REDIRECT_URI, response_type: 'code', scope: DRIVE_SCOPE, access_type: 'offline', prompt: 'consent', state })}`;
 }
 
-module.exports = { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl };
+module.exports = { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl, buildSqlBackup };
