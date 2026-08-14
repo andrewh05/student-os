@@ -43,6 +43,54 @@ const toStudentRow = student => ({
   email: encryptValue(student.email, 'students.email')
 });
 
+const normalizeText = value => String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+const normalizePhone = value => String(value || '').replace(/\D/g, '');
+
+const studentIdentity = student => ({
+  name: [student.firstName, student.fatherName, student.familyName].map(normalizeText).join('|'),
+  email: normalizeText(student.email),
+  phone: normalizePhone(student.phone)
+});
+
+const duplicateReason = (candidate, existingStudents) => {
+  const identity = studentIdentity(candidate);
+  for (const student of existingStudents) {
+    const existing = studentIdentity(student);
+    if (identity.email && identity.email === existing.email) return 'email address';
+    if (identity.phone && identity.phone === existing.phone) return 'phone number';
+    if (identity.name && identity.name === existing.name) return 'full name';
+  }
+  return null;
+};
+
+async function findDuplicateStudent(candidate, excludedId = null) {
+  let students;
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('students')
+      .select('id, first_name, father_name, family_name, phone, email');
+    if (error) throw error;
+    students = (data || []).map(mapStudent);
+  } else {
+    const { rows } = await pool.query(
+      'SELECT id, first_name, father_name, family_name, phone, email FROM students'
+    );
+    students = rows.map(row => ({
+      id: row.id,
+      firstName: decryptValue(row.first_name, 'students.first_name'),
+      fatherName: decryptValue(row.father_name, 'students.father_name'),
+      familyName: decryptValue(row.family_name, 'students.family_name'),
+      phone: decryptValue(row.phone, 'students.phone'),
+      email: decryptValue(row.email, 'students.email')
+    }));
+  }
+
+  return duplicateReason(
+    candidate,
+    students.filter(student => String(student.id) !== String(excludedId))
+  );
+}
+
 app.use(cors());
 app.use(express.json());
 const hasLocalFilesystem = typeof __dirname !== 'undefined';
@@ -417,6 +465,14 @@ app.post('/api/students', async (req, res) => {
   }
 
   try {
+    const duplicateField = await findDuplicateStudent(req.body);
+    if (duplicateField) {
+      return res.status(409).json({
+        success: false,
+        error: `This student already exists (matching ${duplicateField})`
+      });
+    }
+
     if (supabase) {
       const { data, error } = await supabase.from('students').insert(toStudentRow(req.body)).select().single();
       if (error) throw error;
@@ -463,6 +519,14 @@ app.put('/api/students/:id', async (req, res) => {
   }
 
   try {
+    const duplicateField = await findDuplicateStudent(req.body, id);
+    if (duplicateField) {
+      return res.status(409).json({
+        success: false,
+        error: `Another student already exists with this ${duplicateField}`
+      });
+    }
+
     if (supabase) {
       const { data, error } = await supabase.from('students').update(toStudentRow(req.body)).eq('id', id).select().maybeSingle();
       if (error) throw error;

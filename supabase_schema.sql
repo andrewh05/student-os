@@ -14,7 +14,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN NOT NULL DEFAULT TRU
 
 -- Seed default admin user (username: admin, password: admin123)
 INSERT INTO users (username, password, full_name, role)
-VALUES ('admin', 'admin123', 'Andrew Haddad', 'admin')
+VALUES ('andrew', 'andrew123', 'Andrew Haddad', 'admin')
 ON CONFLICT (username) DO NOTHING;
 
 -- 2. Create students table with username & password credentials
