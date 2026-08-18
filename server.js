@@ -19,6 +19,7 @@ const mapStudent = row => ({
   address: decryptValue(row.address, 'students.address'),
   school: decryptValue(row.school, 'students.school'),
   major: decryptValue(row.major, 'students.major'),
+  politicalAffiliation: decryptValue(row.political_affiliation, 'students.political_affiliation'),
   status: decryptValue(row.status, 'students.status'),
   language: decryptValue(row.language, 'students.language'),
   campus: decryptValue(row.campus, 'students.campus'),
@@ -36,6 +37,7 @@ const toStudentRow = student => ({
   address: encryptValue(student.address || '', 'students.address'),
   school: encryptValue(student.school, 'students.school'),
   major: encryptValue(student.major, 'students.major'),
+  political_affiliation: encryptValue(student.politicalAffiliation || '', 'students.political_affiliation'),
   status: encryptValue(student.status, 'students.status'),
   language: encryptValue(student.language, 'students.language'),
   campus: encryptValue(student.campus, 'students.campus'),
@@ -398,6 +400,7 @@ app.get('/api/students', async (req, res) => {
         address, 
         school, 
         major, 
+        political_affiliation AS "politicalAffiliation",
         status, 
         language, 
         campus, 
@@ -435,6 +438,7 @@ app.get('/api/students/:id', async (req, res) => {
         address, 
         school, 
         major, 
+        political_affiliation AS "politicalAffiliation",
         status, 
         language, 
         campus, 
@@ -458,7 +462,7 @@ app.get('/api/students/:id', async (req, res) => {
 
 // POST create new student
 app.post('/api/students', async (req, res) => {
-  const { firstName, fatherName, familyName, origin, address, school, major, status, language, campus, phone, email } = req.body;
+  const { firstName, fatherName, familyName, origin, address, school, major, politicalAffiliation, status, language, campus, phone, email } = req.body;
 
   if (!firstName || !fatherName || !familyName || !school || !major || !status || !language || !campus || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -481,8 +485,8 @@ app.post('/api/students', async (req, res) => {
     const encrypted = toStudentRow(req.body);
     const { rows } = await pool.query(
       `INSERT INTO students 
-        (first_name, father_name, family_name, origin, address, school, major, status, language, campus, phone, email)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        (first_name, father_name, family_name, origin, address, school, major, political_affiliation, status, language, campus, phone, email)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING 
         id, 
         first_name AS "firstName", 
@@ -492,6 +496,7 @@ app.post('/api/students', async (req, res) => {
         address, 
         school, 
         major, 
+        political_affiliation AS "politicalAffiliation",
         status, 
         language, 
         campus, 
@@ -499,7 +504,7 @@ app.post('/api/students', async (req, res) => {
         email, 
         in_group AS "inGroup",
         created_at AS "createdAt";`,
-      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email]
+      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.political_affiliation, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email]
     );
 
     res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Student created successfully' });
@@ -512,7 +517,7 @@ app.post('/api/students', async (req, res) => {
 // PUT update student
 app.put('/api/students/:id', async (req, res) => {
   const { id } = req.params;
-  const { firstName, fatherName, familyName, origin, address, school, major, status, language, campus, phone, email } = req.body;
+  const { firstName, fatherName, familyName, origin, address, school, major, politicalAffiliation, status, language, campus, phone, email } = req.body;
 
   if (!firstName || !fatherName || !familyName || !school || !major || !status || !language || !campus || !phone || !email) {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
@@ -543,12 +548,13 @@ app.put('/api/students/:id', async (req, res) => {
            address = $5,
            school = $6,
            major = $7,
-           status = $8,
-           language = $9,
-           campus = $10,
-           phone = $11,
-           email = $12
-       WHERE id = $13
+           political_affiliation = $8,
+           status = $9,
+           language = $10,
+           campus = $11,
+           phone = $12,
+           email = $13
+       WHERE id = $14
        RETURNING 
         id, 
         first_name AS "firstName", 
@@ -558,6 +564,7 @@ app.put('/api/students/:id', async (req, res) => {
         address, 
         school, 
         major, 
+        political_affiliation AS "politicalAffiliation",
         status, 
         language, 
         campus, 
@@ -565,7 +572,7 @@ app.put('/api/students/:id', async (req, res) => {
         email, 
         in_group AS "inGroup",
         created_at AS "createdAt";`,
-      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email, id]
+      [encrypted.first_name, encrypted.father_name, encrypted.family_name, encrypted.origin, encrypted.address, encrypted.school, encrypted.major, encrypted.political_affiliation, encrypted.status, encrypted.language, encrypted.campus, encrypted.phone, encrypted.email, id]
     );
 
     if (rows.length === 0) {

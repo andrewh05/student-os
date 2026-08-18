@@ -74,6 +74,7 @@ async function initDb() {
         address VARCHAR(255),
         school VARCHAR(150) NOT NULL,
         major VARCHAR(150) NOT NULL,
+        political_affiliation VARCHAR(150),
         status VARCHAR(50) NOT NULL,
         language VARCHAR(50) NOT NULL,
         campus VARCHAR(50) NOT NULL,
@@ -84,6 +85,7 @@ async function initDb() {
       );
     `);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS in_group BOOLEAN NOT NULL DEFAULT FALSE;`);
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS political_affiliation VARCHAR(150);`);
 
     // Check if table is empty, insert sample records
     const res = await client.query('SELECT COUNT(*) FROM students;');

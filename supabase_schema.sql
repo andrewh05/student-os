@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS students (
   address VARCHAR(255),
   school VARCHAR(150) NOT NULL,
   major VARCHAR(150) NOT NULL,
+  political_affiliation VARCHAR(150),
   status VARCHAR(50) NOT NULL,
   language VARCHAR(50) NOT NULL,
   campus VARCHAR(50) NOT NULL,

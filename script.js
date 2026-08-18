@@ -501,6 +501,13 @@ function renderStudents(query = '') {
           <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
           <div class="detail"><small>Email</small><span title="${escapeHtml(student.email)}">${escapeHtml(student.email)}</span></div>
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
+          <div class="detail political-detail">
+            <small>Political affiliation</small>
+            ${student.politicalAffiliation ? `
+              <span class="political-value" aria-live="polite">••••••••</span>
+              <button type="button" class="reveal-affiliation" data-student-id="${escapeHtml(student.id)}" aria-expanded="false">Show affiliation</button>
+            ` : '<span>Not provided</span>'}
+          </div>
         </div>
         <div class="card-actions">
           <button type="button"
@@ -515,6 +522,37 @@ function renderStudents(query = '') {
       </article>
     `;
   }).join('');
+}
+
+function togglePoliticalAffiliation(id, button) {
+  const student = students.find(item => String(item.id) === String(id));
+  const value = button?.closest('.political-detail')?.querySelector('.political-value');
+  if (!student || !value || !button) return;
+
+  const revealing = button.getAttribute('aria-expanded') !== 'true';
+  value.textContent = revealing ? (student.politicalAffiliation || 'Not provided') : '••••••••';
+  value.title = revealing ? (student.politicalAffiliation || '') : '';
+  button.textContent = revealing ? 'Hide affiliation' : 'Show affiliation';
+  button.setAttribute('aria-expanded', String(revealing));
+}
+
+document.addEventListener('click', event => {
+  const revealButton = event.target.closest('.reveal-affiliation');
+  if (revealButton) togglePoliticalAffiliation(revealButton.dataset.studentId, revealButton);
+});
+
+const politicalFieldToggle = document.querySelector('#politicalFieldToggle');
+const politicalField = document.querySelector('#politicalField');
+if (politicalFieldToggle && politicalField) {
+  politicalFieldToggle.addEventListener('click', () => {
+    const showing = politicalField.hidden;
+    politicalField.hidden = !showing;
+    politicalFieldToggle.setAttribute('aria-expanded', String(showing));
+    politicalFieldToggle.textContent = showing
+      ? 'Hide political affiliation field'
+      : 'Show political affiliation field';
+    if (showing) politicalField.querySelector('select')?.focus();
+  });
 }
 
 // Update dashboard metrics and charts
@@ -811,7 +849,7 @@ const exportBtn = document.querySelector('#exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
     if (!students.length) return showToast('Nothing to export', 'No student records available.');
-    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','status','language','campus','email','inGroup'];
+    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','politicalAffiliation','status','language','campus','email','inGroup'];
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
