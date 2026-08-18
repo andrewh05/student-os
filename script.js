@@ -350,14 +350,31 @@ if (connectDrive) connectDrive.addEventListener('click', async () => {
 
 const runBackupNow = document.querySelector('#runBackupNow');
 if (runBackupNow) runBackupNow.addEventListener('click', async () => {
+  const backupCard = document.querySelector('#backupCard');
+  const backupProgress = document.querySelector('#backupProgress');
+  const backupLabel = document.querySelector('#runBackupLabel');
+  const backupMessage = document.querySelector('#backupMessage');
   runBackupNow.disabled = true;
+  runBackupNow.classList.add('is-loading');
+  if (backupCard) backupCard.setAttribute('aria-busy', 'true');
+  if (backupProgress) backupProgress.hidden = false;
+  if (backupLabel) backupLabel.textContent = 'Backing up…';
+  if (backupMessage) backupMessage.textContent = '';
   try {
     const response = await fetch(`${API_BASE}/backup/run`, { method: 'POST', headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` } });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error);
     showToast('Backup complete', `${json.data.name} was saved to Google Drive.`);
-    loadBackupStatus();
-  } catch (error) { document.querySelector('#backupMessage').textContent = error.message; runBackupNow.disabled = false; }
+    await loadBackupStatus();
+  } catch (error) {
+    if (backupMessage) backupMessage.textContent = error.message;
+  } finally {
+    runBackupNow.classList.remove('is-loading');
+    runBackupNow.disabled = false;
+    if (backupCard) backupCard.removeAttribute('aria-busy');
+    if (backupProgress) backupProgress.hidden = true;
+    if (backupLabel) backupLabel.textContent = 'Back up now';
+  }
 });
 
 const saveBackupSettings = document.querySelector('#saveBackupSettings');
