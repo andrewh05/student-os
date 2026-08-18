@@ -555,6 +555,17 @@ if (politicalFieldToggle && politicalField) {
   });
 }
 
+const politicalStatsToggle = document.querySelector('#politicalStatsToggle');
+const politicalStatsPanel = document.querySelector('#politicalStatsPanel');
+if (politicalStatsToggle && politicalStatsPanel) {
+  politicalStatsToggle.addEventListener('click', () => {
+    const showing = politicalStatsPanel.hidden;
+    politicalStatsPanel.hidden = !showing;
+    politicalStatsToggle.setAttribute('aria-expanded', String(showing));
+    politicalStatsToggle.textContent = showing ? 'Hide political statistics' : 'Show political statistics';
+  });
+}
+
 // Update dashboard metrics and charts
 function updateStats() {
   const total = students.length;
@@ -611,6 +622,24 @@ function updateStats() {
     card.querySelector('i').style.width = `${majorPercent}%`;
     card.querySelector('small').textContent = `${majorPercent}% of students`;
   });
+
+  const politicalStatsGrid = document.querySelector('#politicalStatsGrid');
+  if (politicalStatsGrid) {
+    const affiliationCounts = students.reduce((counts, student) => {
+      const affiliation = (student.politicalAffiliation || '').trim() || 'Not provided';
+      counts[affiliation] = (counts[affiliation] || 0) + 1;
+      return counts;
+    }, {});
+    const rows = Object.entries(affiliationCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    politicalStatsGrid.innerHTML = rows.length ? rows.map(([affiliation, affiliationCount]) => {
+      const affiliationPercent = percent(affiliationCount);
+      return `
+        <div class="political-stat-row">
+          <div class="political-stat-copy"><span>${escapeHtml(affiliation)}</span><b>${affiliationCount} <small>(${affiliationPercent}%)</small></b></div>
+          <div class="political-stat-progress" aria-hidden="true"><i style="width:${affiliationPercent}%"></i></div>
+        </div>`;
+    }).join('') : '<p class="political-stats-empty">No student records are available.</p>';
+  }
 }
 
 async function toggleGroupMembership(id, inGroup, button) {
