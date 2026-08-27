@@ -1202,8 +1202,21 @@ html[data-theme="dark"] .user-editor { background: var(--paper); }
   main { padding: 74px 16px 60px; }
   .hero h1 { font-size: 34px; }
   .hero > p, .hero-content > p { font-size: 13px; line-height: 1.65; }
-  .hero-actions { width: 100%; flex-wrap: wrap; }
-  .hero-actions > * { justify-content: center; flex: 1 1 180px; }
+  .hero-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+    gap: 12px;
+    isolation: isolate;
+  }
+  .hero-actions > * {
+    box-sizing: border-box;
+    justify-content: center;
+    width: 100%;
+    min-height: 48px;
+    position: relative;
+    touch-action: manipulation;
+  }
   .form-card { padding: 28px 20px; border-radius: 14px; }
   .records-grid { grid-template-columns: 1fr; }
   .fields, .three-cols, .two-cols { grid-template-columns: 1fr; }
