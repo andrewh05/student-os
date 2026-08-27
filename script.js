@@ -59,6 +59,7 @@ const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
+const majorFilter = document.querySelector('#majorFilter');
 const campusFilter = document.querySelector('#campusFilter');
 const languageFilter = document.querySelector('#languageFilter');
 const groupFilter = document.querySelector('#groupFilter');
@@ -473,21 +474,41 @@ async function fetchStudents() {
 function renderStudents(query = '') {
   if (!recordsGrid) return;
   const needle = query.trim().toLowerCase();
+  const tokens = needle ? needle.split(/\s+/).filter(Boolean) : [];
+  const numericNeedle = /^[\s()+.-]*\d[\d\s()+.-]*$/.test(needle)
+    ? needle.replace(/\D/g, '')
+    : '';
   const filtered = students.filter(student => {
-    const matchesSearch = Object.values(student).some(value => String(value).toLowerCase().includes(needle));
+    const nameCombinations = [
+      `${student.firstName || ''} ${student.familyName || ''}`,
+      `${student.firstName || ''} ${student.fatherName || ''} ${student.familyName || ''}`,
+      `${student.familyName || ''} ${student.firstName || ''}`
+    ];
+    const fullSearchText = [...nameCombinations, ...Object.values(student)]
+      .map(v => String(v || '').toLowerCase())
+      .join(' ');
+    const matchesFormattedText = tokens.every(token => fullSearchText.includes(token));
+    const matchesUnformattedNumber = numericNeedle && Object.values(student).some(value =>
+      String(value || '').replace(/\D/g, '').includes(numericNeedle)
+    );
+    const matchesSearch = !tokens.length || matchesFormattedText || matchesUnformattedNumber;
     const matchesStatus = !statusFilter?.value || student.status === statusFilter.value;
+    const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
     const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
     const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
     const matchesGroup = !groupFilter?.value
-      || (groupFilter.value === 'in' ? student.inGroup : !student.inGroup);
-    return matchesSearch && matchesStatus && matchesCampus && matchesLanguage && matchesGroup;
+      || (groupFilter.value === 'in' ? (student.inGroup && !student.leftGroup)
+        : groupFilter.value === 'out' ? (!student.inGroup && !student.leftGroup)
+        : groupFilter.value === 'left' ? Boolean(student.leftGroup)
+        : true);
+    return matchesSearch && matchesStatus && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
   if (recordCount) recordCount.textContent = students.length;
   updateStats();
   const directorySummary = document.querySelector('#directorySummary');
   if (directorySummary) {
-    const filtering = needle || statusFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
+    const filtering = needle || statusFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
     directorySummary.textContent = filtering
       ? `${filtered.length} of ${students.length} students`
       : `${students.length} student${students.length === 1 ? '' : 's'}`;
@@ -908,14 +929,14 @@ if (searchInput) {
   searchInput.addEventListener('input', () => renderStudents(searchInput.value));
 }
 
-[statusFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
+[statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
   if (filter) filter.addEventListener('change', () => renderStudents(searchInput?.value || ''));
 });
 
 if (clearFilters) {
   clearFilters.addEventListener('click', () => {
     if (searchInput) searchInput.value = '';
-    [statusFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
+    [statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
       if (filter) filter.value = '';
     });
     renderStudents('');
