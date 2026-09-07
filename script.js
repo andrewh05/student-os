@@ -549,7 +549,6 @@ function renderStudents(query = '') {
         </div>
         ${student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
         <div class="card-actions">
-          <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
           <button type="button"
             class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
             onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
@@ -562,6 +561,7 @@ function renderStudents(query = '') {
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
+          <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
           <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
         </div>
       </article>
