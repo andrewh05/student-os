@@ -1538,3 +1538,18 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
   .theme-toggle b { display: none; }
   .theme-toggle { width: 34px; padding: 0; }
 }
+
+/* Personal dashboard notes */
+.dashboard-notes { margin-bottom: 28px; }
+.notes-hint { color: var(--muted); font-size: 12px; margin: 10px 0 16px; }
+.notes-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
+.note-card { border: 1px solid var(--line); border-radius: 14px; padding: 20px; background: var(--paper); }
+.note-card p { margin: 0 0 14px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink); font-size: 14px; line-height: 1.7; }
+.note-card time { color: var(--muted); font-size: 11px; }
+.note-dialog { width: min(480px, calc(100% - 32px)); max-height: 90vh; overflow: auto; box-sizing: border-box; padding: 28px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); color: var(--ink); }
+.note-dialog::backdrop { background: rgba(0, 0, 0, .5); }
+.note-dialog h2 { margin: 0 0 20px; font-family: "Space Grotesk", sans-serif; }
+.note-dialog label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; }
+.note-dialog textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; }
+.note-dialog textarea:focus-visible { outline: 2px solid var(--orange-primary); outline-offset: 2px; }
+#noteError { color: var(--ink); font-size: 12px; line-height: 1.5; }

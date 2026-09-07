@@ -958,10 +958,85 @@ if (exportBtn) {
   });
 }
 
+// Personal dashboard notes are scoped to the signed-in account in this browser.
+function setupNotes() {
+  const addButton = document.querySelector('#addNoteBtn');
+  if (!addButton) return;
+  const user = JSON.parse(localStorage.getItem('hub_user'));
+  const account = user && (user.id || user.username);
+  if (!account) { addButton.disabled = true; return; }
+  const key = `student_os_notes:${account}`;
+  const dialog = document.querySelector('#noteDialog');
+  const noteForm = document.querySelector('#noteForm');
+  const input = document.querySelector('#noteText');
+  const error = document.querySelector('#noteError');
+  const list = document.querySelector('#notesList');
+
+  function readNotes() {
+    const notes = JSON.parse(localStorage.getItem(key) || '[]');
+    if (!Array.isArray(notes) || notes.some(note => !note || typeof note.text !== 'string' || typeof note.createdAt !== 'string')) {
+      throw new Error('Invalid notes');
+    }
+    return notes;
+  }
+
+  function renderNotes(notes) {
+    list.replaceChildren();
+    document.querySelector('#notesEmpty').hidden = notes.length > 0;
+    notes.forEach(note => {
+      const card = document.createElement('article');
+      card.className = 'note-card';
+      const content = document.createElement('p');
+      content.textContent = note.text;
+      const date = document.createElement('time');
+      date.dateTime = note.createdAt;
+      date.textContent = new Date(note.createdAt).toLocaleString();
+      card.append(content, date);
+      list.appendChild(card);
+    });
+  }
+
+  try {
+    renderNotes(readNotes());
+  } catch {
+    document.querySelector('#notesEmpty').textContent = 'Could not load notes from this browser.';
+  }
+  addButton.addEventListener('click', () => {
+    noteForm.reset();
+    input.setCustomValidity('');
+    error.textContent = '';
+    dialog.showModal();
+    input.focus();
+  });
+  document.querySelector('#cancelNoteBtn').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => addButton.focus());
+  input.addEventListener('input', () => input.setCustomValidity(''));
+  noteForm.addEventListener('submit', event => {
+    event.preventDefault();
+    const text = input.value.trim();
+    if (!text) {
+      input.setCustomValidity('Please write a note before saving.');
+      input.reportValidity();
+      return;
+    }
+    try {
+      const notes = readNotes();
+      notes.unshift({ text, createdAt: new Date().toISOString() });
+      localStorage.setItem(key, JSON.stringify(notes));
+      renderNotes(notes);
+      dialog.close();
+      showToast('Note saved', 'Your note was saved in this browser.');
+    } catch {
+      error.textContent = 'Could not save your note. Browser storage may be full or unavailable. Copy your text before closing.';
+    }
+  });
+}
+
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
   if (!checkAuth()) return;
+  setupNotes();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   fetchStudents();
