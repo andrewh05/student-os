@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ea580c">
+  <title>Students by Kazaa | student-os.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-page="kazaa">
+  <div class="grain"></div>
+  <header class="topbar">
+    <a href="dashboard.html" class="brand" aria-label="student-os.com home">
+      <span class="brand-mark orange-mark">S</span>
+      <span>student-os<br><b>.com</b></span>
+    </a>
+
+    <div class="header-center">
+      <div class="db-pill" id="dbStatusPill" title="student-os.com system status">
+        <span class="db-dot"></span>
+        <span id="dbStatusText">Checking system...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <nav class="nav-links">
+        <a href="kazaa.html" class="nav-link active" aria-current="page">Students by Kazaa</a>
+        <a href="dashboard.html" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a href="form.html" class="nav-link btn-nav">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add Student
+        </a>
+        <a href="users.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 11a4 4 0 0 1 5 4v2"/></svg>Users</a>
+      </nav>
+      <div class="user-badge" id="userBadge">
+        <span class="user-name" id="userNameDisplay">Admin</span>
+        <button type="button" class="btn-logout" id="logoutBtn" title="Sign Out">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero compact-hero">
+      <div class="hero-content"><div class="eyebrow"><span></span> Discover where students are from</div>
+        <h1>Students by <em>Kazaa</em></h1>
+        <p>Group students by their place of origin across Lebanon’s districts.</p></div>
+      <div class="hero-actions"><button type="button" id="classifyBtn" class="btn-primary" disabled>Analyze origins with Groq</button></div>
+    </section>
+    <section class="insight-card kazaa-info">
+      <p>Groq receives origin text only. AI suggestions can be wrong; review them and correct each student’s district below.</p>
+      <p>District assignments are saved for your account in this browser. Students with missing or unclear origins stay under Needs review. Beirut is listed separately.</p>
+      <p id="kazaaStatus" role="status" aria-live="polite">Loading students…</p>
+      <button type="button" id="reloadKazaa" class="btn-action">Reload students</button>
+    </section>
+    <div id="kazaaSummary" class="directory-heading"></div>
+    <div class="student-filters">
+      <label><span>Search name or origin</span><input type="search" id="kazaaSearch" placeholder="Search students…"></label>
+      <label><span>Kazaa</span><select id="kazaaFilter"><option value="">All districts</option></select></label>
+    </div>
+    <div id="kazaaCounts" class="kazaa-counts" aria-label="Students per district"></div>
+    <section id="kazaaStudents" class="kazaa-students" aria-label="Student district assignments"></section>
+  </main>
+  <script src="script.js"></script>
+  <script src="kazaa-page.js"></script>
+</body>
+</html>

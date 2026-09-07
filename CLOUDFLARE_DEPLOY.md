@@ -28,3 +28,20 @@ npm run deploy:cloudflare
 In Cloudflare, open **Workers & Pages → student-os → Settings → Domains & Routes**, select **Add → Custom domain**, and enter `student-os.com`.
 
 If `www.student-os.com` should also work, add it as a second custom domain and configure a redirect to the preferred hostname.
+
+## Groq students-by-kazaa report
+
+Create a Groq API key at https://console.groq.com/keys, then configure it securely:
+
+```bash
+npx wrangler secret put GROQ_API_KEY
+```
+
+For local development, set `GROQ_API_KEY` in `.env`. The key stays server-side.
+The report uses `llama-3.3-70b-versatile` to suggest districts from origin text;
+no student names, notes or other profile fields are sent to Groq. Districts and
+manual corrections are cached per account in the current browser, invalidated
+when a student's origin changes. No database migration is needed.
+
+References: https://console.groq.com/docs/structured-outputs and
+https://www.dglac.gov.lb/en/municipalities (district labels; Beirut shown separately).

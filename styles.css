@@ -1564,3 +1564,29 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
   white-space: nowrap;
 }
 .record-edit-actions .btn-action.delete { margin-left: 0; }
+
+/* Students by place of origin */
+.kazaa-info { margin-bottom: 24px; }
+.kazaa-info p { color: var(--muted); font-size: 13px; line-height: 1.7; }
+#kazaaStatus { color: var(--ink); font-weight: 700; }
+#kazaaSummary { margin: 24px 0; color: var(--ink); font-weight: 700; }
+.kazaa-counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(135px, 1fr)); gap: 10px; margin: 22px 0; }
+.kazaa-count { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); cursor: pointer; }
+.kazaa-count span { font-size: 12px; text-align: left; }
+.kazaa-count strong { font-size: 22px; color: var(--orange-primary); }
+.kazaa-count[aria-pressed="true"] { border-color: var(--orange-primary); outline: 1px solid var(--orange-primary); }
+.kazaa-students { display: grid; gap: 12px; }
+.kazaa-student { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); }
+.kazaa-student a { color: var(--ink); font-weight: 800; }
+.kazaa-student p { color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
+.kazaa-student small, .kazaa-empty { color: var(--muted); }
+.kazaa-student label span { display: block; margin-bottom: 6px; font-size: 12px; color: var(--muted); }
+.kazaa-student select, #kazaaSearch { padding: 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); max-width: 100%; }
+.kazaa-student > div { min-width: 0; }
+.kazaa-student label { flex-shrink: 0; }
+#classifyBtn:disabled { opacity: .6; cursor: not-allowed; }
+@media (max-width: 500px) { .kazaa-student { align-items: stretch; flex-direction: column; } .kazaa-student select { width: 100%; } }
+@media (max-width: 650px) {
+  .header-right .nav-links { justify-content: flex-start; overflow-x: auto; }
+  .header-right .nav-link { flex-shrink: 0; white-space: nowrap; }
+}

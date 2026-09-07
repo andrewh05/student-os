@@ -114,6 +114,48 @@ const requireAdmin = (req, res, next) => {
   next();
 };
 
+// Kazaa report: authenticated access, with only origin text sent to Groq.
+const { DISTRICTS, classifyOrigins } = require('./kazaa');
+const requireSession = (req, res, next) => {
+  const session = verifySession((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  if (!session) return res.status(401).json({ success: false, error: 'Please sign in again to view students by kazaa.' });
+  res.set('Cache-Control', 'no-store');
+  next();
+};
+app.get('/api/kazaa', requireSession, async (req, res) => {
+  try {
+    let rows;
+    if (supabase) {
+      rows = [];
+      for (let offset = 0; ; offset += 1000) {
+        const { data, error } = await supabase.from('students').select('id, first_name, family_name, origin').order('id').range(offset, offset + 999);
+        if (error) throw error;
+        rows.push(...data);
+        if (data.length < 1000) break;
+      }
+    } else {
+      ({ rows } = await pool.query('SELECT id, first_name, family_name, origin FROM students ORDER BY id'));
+    }
+    res.json({ success: true, configured: Boolean(process.env.GROQ_API_KEY), districts: DISTRICTS,
+      data: rows.map(row => ({ id: row.id, firstName: decryptValue(row.first_name, 'students.first_name'), familyName: decryptValue(row.family_name, 'students.family_name'), origin: decryptValue(row.origin, 'students.origin') })) });
+  } catch {
+    res.status(500).json({ success: false, error: 'Could not load students. Please reload to try again.' });
+  }
+});
+app.post('/api/kazaa/classify', requireSession, async (req, res) => {
+  const { origins } = req.body || {};
+  if (!Array.isArray(origins) || !origins.length || origins.length > 30 || origins.some(value => typeof value !== 'string' || !value.trim() || value.length > 300)) {
+    return res.status(400).json({ success: false, error: 'Send 1–30 origin names, up to 300 characters each.' });
+  }
+  if (!process.env.GROQ_API_KEY) return res.status(503).json({ success: false, error: 'Groq is not configured. Add GROQ_API_KEY to Cloudflare secrets.' });
+  try {
+    const data = await classifyOrigins(origins, process.env.GROQ_API_KEY);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(502).json({ success: false, error: err.name === 'TimeoutError' ? 'Groq took too long. Please try again.' : err.message });
+  }
+});
+
 // Health & DB Status Endpoint
 app.get('/api/db-status', async (req, res) => {
   const status = await checkDbConnection();

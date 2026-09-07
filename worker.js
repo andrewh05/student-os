@@ -7,7 +7,7 @@ const server = http.createServer(app);
 const httpHandler = httpServerHandler(server);
 
 function applyRuntimeEnvironment(env) {
-  for (const name of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'DATA_ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) {
+  for (const name of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'DATA_ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GROQ_API_KEY']) {
     if (typeof env[name] === 'string') process.env[name] = env[name];
   }
 }

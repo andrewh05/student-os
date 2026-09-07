@@ -1031,7 +1031,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupNotes();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
-  fetchStudents();
+  if (document.body.dataset.page !== 'kazaa') fetchStudents();
   loadPendingUsers();
   loadAllUsers();
   loadBackupStatus();

@@ -4,6 +4,8 @@ const path = require('node:path');
 const outputDirectory = path.join(__dirname, 'public');
 const assets = [
   'index.html',
+  'kazaa.html',
+  'kazaa-page.js',
   'dashboard.html',
   'form.html',
   'users.html',
