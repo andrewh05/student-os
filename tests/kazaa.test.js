@@ -1,6 +1,9 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyOrigins } = require('../kazaa');
+const { classifyOrigins: classifyWithCatalog } = require('../kazaa');
+const catalogResponse = ids => new Response(JSON.stringify({ data: ids.map(id => ({ id })) }));
+const classifyOrigins = (origins, key, fetcher) => classifyWithCatalog(origins, key, (url, options) =>
+  url.endsWith('/models') ? Promise.resolve(catalogResponse(['llama-3.3-70b-versatile'])) : fetcher(url, options));
 const completion = results => new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ results }) } }] }));
 
 test('orders suggestions by input, sends only origins, and leaves uncertain places unassigned', async () => {
@@ -28,4 +31,19 @@ test('reports missing credentials, malformed output, timeouts and rate limits', 
   await assert.rejects(classifyOrigins(['Amshit'], 'test', async () => new Response('{}')), /invalid response/);
   await assert.rejects(classifyOrigins(['Amshit'], 'test', async () => new Response('', { status: 429 })), /rate limit/);
   await assert.rejects(classifyOrigins(['Amshit'], 'test', async () => { throw new DOMException('Timed out', 'TimeoutError'); }), { name: 'TimeoutError' });
+});
+
+
+test('selects a model available to the key when the original model is absent', async () => {
+  const result = await classifyWithCatalog(['Amshit'], 'test-key', async (url, options) => {
+    if (url.endsWith('/models')) return catalogResponse(['openai/gpt-oss-120b']);
+    assert.equal(JSON.parse(options.body).model, 'openai/gpt-oss-120b');
+    return completion([{index: 0, district: 'Jbeil', confident: true}]);
+  });
+  assert.deepEqual(result, [{district: 'Jbeil'}]);
+});
+
+test('reports unavailable model access and upstream model errors explicitly', async () => {
+  await assert.rejects(classifyWithCatalog(['Amshit'], 'test', async () => catalogResponse([])), /No supported Groq model/);
+  await assert.rejects(classifyOrigins(['Amshit'], 'test', async () => new Response(JSON.stringify({error:{code:'model_not_found'}}), {status:404})), /HTTP 404, model_not_found/);
 });

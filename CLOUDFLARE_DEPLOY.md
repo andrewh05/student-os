@@ -38,7 +38,8 @@ npx wrangler secret put GROQ_API_KEY
 ```
 
 For local development, set `GROQ_API_KEY` in `.env`. The key stays server-side.
-The report uses `llama-3.3-70b-versatile` to suggest districts from origin text;
+The report selects an available Groq model (Llama 3.3, GPT-OSS 120B/20B, or Llama 3.1)
+to suggest districts from origin text;
 no student names, notes or other profile fields are sent to Groq. Districts and
 manual corrections are cached per account in the current browser, invalidated
 when a student's origin changes. No database migration is needed.
