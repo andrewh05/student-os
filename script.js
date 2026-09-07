@@ -547,7 +547,9 @@ function renderStudents(query = '') {
             ` : '<span>Not provided</span>'}
           </div>
         </div>
+        ${student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
         <div class="card-actions">
+          <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
           <button type="button"
             class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
             onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
@@ -958,76 +960,64 @@ if (exportBtn) {
   });
 }
 
-// Personal dashboard notes are scoped to the signed-in account in this browser.
+// Each student has one editable note, persisted with their database record.
 function setupNotes() {
-  const addButton = document.querySelector('#addNoteBtn');
-  if (!addButton) return;
-  const user = JSON.parse(localStorage.getItem('hub_user'));
-  const account = user && (user.id || user.username);
-  if (!account) { addButton.disabled = true; return; }
-  const key = `student_os_notes:${account}`;
   const dialog = document.querySelector('#noteDialog');
+  if (!dialog || !recordsGrid) return;
   const noteForm = document.querySelector('#noteForm');
   const input = document.querySelector('#noteText');
   const error = document.querySelector('#noteError');
-  const list = document.querySelector('#notesList');
+  const saveButton = noteForm.querySelector('[type="submit"]');
+  const cancelButton = document.querySelector('#cancelNoteBtn');
+  let studentId = null;
+  let saving = false;
 
-  function readNotes() {
-    const notes = JSON.parse(localStorage.getItem(key) || '[]');
-    if (!Array.isArray(notes) || notes.some(note => !note || typeof note.text !== 'string' || typeof note.createdAt !== 'string')) {
-      throw new Error('Invalid notes');
-    }
-    return notes;
-  }
-
-  function renderNotes(notes) {
-    list.replaceChildren();
-    document.querySelector('#notesEmpty').hidden = notes.length > 0;
-    notes.forEach(note => {
-      const card = document.createElement('article');
-      card.className = 'note-card';
-      const content = document.createElement('p');
-      content.textContent = note.text;
-      const date = document.createElement('time');
-      date.dateTime = note.createdAt;
-      date.textContent = new Date(note.createdAt).toLocaleString();
-      card.append(content, date);
-      list.appendChild(card);
-    });
-  }
-
-  try {
-    renderNotes(readNotes());
-  } catch {
-    document.querySelector('#notesEmpty').textContent = 'Could not load notes from this browser.';
-  }
-  addButton.addEventListener('click', () => {
-    noteForm.reset();
-    input.setCustomValidity('');
+  recordsGrid.addEventListener('click', event => {
+    const button = event.target.closest('.student-note-button');
+    if (!button) return;
+    const student = students.find(item => String(item.id) === button.dataset.studentId);
+    if (!student) return;
+    studentId = student.id;
+    input.value = student.note || '';
     error.textContent = '';
+    document.querySelector('#noteDialogTitle').textContent = student.note ? 'Edit Note' : 'Add Note';
+    document.querySelector('#noteStudentName').textContent = `${student.firstName} ${student.familyName}`;
     dialog.showModal();
     input.focus();
   });
-  document.querySelector('#cancelNoteBtn').addEventListener('click', () => dialog.close());
-  dialog.addEventListener('close', () => addButton.focus());
-  input.addEventListener('input', () => input.setCustomValidity(''));
-  noteForm.addEventListener('submit', event => {
+  cancelButton.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('cancel', event => { if (saving) event.preventDefault(); });
+  dialog.addEventListener('close', () => {
+    const button = Array.from(recordsGrid.querySelectorAll('.student-note-button'))
+      .find(item => item.dataset.studentId === String(studentId));
+    if (button) button.focus();
+  });
+  noteForm.addEventListener('submit', async event => {
     event.preventDefault();
-    const text = input.value.trim();
-    if (!text) {
-      input.setCustomValidity('Please write a note before saving.');
-      input.reportValidity();
-      return;
-    }
+    if (saving) return;
+    saving = true;
+    saveButton.disabled = cancelButton.disabled = input.disabled = true;
+    saveButton.textContent = 'Saving…';
+    error.textContent = '';
     try {
-      const notes = readNotes();
-      notes.unshift({ text, createdAt: new Date().toISOString() });
-      localStorage.setItem(key, JSON.stringify(notes));
-      renderNotes(notes);
+      const response = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}/note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` },
+        body: JSON.stringify({ note: input.value.trim() })
+      });
+      const json = await parseApiResponse(response);
+      if (!response.ok || !json.success) throw new Error(json.error || 'Could not save note.');
+      const student = students.find(item => item.id === studentId);
+      if (student) student.note = json.data.note;
+      renderStudents(searchInput ? searchInput.value : '');
       dialog.close();
-      showToast('Note saved', 'Your note was saved in this browser.');
-    } catch {
-      error.textContent = 'Could not save your note. Browser storage may be full or unavailable. Copy your text before closing.';
+      showToast('Note saved', 'The note was saved to this student’s record.');
+    } catch (err) {
+      error.textContent = err.message;
+    } finally {
+      saving = false;
+      saveButton.disabled = cancelButton.disabled = input.disabled = false;
+      saveButton.textContent = 'Save Note';
     }
   });
 }

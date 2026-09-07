@@ -10,8 +10,14 @@ const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizati
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+function readStudentNote(value) {
+  if (!value) return '';
+  return JSON.parse(decryptValue(value, 'students.note')).text;
+}
+
 const mapStudent = row => ({
   id: row.id,
+  note: readStudentNote(row.note),
   firstName: decryptValue(row.first_name, 'students.first_name'),
   fatherName: decryptValue(row.father_name, 'students.father_name'),
   familyName: decryptValue(row.family_name, 'students.family_name'),
@@ -393,6 +399,7 @@ app.get('/api/students', async (req, res) => {
     }
     const { rows } = await pool.query(`
       SELECT 
+        note,
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
@@ -413,7 +420,7 @@ app.get('/api/students', async (req, res) => {
       FROM students 
       ORDER BY created_at DESC;
     `);
-    res.json({ success: true, data: rows });
+    res.json({ success: true, data: rows.map(row => ({ ...row, note: readStudentNote(row.note) })) });
   } catch (err) {
     console.error('Error fetching students:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -432,6 +439,7 @@ app.get('/api/students/:id', async (req, res) => {
     }
     const { rows } = await pool.query(`
       SELECT 
+        note,
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
@@ -456,7 +464,7 @@ app.get('/api/students/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
-    res.json({ success: true, data: rows[0] });
+    res.json({ success: true, data: { ...rows[0], note: readStudentNote(rows[0].note) } });
   } catch (err) {
     console.error('Error fetching student:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -588,6 +596,38 @@ app.put('/api/students/:id', async (req, res) => {
   } catch (err) {
     console.error('Error updating student:', err.message);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Update only the selected student's note; normal profile edits preserve it.
+app.patch('/api/students/:id/note', async (req, res) => {
+  const session = verifySession((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  if (!session) return res.status(401).json({ success: false, error: 'Please sign in again to save notes.' });
+  const { id } = req.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid student ID.' });
+  }
+  const { note } = req.body || {};
+  if (typeof note !== 'string' || note.length > 5000) {
+    return res.status(400).json({ success: false, error: 'Note must be text of at most 5,000 characters.' });
+  }
+  try {
+    // Wrap user text so encryption-looking input is still treated as plaintext.
+    const encrypted = note.trim() ? encryptValue(JSON.stringify({ text: note.trim() }), 'students.note') : '';
+    let row;
+    if (supabase) {
+      const { data, error } = await supabase.from('students').update({ note: encrypted }).eq('id', id).select('id').maybeSingle();
+      if (error) throw error;
+      row = data;
+    } else {
+      const { rows } = await pool.query('UPDATE students SET note = $1 WHERE id = $2 RETURNING id', [encrypted, id]);
+      row = rows[0];
+    }
+    if (!row) return res.status(404).json({ success: false, error: 'Student not found.' });
+    res.json({ success: true, data: { id: row.id, note: note.trim() } });
+  } catch (err) {
+    console.error('Error saving student note:', err.message);
+    res.status(500).json({ success: false, error: 'Could not save the note. Please try again.' });
   }
 });
 

@@ -89,6 +89,8 @@ async function initDb() {
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS left_group BOOLEAN NOT NULL DEFAULT FALSE;`);
     await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS political_affiliation VARCHAR(150);`);
 
+    await client.query(`ALTER TABLE students ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';`);
+
     // Check if table is empty, insert sample records
     const res = await client.query('SELECT COUNT(*) FROM students;');
     if (parseInt(res.rows[0].count, 10) === 0) {
