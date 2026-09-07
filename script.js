@@ -560,9 +560,11 @@ function renderStudents(query = '') {
             <button type="button" class="btn-action left-group"
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
+          <div class="record-edit-actions">
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
           <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
           <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
+          </div>
         </div>
       </article>
     `;

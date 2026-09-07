@@ -1550,3 +1550,17 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
 .note-dialog textarea { box-sizing: border-box; width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); color: var(--ink); font: inherit; }
 .note-dialog textarea:focus-visible { outline: 2px solid var(--orange-primary); outline-offset: 2px; }
 #noteError { color: var(--ink); font-size: 12px; line-height: 1.5; }
+
+/* Keep record editing actions together on their own row. */
+.record-edit-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+.record-edit-actions .btn-action {
+  min-width: 0;
+  padding: 7px 4px;
+  white-space: nowrap;
+}
+.record-edit-actions .btn-action.delete { margin-left: 0; }
