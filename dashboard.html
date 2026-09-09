@@ -53,6 +53,11 @@
         <p>Manage enrollment, group membership, campus insights, and student records securely from student-os.com.</p>
       </div>
       <div class="hero-actions">
+        <div class="hero-section-switch" id="sectionSwitchTabs" role="tablist" aria-label="Filter by academic section">
+          <button type="button" class="hero-section-btn is-active" data-section="all">All</button>
+          <button type="button" class="hero-section-btn" data-section="mispce">MISPCE</button>
+          <button type="button" class="hero-section-btn" data-section="csvt">CSVT</button>
+        </div>
         <a href="form.html" class="btn-primary">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Add New Student
@@ -77,18 +82,6 @@
         </div>
       </form>
     </dialog>
-
-    <div class="section-switch-wrapper" id="sectionSwitchWrapper">
-      <div class="section-switch-tabs" role="tablist" aria-label="Filter by academic section">
-        <button type="button" class="section-tab is-active" data-section="all">All Sections</button>
-        <button type="button" class="section-tab" data-section="mispce">MISPCE</button>
-        <button type="button" class="section-tab" data-section="csvt">CSVT</button>
-      </div>
-      <div class="section-locked-indicator hidden" id="sectionLockedIndicator">
-        <span class="section-tag" id="sectionLockedIndicatorTag">MISPCE</span>
-        <small>Assigned academic section</small>
-      </div>
-    </div>
 
     <section class="records" id="recordsSection">
       <div class="stats-grid">

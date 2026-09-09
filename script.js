@@ -354,8 +354,11 @@ async function loadAllUsers() {
         roleLabel = 'Superadmin';
         roleClass = 'role-superadmin';
       } else if (uRole === 'admin') {
-        roleLabel = 'Admin';
+        roleLabel = uSection && uSection !== 'all' ? `Admin • ${uSection.toUpperCase()}` : 'Admin';
         roleClass = 'role-admin';
+      } else {
+        roleLabel = `Deleg • ${uSection.toUpperCase()}`;
+        roleClass = 'role-deleg';
       }
       const isTargetSuperAdmin = uRole === 'superadmin';
       const canEdit = isCurrentSuperAdmin || !isTargetSuperAdmin;
@@ -365,10 +368,7 @@ async function loadAllUsers() {
       <article class="system-user">
         <div class="system-user-avatar">${escapeHtml(`${user.fullName?.[0] || user.username?.[0] || 'U'}`.toUpperCase())}</div>
         <div class="system-user-identity"><strong>${escapeHtml(user.fullName || user.username)}</strong><span>@${escapeHtml(user.username)}</span></div>
-        <div class="user-meta-badges">
-          <span class="user-role ${roleClass}">${escapeHtml(roleLabel)}</span>
-          <span class="section-tag section-badge-${escapeHtml(uSection)}">${escapeHtml(uSection.toUpperCase())}</span>
-        </div>
+        <span class="user-role ${roleClass}">${escapeHtml(roleLabel)}</span>
         <span class="user-status ${user.approved ? 'approved' : 'pending'}">${user.approved ? 'Approved' : 'Pending'}</span>
         <small>${new Date(user.createdAt).toLocaleDateString()}</small>
         <div class="system-user-actions">
@@ -751,23 +751,21 @@ function renderStudents(query = '') {
 
     return `
       <article class="student-card">
-        <div class="card-tags">
-          <span class="tag">${escapeHtml(student.status)}</span>
-          <span class="section-tag section-badge-${escapeHtml(studentSec)}">${escapeHtml(studentSec.toUpperCase())}</span>
-        </div>
+        <span class="tag">${escapeHtml(student.status)}</span>
         <div class="student-top">
           <div class="avatar">${escapeHtml(initials)}</div>
           <div>
             <h3>${escapeHtml(fullName)}</h3>
-            <p>${escapeHtml(student.major)}</p>
+            <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}</p>
           </div>
         </div>
         <div class="student-details">
           <div class="detail"><small>Major</small><span title="${escapeHtml(student.major)}">${escapeHtml(student.major)}</span></div>
+          <div class="detail"><small>Section</small><span>${escapeHtml(studentSec.toUpperCase())}</span></div>
           <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
           <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
-          <div class="detail"><small>Phone</small><span>${escapeHtml(student.phone)}</span></div>
           <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
+          <div class="detail"><small>Phone</small><span>${escapeHtml(student.phone)}</span></div>
           <div class="detail"><small>Email</small><span title="${escapeHtml(student.email)}">${escapeHtml(student.email)}</span></div>
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
           ${!isDeleg ? `
@@ -984,37 +982,25 @@ function updateMajorFilterOptions(visibleMajors) {
 }
 
 function setupSectionSwitchTabs() {
-  const switchWrapper = document.querySelector('#sectionSwitchWrapper');
-  if (!switchWrapper) return;
+  const switchTabs = document.querySelector('#sectionSwitchTabs');
+  if (!switchTabs) return;
 
   const userRole = getCurrentUserRole();
   const userSec = getCurrentUserSection();
   const isSuper = userRole === 'superadmin' || userSec === 'all';
 
-  const tabs = switchWrapper.querySelector('.section-switch-tabs');
-  const lockedIndicator = switchWrapper.querySelector('#sectionLockedIndicator');
-  const lockedTag = switchWrapper.querySelector('#sectionLockedIndicatorTag');
-
   if (isSuper) {
-    if (tabs) tabs.style.display = 'inline-flex';
-    if (lockedIndicator) lockedIndicator.classList.add('hidden');
-    switchWrapper.querySelectorAll('.section-tab').forEach(tab => {
+    switchTabs.style.display = 'inline-flex';
+    switchTabs.querySelectorAll('.hero-section-btn').forEach(tab => {
       tab.addEventListener('click', () => {
-        switchWrapper.querySelectorAll('.section-tab').forEach(t => t.classList.remove('is-active'));
+        switchTabs.querySelectorAll('.hero-section-btn').forEach(t => t.classList.remove('is-active'));
         tab.classList.add('is-active');
         currentDashboardSection = tab.dataset.section || 'all';
         fetchStudents();
       });
     });
   } else {
-    if (tabs) tabs.style.display = 'none';
-    if (lockedIndicator) {
-      lockedIndicator.classList.remove('hidden');
-      if (lockedTag) {
-        lockedTag.textContent = userSec.toUpperCase();
-        lockedTag.className = `section-tag section-badge-${userSec}`;
-      }
-    }
+    switchTabs.style.display = 'none';
   }
 }
 
@@ -1365,43 +1351,37 @@ function initStudentForm() {
   const isSuper = userRole === 'superadmin' || userSec === 'all';
 
   const sectionSelect = document.querySelector('#studentSectionSelect');
-  const lockedBadge = document.querySelector('#sectionLockedBadge');
-  const lockedTag = document.querySelector('#sectionLockedTag');
-  const lockedInput = document.querySelector('#studentLockedSectionInput');
+  const formBadge = document.querySelector('#formBadge');
 
   if (!isSuper) {
-    const assignedSec = userSec || 'mispce';
+    const assignedSec = (userSec || 'mispce').toLowerCase();
     if (sectionSelect) {
+      sectionSelect.innerHTML = `<option value="${assignedSec}" selected>${assignedSec.toUpperCase()}</option>`;
       sectionSelect.value = assignedSec;
-      sectionSelect.disabled = true;
-      const customWrapper = sectionSelect.closest('.custom-select');
-      if (customWrapper) customWrapper.style.display = 'none';
-      else sectionSelect.style.display = 'none';
-    }
-    if (lockedBadge) {
-      lockedBadge.classList.remove('hidden');
-      if (lockedTag) {
-        lockedTag.textContent = assignedSec.toUpperCase();
-        lockedTag.className = `section-tag section-badge-${assignedSec}`;
+      const sectionFieldLabel = document.querySelector('#sectionFieldLabel');
+      if (sectionFieldLabel) {
+        const titleSpan = sectionFieldLabel.querySelector('span');
+        if (titleSpan) titleSpan.innerHTML = `Academic section <small style="color:var(--orange-primary);font-weight:700">(${assignedSec.toUpperCase()})</small>`;
       }
     }
-    if (lockedInput) {
-      lockedInput.disabled = false;
-      lockedInput.value = assignedSec;
+    if (formBadge) {
+      formBadge.textContent = `${assignedSec.toUpperCase()} SECTION`;
     }
     updateMajorSelectOptions(assignedSec);
   } else {
-    if (lockedBadge) lockedBadge.classList.add('hidden');
-    if (lockedInput) lockedInput.disabled = true;
     if (sectionSelect) {
-      sectionSelect.disabled = false;
-      sectionSelect.style.display = '';
-      updateMajorSelectOptions(sectionSelect.value || 'mispce');
+      sectionSelect.innerHTML = `
+        <option value="mispce" selected>MISPCE</option>
+        <option value="csvt">CSVT</option>
+      `;
+      sectionSelect.value = 'mispce';
+      updateMajorSelectOptions('mispce');
       sectionSelect.addEventListener('change', () => {
         updateMajorSelectOptions(sectionSelect.value);
       });
     }
   }
+  sectionSelect?._rebuildCustomSelect?.();
 }
 
 // Form logic (Add / Edit Student)
@@ -1502,13 +1482,16 @@ async function initFormEditMode() {
     const json = await parseApiResponse(res);
     if (json.success && json.data) {
       const student = json.data;
+      const userRole = getCurrentUserRole();
+      const userSec = getCurrentUserSection();
+      const isSuper = userRole === 'superadmin' || userSec === 'all';
       const sec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
       const sectionSelect = document.querySelector('#studentSectionSelect');
-      if (sectionSelect && !sectionSelect.disabled) {
+      if (sectionSelect && isSuper) {
         sectionSelect.value = sec;
         sectionSelect._syncCustomSelect?.();
       }
-      updateMajorSelectOptions(sec, student.major);
+      updateMajorSelectOptions(isSuper ? sec : (userSec || 'mispce'), student.major);
 
       Object.entries(student).forEach(([key, value]) => {
         if (key === 'section' || key === 'major') return;
