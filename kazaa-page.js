@@ -2,7 +2,7 @@
   if (!checkAuth()) return;
   let user = null;
   try { user = JSON.parse(localStorage.getItem('hub_user')); } catch { user = null; }
-  const isAdmin = Boolean(user && user.role === 'admin');
+  const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'superadmin'));
   const storageKey = `student_os_kazaa:${user?.id || user?.username || 'user'}`;
   const status = document.querySelector('#kazaaStatus');
   const analyze = document.querySelector('#classifyBtn');

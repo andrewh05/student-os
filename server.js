@@ -136,11 +136,39 @@ if (hasLocalFilesystem) {
   app.use(express.static(path.join(__dirname)));
 }
 
+const VALID_ROLES = ['superadmin', 'admin', 'deleg', 'staff'];
+const isAdminRole = role => role === 'admin' || role === 'superadmin';
+const isSuperAdminRole = role => role === 'superadmin';
+
+async function getUserById(id) {
+  if (supabase) {
+    const { data, error } = await supabase.from('users').select('id, username, full_name, role, approved').eq('id', id).maybeSingle();
+    if (error || !data) return null;
+    return {
+      id: data.id,
+      username: decryptValue(data.username, 'users.username'),
+      fullName: decryptValue(data.full_name, 'users.full_name'),
+      role: decryptValue(data.role, 'users.role'),
+      approved: data.approved
+    };
+  }
+  const { rows } = await pool.query(`SELECT id, username, full_name, role, approved FROM users WHERE id = $1`, [id]);
+  if (!rows || !rows.length) return null;
+  const u = rows[0];
+  return {
+    id: u.id,
+    username: decryptValue(u.username, 'users.username'),
+    fullName: decryptValue(u.full_name, 'users.full_name'),
+    role: decryptValue(u.role, 'users.role'),
+    approved: u.approved
+  };
+}
+
 const requireAdmin = (req, res, next) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
   if (!session) return res.status(401).json({ success: false, error: 'Please sign in again.' });
-  if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Administrator approval required' });
+  if (!isAdminRole(session.role)) return res.status(403).json({ success: false, error: 'Administrator approval required' });
   next();
 };
 
@@ -258,7 +286,7 @@ app.get('/api/backup/connect', requireAdmin, (req, res) => {
 
 app.get('/api/google-drive/callback', async (req, res) => {
   const session = verifySession(req.query.state);
-  if (!session || session.role !== 'admin') return res.status(403).send('Invalid or expired administrator session.');
+  if (!session || !isAdminRole(session.role)) return res.status(403).send('Invalid or expired administrator session.');
   try {
     if (!req.query.code) throw new Error(req.query.error || 'Google authorization was cancelled');
     await exchangeGoogleCode(req.query.code);
@@ -290,23 +318,35 @@ app.use(['/api/students', '/api/users'], (req, res, next) => {
 });
 
 app.post('/api/users', async (req, res) => {
-  const { fullName, username, password, role = 'staff' } = req.body;
+  const { fullName, username, password, role = 'deleg' } = req.body;
   if (!fullName || !username || !password) {
     return res.status(400).json({ success: false, error: 'Full name, username and password are required' });
   }
   if (username.trim().length < 3 || password.length < 8) {
     return res.status(400).json({ success: false, error: 'Username must be at least 3 characters and password at least 8 characters' });
   }
-  if (!['admin', 'staff'].includes(role)) {
+  if (!VALID_ROLES.includes(role)) {
     return res.status(400).json({ success: false, error: 'Invalid user role' });
   }
 
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
-  const isAdmin = Boolean(session && session.role === 'admin');
+  const isSuperAdmin = Boolean(session && isSuperAdminRole(session.role));
+  const isAdmin = Boolean(session && isAdminRole(session.role));
 
-  // Only authenticated administrators can grant admin privileges or immediately pre-approve
-  const assignedRole = (isAdmin && role === 'admin') ? 'admin' : 'staff';
+  if (role === 'superadmin' && !isSuperAdmin) {
+    return res.status(403).json({ success: false, error: 'Only superadministrators can grant the superadmin role' });
+  }
+
+  // Determine assigned role based on caller privileges
+  let assignedRole = 'deleg';
+  if (isSuperAdmin) {
+    assignedRole = role === 'staff' ? 'deleg' : role;
+  } else if (isAdmin) {
+    assignedRole = (role === 'admin') ? 'admin' : 'deleg';
+  } else {
+    assignedRole = 'deleg';
+  }
   const isApproved = Boolean(isAdmin && req.body.approved === true);
 
   try {
@@ -366,7 +406,7 @@ app.post('/api/signup', async (req, res) => {
       username: encryptValue(username.trim(), 'users.username'),
       password: hashPassword(password),
       full_name: encryptValue(fullName.trim(), 'users.full_name'),
-      role: encryptValue('staff', 'users.role'),
+      role: encryptValue('deleg', 'users.role'),
       approved: false
     });
     if (error) throw error;
@@ -428,15 +468,39 @@ app.patch('/api/users/:id/approval', requireAdmin, async (req, res) => {
 
 app.put('/api/users/:id', requireAdmin, async (req, res) => {
   const { fullName, username, role, approved, password } = req.body;
-  if (!fullName || !username || username.trim().length < 3 || !['admin', 'staff'].includes(role) || typeof approved !== 'boolean') {
+  if (!fullName || !username || username.trim().length < 3 || !VALID_ROLES.includes(role) || typeof approved !== 'boolean') {
     return res.status(400).json({ success: false, error: 'Enter a valid name, username, role, and approval status' });
   }
   if (password && password.length < 8) return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' });
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
-  if (session.id === req.params.id && (role !== 'admin' || !approved)) {
-    return res.status(400).json({ success: false, error: 'You cannot demote or disable your own administrator account' });
+  const isSuperAdmin = Boolean(session && isSuperAdminRole(session.role));
+
+  const target = await getUserById(req.params.id);
+  if (!target) return res.status(404).json({ success: false, error: 'User not found' });
+
+  if (session.id === req.params.id) {
+    if (session.role === 'superadmin' && role !== 'superadmin') {
+      return res.status(400).json({ success: false, error: 'You cannot demote your own superadministrator account' });
+    }
+    if (session.role === 'admin' && !isAdminRole(role)) {
+      return res.status(400).json({ success: false, error: 'You cannot demote your own administrator account' });
+    }
+    if (!approved) {
+      return res.status(400).json({ success: false, error: 'You cannot disable your own account' });
+    }
   }
+
+  if (!isSuperAdmin) {
+    if (target.role === 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only superadministrators can edit a superadministrator account' });
+    }
+    if (role === 'superadmin') {
+      return res.status(403).json({ success: false, error: 'Only superadministrators can grant the superadmin role' });
+    }
+  }
+
+  const assignedRole = role === 'staff' ? 'deleg' : role;
   try {
     const { data: users, error: lookupError } = await supabase.from('users').select('id, username');
     if (lookupError) throw lookupError;
@@ -445,7 +509,7 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
     const update = {
       full_name: encryptValue(fullName.trim(), 'users.full_name'),
       username: encryptValue(username.trim(), 'users.username'),
-      role: encryptValue(role, 'users.role'),
+      role: encryptValue(assignedRole, 'users.role'),
       approved
     };
     if (password) update.password = hashPassword(password);
@@ -462,6 +526,12 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
   if (session.id === req.params.id) return res.status(400).json({ success: false, error: 'You cannot delete your own administrator account' });
+  const isSuperAdmin = Boolean(session && isSuperAdminRole(session.role));
+  const target = await getUserById(req.params.id);
+  if (!target) return res.status(404).json({ success: false, error: 'User not found' });
+  if (target.role === 'superadmin' && !isSuperAdmin) {
+    return res.status(403).json({ success: false, error: 'Only superadministrators can delete a superadministrator account' });
+  }
   try {
     const { data, error } = await supabase.from('users').delete().eq('id', req.params.id).select('id').maybeSingle();
     if (error) throw error;

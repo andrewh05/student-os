@@ -48,7 +48,7 @@ async function initDb() {
         username VARCHAR(100) UNIQUE NOT NULL,
         password VARCHAR(255) NOT NULL,
         full_name VARCHAR(150),
-        role VARCHAR(50) DEFAULT 'admin',
+        role VARCHAR(50) DEFAULT 'deleg',
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -58,9 +58,9 @@ async function initDb() {
     if (parseInt(userRes.rows[0].count, 10) === 0) {
       await client.query(`
         INSERT INTO users (username, password, full_name, role)
-        VALUES ('admin', 'admin123', 'Andrew Haddad', 'admin');
+        VALUES ('admin', 'admin123', 'Andrew Haddad', 'superadmin');
       `);
-      console.log('Default admin user created (username: admin, password: admin123)');
+      console.log('Default superadmin user created (username: admin, password: admin123)');
     }
 
     // 2. Create students table with username & password fields

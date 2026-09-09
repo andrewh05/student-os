@@ -1333,6 +1333,9 @@ legend { padding: 0; }
 .system-user-identity span { margin-top: 3px; color: var(--muted); font-size: 10px; }
 .user-role, .user-status { padding: 5px 9px; border-radius: 15px; font-size: 9px; font-weight: 800; text-transform: uppercase; }
 .user-role { background: var(--orange-light); color: var(--orange-dark); }
+.user-role.role-superadmin { background: #fdf2f8; color: #9d174d; border: 1px solid #fbcfe8; }
+.user-role.role-admin { background: var(--orange-light); color: var(--orange-dark); border: 1px solid #fed7aa; }
+.user-role.role-deleg, .user-role.role-staff { background: #ecfeff; color: #0e7490; border: 1px solid #a5f3fc; }
 .user-status.approved { background: #dcfce7; color: #15803d; }
 .user-status.pending { background: #fef3c7; color: #a16207; }
 .system-user > small { color: var(--muted); font-size: 9px; white-space: nowrap; }
@@ -1348,6 +1351,9 @@ legend { padding: 0; }
 .editor-password { grid-column: 1 / -1; }
 html[data-theme="dark"] .pending-user { background: #170e0b; }
 html[data-theme="dark"] .system-user { background: #170e0b; }
+html[data-theme="dark"] .user-role.role-superadmin { background: #4a044e; color: #f472b6; border-color: #701a75; }
+html[data-theme="dark"] .user-role.role-admin { background: #3b2014; color: #fdba74; border-color: #7c2d12; }
+html[data-theme="dark"] .user-role.role-deleg, html[data-theme="dark"] .user-role.role-staff { background: #083344; color: #67e8f9; border-color: #155e75; }
 html[data-theme="dark"] .user-status.approved { background: #12351f; color: #86efac; }
 html[data-theme="dark"] .user-status.pending { background: #3b2d0d; color: #fde68a; }
 html[data-theme="dark"] .approve-user { background: #12351f; color: #86efac; border-color: #267044; }

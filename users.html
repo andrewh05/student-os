@@ -34,7 +34,7 @@
       <div class="hero-content">
         <div class="eyebrow"><span></span> student-os.com administration</div>
         <h1>Add New <em>System User</em></h1>
-        <p>Create an administrator or staff account with access to student-os.com.</p>
+        <p>Manage Superadministrator, Administrator, and Delegate accounts with access to student-os.com.</p>
       </div>
       <div class="hero-actions"><a href="dashboard.html" class="btn-secondary">← Back to Dashboard</a></div>
     </section>
@@ -45,7 +45,7 @@
         <div class="section-label"><span>User information</span></div>
         <div class="fields two-cols">
           <label><span>Full name *</span><input name="fullName" autocomplete="name" required placeholder="e.g. Maya Haddad"></label>
-          <label><span>Role *</span><select name="role" required><option value="staff">Staff</option><option value="admin">Administrator</option></select></label>
+          <label><span>Role *</span><select name="role" required><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="deleg" selected>Deleg</option></select></label>
         </div>
         <div class="section-label"><span>Login credentials</span></div>
         <div class="fields two-cols">
@@ -79,7 +79,7 @@
           <div class="fields two-cols editor-fields">
             <label><span>Full name *</span><input name="fullName" required></label>
             <label><span>Username *</span><input name="username" minlength="3" required></label>
-            <label><span>Role *</span><select name="role"><option value="staff">Staff</option><option value="admin">Administrator</option></select></label>
+            <label><span>Role *</span><select name="role"><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="deleg">Deleg</option></select></label>
             <label><span>Status *</span><select name="approved"><option value="true">Approved</option><option value="false">Pending</option></select></label>
             <label class="editor-password"><span>New password</span><input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
           </div>

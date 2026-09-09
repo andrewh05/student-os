@@ -109,8 +109,25 @@ function checkAuth() {
 
   try {
     const user = JSON.parse(userJson);
+    const role = (user.role || 'deleg').toLowerCase();
+    const isSuperAdmin = role === 'superadmin';
+    const isAdmin = role === 'admin' || isSuperAdmin;
+    const isDeleg = !isAdmin;
+
     if (userNameDisplay) {
-      userNameDisplay.textContent = user.fullName || user.username || 'Admin';
+      const roleLabel = isSuperAdmin ? 'Superadmin' : (role === 'admin' ? 'Admin' : 'Deleg');
+      userNameDisplay.textContent = `${user.fullName || user.username || 'User'} (${roleLabel})`;
+      userNameDisplay.title = `Signed in as ${user.username} (${roleLabel})`;
+    }
+
+    if (isDeleg) {
+      document.querySelectorAll('a[href="users.html"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      if (currentPage === 'users') {
+        window.location.replace('dashboard.html');
+        return false;
+      }
     }
   } catch (err) {
     localStorage.removeItem('hub_user');
@@ -252,15 +269,40 @@ async function loadAllUsers() {
     if (!json.success) throw new Error(json.error || 'Could not load users');
     count.textContent = `${json.data.length} user${json.data.length === 1 ? '' : 's'}`;
     systemUsers = json.data;
-    allUsersList.innerHTML = json.data.length ? json.data.map(user => `
+
+    let currentUser = null;
+    try { currentUser = JSON.parse(localStorage.getItem('hub_user') || '{}'); } catch { currentUser = {}; }
+    const currentRole = (currentUser.role || '').toLowerCase();
+    const isCurrentSuperAdmin = currentRole === 'superadmin';
+
+    allUsersList.innerHTML = json.data.length ? json.data.map(user => {
+      const uRole = (user.role || 'deleg').toLowerCase();
+      let roleLabel = 'Deleg';
+      let roleClass = 'role-deleg';
+      if (uRole === 'superadmin') {
+        roleLabel = 'Superadmin';
+        roleClass = 'role-superadmin';
+      } else if (uRole === 'admin') {
+        roleLabel = 'Admin';
+        roleClass = 'role-admin';
+      }
+      const isTargetSuperAdmin = uRole === 'superadmin';
+      const canEdit = isCurrentSuperAdmin || !isTargetSuperAdmin;
+      const canDelete = (isCurrentSuperAdmin || !isTargetSuperAdmin) && currentUser.id !== user.id;
+
+      return `
       <article class="system-user">
         <div class="system-user-avatar">${escapeHtml(`${user.fullName?.[0] || user.username?.[0] || 'U'}`.toUpperCase())}</div>
         <div class="system-user-identity"><strong>${escapeHtml(user.fullName || user.username)}</strong><span>@${escapeHtml(user.username)}</span></div>
-        <span class="user-role">${escapeHtml(user.role)}</span>
+        <span class="user-role ${roleClass}">${escapeHtml(roleLabel)}</span>
         <span class="user-status ${user.approved ? 'approved' : 'pending'}">${user.approved ? 'Approved' : 'Pending'}</span>
         <small>${new Date(user.createdAt).toLocaleDateString()}</small>
-        <div class="system-user-actions"><button type="button" class="edit-user" onclick="openUserEditor('${user.id}')">Edit</button><button type="button" class="delete-user" onclick="deleteSystemUser('${user.id}')">Delete</button></div>
-      </article>`).join('') : '<p class="no-pending">No user accounts found.</p>';
+        <div class="system-user-actions">
+          ${canEdit ? `<button type="button" class="edit-user" onclick="openUserEditor('${user.id}')">Edit</button>` : ''}
+          ${canDelete ? `<button type="button" class="delete-user" onclick="deleteSystemUser('${user.id}')">Delete</button>` : ''}
+        </div>
+      </article>`;
+    }).join('') : '<p class="no-pending">No user accounts found.</p>';
   } catch (error) {
     count.textContent = 'Unavailable';
     allUsersList.innerHTML = `<p class="no-pending error-text">${escapeHtml(error.message)}</p>`;
@@ -275,7 +317,8 @@ function openUserEditor(id) {
   editor.elements.id.value = user.id;
   editor.elements.fullName.value = user.fullName || '';
   editor.elements.username.value = user.username || '';
-  editor.elements.role.value = user.role;
+  const normalizedRole = user.role === 'staff' ? 'deleg' : (user.role || 'deleg');
+  editor.elements.role.value = normalizedRole;
   editor.elements.approved.value = String(user.approved);
   editor.elements.password.value = '';
   document.querySelector('#userEditorMessage').textContent = '';
