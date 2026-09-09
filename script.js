@@ -88,6 +88,20 @@ let systemUsers = [];
 const escapeHtml = (value = '') => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
 
 // Authentication Protection
+function getCurrentUserRole() {
+  try {
+    const user = JSON.parse(localStorage.getItem('hub_user') || '{}');
+    return (user.role || 'deleg').toLowerCase();
+  } catch {
+    return 'deleg';
+  }
+}
+
+function isCurrentUserDeleg() {
+  const role = getCurrentUserRole();
+  return role !== 'admin' && role !== 'superadmin';
+}
+
 function checkAuth() {
   const currentPage = document.body.dataset.page;
   const userJson = localStorage.getItem('hub_user');
@@ -121,10 +135,27 @@ function checkAuth() {
     }
 
     if (isDeleg) {
-      document.querySelectorAll('a[href="users.html"]').forEach(el => {
+      document.body.classList.add('role-deleg');
+
+      // Hide restricted nav links (Add Student, Students by Kazaa, Users)
+      document.querySelectorAll('.topbar .nav-links a:not([href*="dashboard"])').forEach(el => {
         el.style.display = 'none';
       });
-      if (currentPage === 'users') {
+
+      // Hide hero action buttons on dashboard (Add New Student, Export CSV)
+      const heroActions = document.querySelector('.hero-actions');
+      if (heroActions) heroActions.style.display = 'none';
+
+      // Hide section distribution and political cards on dashboard
+      const classInsightCard = document.querySelector('.class-insight-card');
+      if (classInsightCard) classInsightCard.style.display = 'none';
+
+      const politicalStatsCard = document.querySelector('.political-stats-card');
+      if (politicalStatsCard) politicalStatsCard.style.display = 'none';
+
+      // Deleg is only permitted on the dashboard
+      const restrictedPages = ['users', 'form', 'kazaa', 'kazaa-export', 'backup'];
+      if (restrictedPages.includes(currentPage)) {
         window.location.replace('dashboard.html');
         return false;
       }
@@ -527,7 +558,9 @@ async function checkDbConnection() {
 // Fetch all students from backend
 async function fetchStudents() {
   try {
-    const res = await fetch(`${API_BASE}/students`);
+    const res = await fetch(`${API_BASE}/students`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
+    });
     const json = await parseApiResponse(res);
     if (json.success) {
       students = json.data || [];
@@ -598,6 +631,8 @@ function renderStudents(query = '') {
   if (emptyState) {
     emptyState.style.display = filtered.length ? 'none' : 'block';
   }
+
+  const isDeleg = isCurrentUserDeleg();
 
   recordsGrid.innerHTML = filtered.map(student => {
     const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
@@ -672,15 +707,16 @@ function renderStudents(query = '') {
           <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
           <div class="detail"><small>Email</small><span title="${escapeHtml(student.email)}">${escapeHtml(student.email)}</span></div>
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
+          ${!isDeleg ? `
           <div class="detail political-detail">
             <small>Political affiliation</small>
             ${student.politicalAffiliation ? `
               <span class="political-value" aria-live="polite">••••••••</span>
               <button type="button" class="reveal-affiliation" data-student-id="${escapeHtml(student.id)}" aria-expanded="false">Show affiliation</button>
             ` : '<span>Not provided</span>'}
-          </div>
+          </div>` : ''}
         </div>
-        ${student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
+        ${!isDeleg && student.note ? `<div class="student-note"><strong>Note</strong><p>${escapeHtml(student.note)}</p></div>` : ''}
         <div class="card-actions">
           <button type="button"
             class="btn-action group-toggle ${student.inGroup ? 'is-in-group' : ''}"
@@ -694,11 +730,12 @@ function renderStudents(query = '') {
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
           ${groupButtonsHtml}
+          ${!isDeleg ? `
           <div class="record-edit-actions">
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
           <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
           <button type="button" class="btn-action delete" onclick="deleteStudentRecord('${student.id}')">Delete</button>
-          </div>
+          </div>` : ''}
         </div>
       </article>
     `;
@@ -837,7 +874,9 @@ function updateStats() {
   if (grpE2Bar) grpE2Bar.style.width = `${percent(grpE2)}%`;
   if (unassignedBar) unassignedBar.style.width = `${percent(unassigned)}%`;
 
-  renderPoliticalStats();
+  if (!isCurrentUserDeleg()) {
+    renderPoliticalStats();
+  }
 }
 
 function getStudentsForPoliticalGroup(groupKey) {
@@ -944,6 +983,7 @@ function renderPoliticalStats() {
 }
 
 function setupPoliticalTabs() {
+  if (isCurrentUserDeleg()) return;
   const container = document.querySelector('.political-group-selector');
   if (!container) return;
   container.addEventListener('click', event => {
@@ -957,6 +997,7 @@ function setupPoliticalTabs() {
 }
 
 function setupClassStatClicks() {
+  if (isCurrentUserDeleg()) return;
   document.querySelectorAll('.class-stat').forEach(card => {
     card.addEventListener('click', () => {
       const grp = card.dataset.group;
@@ -1132,6 +1173,7 @@ function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel'
 
 // Delete student record from backend
 async function deleteStudentRecord(id) {
+  if (isCurrentUserDeleg()) return;
   const confirmed = await showPopup({
     title: 'Delete student record?',
     message: 'This student will be permanently removed. This action cannot be undone.',
@@ -1143,7 +1185,10 @@ async function deleteStudentRecord(id) {
     return;
   }
   try {
-    const res = await fetch(`${API_BASE}/students/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_BASE}/students/${id}`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
+    });
     const json = await parseApiResponse(res);
     if (json.success) {
       showToast('Record deleted', 'The student record was removed.');
@@ -1290,6 +1335,7 @@ if (clearFilters) {
 const exportBtn = document.querySelector('#exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
+    if (isCurrentUserDeleg()) return;
     if (!students.length) return showToast('Nothing to export', 'No student records available.');
     const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','politicalAffiliation','status','language','campus','email','inGroup','assignedGroup'];
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
@@ -1303,6 +1349,7 @@ if (exportBtn) {
 
 // Each student has one editable note, persisted with their database record.
 function setupNotes() {
+  if (isCurrentUserDeleg()) return;
   const dialog = document.querySelector('#noteDialog');
   if (!dialog || !recordsGrid) return;
   const noteForm = document.querySelector('#noteForm');

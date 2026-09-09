@@ -2,6 +2,11 @@
   if (!checkAuth()) return;
   let user = null;
   try { user = JSON.parse(localStorage.getItem('hub_user')); } catch { user = null; }
+  const role = (user?.role || 'deleg').toLowerCase();
+  if (role !== 'admin' && role !== 'superadmin') {
+    window.location.replace('dashboard.html');
+    return;
+  }
   const isAdmin = Boolean(user && (user.role === 'admin' || user.role === 'superadmin'));
   const storageKey = `student_os_kazaa:${user?.id || user?.username || 'user'}`;
   const status = document.querySelector('#kazaaStatus');

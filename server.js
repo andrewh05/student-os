@@ -169,6 +169,8 @@ const requireAdmin = (req, res, next) => {
   const session = verifySession(token);
   if (!session) return res.status(401).json({ success: false, error: 'Please sign in again.' });
   if (!isAdminRole(session.role)) return res.status(403).json({ success: false, error: 'Administrator approval required' });
+  req.session = session;
+  res.set('Cache-Control', 'no-store');
   next();
 };
 
@@ -180,7 +182,7 @@ const requireSession = (req, res, next) => {
   res.set('Cache-Control', 'no-store');
   next();
 };
-app.get('/api/kazaa', requireSession, async (req, res) => {
+app.get('/api/kazaa', requireAdmin, async (req, res) => {
   try {
     let rows;
     if (supabase) {
@@ -224,7 +226,7 @@ app.post('/api/kazaa/classify', requireAdmin, async (req, res) => {
   }
 });
 
-app.post('/api/kazaa/batch', requireSession, async (req, res) => {
+app.post('/api/kazaa/batch', requireAdmin, async (req, res) => {
   const { assignments } = req.body || {};
   if (!Array.isArray(assignments) || !assignments.length || assignments.length > 500) {
     return res.status(400).json({ success: false, error: 'Send an array of up to 500 assignments.' });
@@ -607,37 +609,49 @@ app.post('/api/login', async (req, res) => {
 
 // GET all students
 app.get('/api/students', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  const isDeleg = Boolean(session && session.role === 'deleg');
+
   try {
+    let studentList = [];
     if (supabase) {
       const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      return res.json({ success: true, data: (data || []).map(mapStudent) });
+      studentList = (data || []).map(mapStudent);
+    } else {
+      const { rows } = await pool.query(`
+        SELECT 
+          note,
+          kazaa,
+          id, 
+          first_name AS "firstName", 
+          father_name AS "fatherName", 
+          family_name AS "familyName", 
+          origin, 
+          address, 
+          school, 
+          major, 
+          political_affiliation AS "politicalAffiliation",
+          status, 
+          language, 
+          campus, 
+          phone, 
+          email, 
+          in_group AS "inGroup",
+          left_group AS "leftGroup",
+          created_at AS "createdAt"
+        FROM students 
+        ORDER BY created_at DESC;
+      `);
+      studentList = rows.map(row => ({ ...row, note: readStudentNote(row.note), kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '' }));
     }
-    const { rows } = await pool.query(`
-      SELECT 
-        note,
-        kazaa,
-        id, 
-        first_name AS "firstName", 
-        father_name AS "fatherName", 
-        family_name AS "familyName", 
-        origin, 
-        address, 
-        school, 
-        major, 
-        political_affiliation AS "politicalAffiliation",
-        status, 
-        language, 
-        campus, 
-        phone, 
-        email, 
-        in_group AS "inGroup",
-        left_group AS "leftGroup",
-        created_at AS "createdAt"
-      FROM students 
-      ORDER BY created_at DESC;
-    `);
-    res.json({ success: true, data: rows.map(row => ({ ...row, note: readStudentNote(row.note), kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '' })) });
+
+    if (isDeleg) {
+      studentList = studentList.map(s => ({ ...s, politicalAffiliation: '', note: '' }));
+    }
+
+    return res.json({ success: true, data: studentList });
   } catch (err) {
     console.error('Error fetching students:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -646,13 +660,22 @@ app.get('/api/students', async (req, res) => {
 
 // GET single student by ID
 app.get('/api/students/:id', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  const isDeleg = Boolean(session && session.role === 'deleg');
+
   try {
     const { id } = req.params;
     if (supabase) {
       const { data, error } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
-      return res.json({ success: true, data: mapStudent(data) });
+      const mapped = mapStudent(data);
+      if (isDeleg) {
+        mapped.politicalAffiliation = '';
+        mapped.note = '';
+      }
+      return res.json({ success: true, data: mapped });
     }
     const { rows } = await pool.query(`
       SELECT 
@@ -682,7 +705,12 @@ app.get('/api/students/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
-    res.json({ success: true, data: { ...rows[0], note: readStudentNote(rows[0].note), kazaa: rows[0].kazaa ? decryptValue(rows[0].kazaa, 'students.kazaa') : '' } });
+    const mapped = { ...rows[0], note: readStudentNote(rows[0].note), kazaa: rows[0].kazaa ? decryptValue(rows[0].kazaa, 'students.kazaa') : '' };
+    if (isDeleg) {
+      mapped.politicalAffiliation = '';
+      mapped.note = '';
+    }
+    res.json({ success: true, data: mapped });
   } catch (err) {
     console.error('Error fetching student:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -690,7 +718,7 @@ app.get('/api/students/:id', async (req, res) => {
 });
 
 // POST create new student
-app.post('/api/students', async (req, res) => {
+app.post('/api/students', requireAdmin, async (req, res) => {
   const { firstName, fatherName, familyName, origin, address, school, major, politicalAffiliation, status, language, campus, phone, email } = req.body;
 
   if (!firstName || !fatherName || !familyName || !school || !major || !status || !language || !campus || !phone || !email) {
@@ -745,7 +773,7 @@ app.post('/api/students', async (req, res) => {
 });
 
 // PUT update student
-app.put('/api/students/:id', async (req, res) => {
+app.put('/api/students/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   const { firstName, fatherName, familyName, origin, address, school, major, politicalAffiliation, status, language, campus, phone, email } = req.body;
 
@@ -818,9 +846,7 @@ app.put('/api/students/:id', async (req, res) => {
 });
 
 // Update only the selected student's note; normal profile edits preserve it.
-app.patch('/api/students/:id/note', async (req, res) => {
-  const session = verifySession((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
-  if (!session) return res.status(401).json({ success: false, error: 'Please sign in again to save notes.' });
+app.patch('/api/students/:id/note', requireAdmin, async (req, res) => {
   const { id } = req.params;
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return res.status(400).json({ success: false, error: 'Invalid student ID.' });
@@ -997,7 +1023,7 @@ app.patch('/api/students/:id/group', async (req, res) => {
 });
 
 // DELETE student
-app.delete('/api/students/:id', async (req, res) => {
+app.delete('/api/students/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
   try {
     if (supabase) {

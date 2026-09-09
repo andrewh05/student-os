@@ -2634,5 +2634,17 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
   .report-table tbody tr:nth-child(even) {
     background: #f9fafb !important;
   }
+/* Deleg Role Access Restrictions */
+body.role-deleg .class-insight-card,
+body.role-deleg .political-stats-card,
+body.role-deleg .hero-actions,
+body.role-deleg .nav-links a[href="form.html"],
+body.role-deleg .nav-links a[href="kazaa.html"],
+body.role-deleg .nav-links a[href="users.html"],
+body.role-deleg .political-detail,
+body.role-deleg .student-note,
+body.role-deleg .record-edit-actions,
+body.role-deleg #noteDialog,
+body.role-deleg #emptyState .inline-btn {
+  display: none !important;
 }
-
