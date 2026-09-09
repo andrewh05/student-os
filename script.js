@@ -603,27 +603,36 @@ async function checkDbConnection() {
 }
 
 let currentDashboardSection = 'all';
+let allStudentsMaster = [];
+
+function applySectionFilter() {
+  const userRole = getCurrentUserRole();
+  const userSec = getCurrentUserSection();
+  const isSuper = userRole === 'superadmin' || userSec === 'all';
+
+  if (!isSuper) {
+    const assignedSec = (userSec || 'mispce').toLowerCase();
+    students = allStudentsMaster.filter(s => (s.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(s.major) : '') || '').toLowerCase() === assignedSec);
+  } else if (currentDashboardSection && currentDashboardSection !== 'all') {
+    students = allStudentsMaster.filter(s => (s.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(s.major) : '') || '').toLowerCase() === currentDashboardSection);
+  } else {
+    students = [...allStudentsMaster];
+  }
+  updateStats();
+  renderStudents(searchInput ? searchInput.value : '');
+}
 
 // Fetch all students from backend
 async function fetchStudents() {
   try {
-    const userRole = getCurrentUserRole();
-    const userSec = getCurrentUserSection();
-    const isSuper = userRole === 'superadmin' || userSec === 'all';
-
-    let url = `${API_BASE}/students`;
-    if (isSuper && currentDashboardSection && currentDashboardSection !== 'all') {
-      url += `?section=${encodeURIComponent(currentDashboardSection)}`;
-    }
-
+    const url = `${API_BASE}/students`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
     });
     const json = await parseApiResponse(res);
     if (json.success) {
-      students = json.data || [];
-      updateStats();
-      renderStudents(searchInput ? searchInput.value : '');
+      allStudentsMaster = json.data || [];
+      applySectionFilter();
     } else {
       console.error('Failed to fetch students:', json.error);
     }
@@ -996,7 +1005,7 @@ function setupSectionSwitchTabs() {
         switchTabs.querySelectorAll('.hero-section-btn').forEach(t => t.classList.remove('is-active'));
         tab.classList.add('is-active');
         currentDashboardSection = tab.dataset.section || 'all';
-        fetchStudents();
+        applySectionFilter();
       });
     });
   } else {
@@ -1317,7 +1326,8 @@ async function deleteStudentRecord(id) {
     const json = await parseApiResponse(res);
     if (json.success) {
       showToast('Record deleted', 'The student record was removed.');
-      fetchStudents();
+      allStudentsMaster = allStudentsMaster.filter(s => String(s.id) !== String(id));
+      applySectionFilter();
       checkDbConnection();
     } else {
       await showPopup({ title: 'Could not delete record', message: json.error || 'Please try again.', danger: true });
