@@ -20,6 +20,8 @@
   const search = document.querySelector('#kazaaSearch');
   let records = [], districts = [], assignments = {}, configured = false, busy = false;
   let currentSection = 'all';
+  const KAZAA_PER_PAGE = 20;
+  let currentKazaaPage = 1;
 
   const getSectionFilteredRecords = () => {
     if (currentSection === 'all') return records;
@@ -47,7 +49,16 @@
     document.querySelector('#kazaaCounts').innerHTML = Object.entries(counts).map(([name,count]) => `<button type="button" class="kazaa-count" data-district="${escapeHtml(name)}" aria-pressed="${filter.value === name}"><span>${escapeHtml(name)}</span><strong>${count}</strong></button>`).join('');
     const needle = search.value.trim().toLocaleLowerCase();
     const visible = secRecords.filter(student => (!filter.value || (assignment(student)?.district || 'Needs review') === filter.value) && `${student.firstName} ${student.familyName} ${student.origin}`.toLocaleLowerCase().includes(needle));
-    document.querySelector('#kazaaStudents').innerHTML = visible.length ? visible.map(student => {
+    
+    const totalVisible = visible.length;
+    const totalPages = Math.ceil(totalVisible / KAZAA_PER_PAGE) || 1;
+    if (currentKazaaPage > totalPages) currentKazaaPage = totalPages;
+    if (currentKazaaPage < 1) currentKazaaPage = 1;
+
+    const startIndex = (currentKazaaPage - 1) * KAZAA_PER_PAGE;
+    const pageVisible = visible.slice(startIndex, startIndex + KAZAA_PER_PAGE);
+
+    document.querySelector('#kazaaStudents').innerHTML = pageVisible.length ? pageVisible.map(student => {
       const current = assignment(student);
       const studentSec = (student.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(student.major) : '') || '').toUpperCase();
       const secLabel = studentSec ? ` • <b style="color:var(--orange-primary);font-weight:700">${escapeHtml(studentSec)}</b>` : '';
@@ -56,6 +67,8 @@
         <label><span>Kazaa</span><select data-student-id="${escapeHtml(student.id)}" ${busy ? 'disabled' : ''} aria-label="Kazaa for ${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}"><option value="">Needs review</option>${districts.map(district => `<option ${current?.district === district ? 'selected' : ''}>${escapeHtml(district)}</option>`).join('')}</select></label>
       </article>`;
     }).join('') : '<p class="kazaa-empty">No students match this view.</p>';
+
+    renderKazaaPagination(totalVisible, totalPages);
     analyze.disabled = busy || !isAdmin || !configured || !secRecords.some(student => student.origin?.trim() && student.origin.length <= 300 && !assignment(student));
     if (!isAdmin) {
       analyze.title = 'Administrator privileges required to run Groq AI analysis';
@@ -445,6 +458,64 @@
     }
   }
 
+  function renderKazaaPagination(totalItems, totalPages) {
+    const nav = document.querySelector('#kazaaPaginationNav');
+    if (!nav) return;
+
+    if (totalItems <= KAZAA_PER_PAGE) {
+      nav.hidden = true;
+      return;
+    }
+    nav.hidden = false;
+
+    const info = document.querySelector('#kazaaPaginationInfo');
+    if (info) {
+      const startNum = totalItems === 0 ? 0 : (currentKazaaPage - 1) * KAZAA_PER_PAGE + 1;
+      const endNum = Math.min(currentKazaaPage * KAZAA_PER_PAGE, totalItems);
+      info.textContent = `Showing ${startNum}–${endNum} of ${totalItems} students (Page ${currentKazaaPage} of ${totalPages})`;
+    }
+
+    const controls = document.querySelector('#kazaaPaginationControls');
+    if (!controls) return;
+
+    let html = '';
+    const prevDisabled = currentKazaaPage === 1 ? 'disabled' : '';
+    html += `<button type="button" class="pagination-btn pagination-prev" ${prevDisabled} data-page="${currentKazaaPage - 1}" aria-label="Previous page">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+      <span>Prev</span>
+    </button>`;
+
+    const maxButtons = 5;
+    let startPage = Math.max(1, currentKazaaPage - 2);
+    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+    if (endPage - startPage < maxButtons - 1) {
+      startPage = Math.max(1, endPage - maxButtons + 1);
+    }
+
+    if (startPage > 1) {
+      html += `<button type="button" class="pagination-btn" data-page="1">1</button>`;
+      if (startPage > 2) html += `<span class="pagination-ellipsis">…</span>`;
+    }
+
+    for (let p = startPage; p <= endPage; p++) {
+      const isActive = p === currentKazaaPage ? 'is-active' : '';
+      html += `<button type="button" class="pagination-btn ${isActive}" data-page="${p}">${p}</button>`;
+    }
+
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) html += `<span class="pagination-ellipsis">…</span>`;
+      html += `<button type="button" class="pagination-btn" data-page="${totalPages}">${totalPages}</button>`;
+    }
+
+    const nextDisabled = currentKazaaPage === totalPages ? 'disabled' : '';
+    html += `<button type="button" class="pagination-btn pagination-next" ${nextDisabled} data-page="${currentKazaaPage + 1}" aria-label="Next page">
+      <span>Next</span>
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+    </button>`;
+
+    controls.innerHTML = html;
+  }
+
   function setupKazaaSectionSwitch() {
     const switchTabs = document.querySelector('#sectionSwitchTabs');
     if (!switchTabs) return;
@@ -459,6 +530,7 @@
           switchTabs.querySelectorAll('.hero-section-btn').forEach(t => t.classList.remove('is-active'));
           tab.classList.add('is-active');
           currentSection = tab.dataset.section || 'all';
+          currentKazaaPage = 1;
           render();
         });
       });
@@ -499,16 +571,32 @@
     });
   }
 
+  const kazaaPaginationControls = document.querySelector('#kazaaPaginationControls');
+  if (kazaaPaginationControls) {
+    kazaaPaginationControls.addEventListener('click', e => {
+      const btn = e.target.closest('[data-page]');
+      if (!btn || btn.disabled) return;
+      const target = parseInt(btn.dataset.page, 10);
+      if (target && target !== currentKazaaPage) {
+        currentKazaaPage = target;
+        render();
+        const heading = document.querySelector('#kazaaSummary');
+        if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  }
+
   document.querySelector('#kazaaCounts').addEventListener('click', event => {
     const button = event.target.closest('[data-district]');
     if (button) {
       filter.value = filter.value === button.dataset.district ? '' : button.dataset.district;
+      currentKazaaPage = 1;
       render();
     }
   });
 
-  filter.addEventListener('change', render);
-  search.addEventListener('input', render);
+  filter.addEventListener('change', () => { currentKazaaPage = 1; render(); });
+  search.addEventListener('input', () => { currentKazaaPage = 1; render(); });
   reload.addEventListener('click', load);
   setupKazaaSectionSwitch();
   load();

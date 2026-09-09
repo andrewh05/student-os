@@ -606,6 +606,7 @@ let currentDashboardSection = 'all';
 let allStudentsMaster = [];
 
 function applySectionFilter() {
+  currentStudentPage = 1;
   const userRole = getCurrentUserRole();
   const userSec = getCurrentUserSection();
   const isSuper = userRole === 'superadmin' || userSec === 'all';
@@ -650,6 +651,9 @@ function scheduleRenderStudents(query = '') {
   });
 }
 
+const STUDENTS_PER_PAGE = 20;
+let currentStudentPage = 1;
+
 // Render student grid and stats (for dashboard)
 function renderStudents(query = '') {
   if (!recordsGrid) return;
@@ -686,6 +690,15 @@ function renderStudents(query = '') {
     return matchesSearch && matchesStatus && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
+  const totalItems = filtered.length;
+  const totalPages = Math.ceil(totalItems / STUDENTS_PER_PAGE) || 1;
+  if (currentStudentPage > totalPages) currentStudentPage = totalPages;
+  if (currentStudentPage < 1) currentStudentPage = 1;
+
+  const startIndex = (currentStudentPage - 1) * STUDENTS_PER_PAGE;
+  const endIndex = Math.min(startIndex + STUDENTS_PER_PAGE, totalItems);
+  const pageItems = filtered.slice(startIndex, endIndex);
+
   if (recordCount) recordCount.textContent = students.length;
   const directorySummary = document.querySelector('#directorySummary');
   if (directorySummary) {
@@ -701,7 +714,7 @@ function renderStudents(query = '') {
 
   const isDeleg = isCurrentUserDeleg();
 
-  recordsGrid.innerHTML = filtered.map(student => {
+  recordsGrid.innerHTML = pageItems.map(student => {
     const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
     const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
     const lang = (student.language || '').trim().toLowerCase();
@@ -810,6 +823,81 @@ function renderStudents(query = '') {
       </article>
     `;
   }).join('');
+
+  renderPagination(totalItems, totalPages);
+}
+
+function renderPagination(totalItems, totalPages) {
+  const nav = document.querySelector('#paginationNav');
+  if (!nav) return;
+
+  if (totalItems <= STUDENTS_PER_PAGE) {
+    nav.hidden = true;
+    return;
+  }
+  nav.hidden = false;
+
+  const info = document.querySelector('#paginationInfo');
+  if (info) {
+    const startNum = totalItems === 0 ? 0 : (currentStudentPage - 1) * STUDENTS_PER_PAGE + 1;
+    const endNum = Math.min(currentStudentPage * STUDENTS_PER_PAGE, totalItems);
+    info.textContent = `Showing ${startNum}–${endNum} of ${totalItems} students (Page ${currentStudentPage} of ${totalPages})`;
+  }
+
+  const controls = document.querySelector('#paginationControls');
+  if (!controls) return;
+
+  let html = '';
+  const prevDisabled = currentStudentPage === 1 ? 'disabled' : '';
+  html += `<button type="button" class="pagination-btn pagination-prev" ${prevDisabled} data-page="${currentStudentPage - 1}" aria-label="Previous page">
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    <span>Prev</span>
+  </button>`;
+
+  const maxButtons = 5;
+  let startPage = Math.max(1, currentStudentPage - 2);
+  let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+  if (endPage - startPage < maxButtons - 1) {
+    startPage = Math.max(1, endPage - maxButtons + 1);
+  }
+
+  if (startPage > 1) {
+    html += `<button type="button" class="pagination-btn" data-page="1">1</button>`;
+    if (startPage > 2) html += `<span class="pagination-ellipsis">…</span>`;
+  }
+
+  for (let p = startPage; p <= endPage; p++) {
+    const isActive = p === currentStudentPage ? 'is-active' : '';
+    html += `<button type="button" class="pagination-btn ${isActive}" data-page="${p}">${p}</button>`;
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) html += `<span class="pagination-ellipsis">…</span>`;
+    html += `<button type="button" class="pagination-btn" data-page="${totalPages}">${totalPages}</button>`;
+  }
+
+  const nextDisabled = currentStudentPage === totalPages ? 'disabled' : '';
+  html += `<button type="button" class="pagination-btn pagination-next" ${nextDisabled} data-page="${currentStudentPage + 1}" aria-label="Next page">
+    <span>Next</span>
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>`;
+
+  controls.innerHTML = html;
+}
+
+const paginationControls = document.querySelector('#paginationControls');
+if (paginationControls) {
+  paginationControls.addEventListener('click', e => {
+    const btn = e.target.closest('[data-page]');
+    if (!btn || btn.disabled) return;
+    const target = parseInt(btn.dataset.page, 10);
+    if (target && target !== currentStudentPage) {
+      currentStudentPage = target;
+      renderStudents(searchInput ? searchInput.value : '');
+      const heading = document.querySelector('.directory-heading');
+      if (heading) heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
 }
 
 function togglePoliticalAffiliation(id, button) {
@@ -1528,15 +1616,22 @@ async function initFormEditMode() {
 
 // Search input listener
 if (searchInput) {
-  searchInput.addEventListener('input', () => scheduleRenderStudents(searchInput.value));
+  searchInput.addEventListener('input', () => {
+    currentStudentPage = 1;
+    scheduleRenderStudents(searchInput.value);
+  });
 }
 
 [statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
-  if (filter) filter.addEventListener('change', () => scheduleRenderStudents(searchInput?.value || ''));
+  if (filter) filter.addEventListener('change', () => {
+    currentStudentPage = 1;
+    scheduleRenderStudents(searchInput?.value || '');
+  });
 });
 
 if (clearFilters) {
   clearFilters.addEventListener('click', () => {
+    currentStudentPage = 1;
     if (searchInput) searchInput.value = '';
     [statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
       if (filter) {
