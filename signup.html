@@ -21,6 +21,7 @@
       <form id="signupForm">
         <div class="form-group"><label for="signupFullName">Full name</label><input id="signupFullName" name="fullName" required autocomplete="name" placeholder="Enter your full name"></div>
         <div class="form-group"><label for="signupUsername">Username</label><input id="signupUsername" name="username" required minlength="3" autocomplete="username" placeholder="Choose a username"></div>
+        <div class="form-group"><label for="signupSection">Academic section</label><select id="signupSection" name="section" required><option value="mispce" selected>MISPCE (Math, Informatics, Stats, Physics, Chemistry, Electronics)</option><option value="csvt">CSVT (Biology, Biochemistry, Chemistry)</option></select></div>
         <div class="form-group"><label for="signupPassword">Password</label><input id="signupPassword" name="password" type="password" required minlength="8" autocomplete="new-password" placeholder="Minimum 8 characters"></div>
         <div class="form-group"><label for="signupConfirmPassword">Confirm password</label><input id="signupConfirmPassword" name="confirmPassword" type="password" required minlength="8" autocomplete="new-password" placeholder="Repeat your password"></div>
         <button type="submit" class="btn-orange-submit" id="signupSubmitBtn"><span>Send approval request</span></button>

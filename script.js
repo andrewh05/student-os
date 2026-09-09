@@ -87,14 +87,37 @@ let systemUsers = [];
 
 const escapeHtml = (value = '') => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
 
+// Academic Section Configuration
+const MISPCE_MAJORS_LIST = ['Mathematics', 'Informatics', 'Statistics', 'Physics', 'Chemistry', 'Electronics'];
+const CSVT_MAJORS_LIST = ['Biology', 'Biochemistry', 'Chemistry'];
+
+function inferSectionFromMajor(major = '') {
+  const norm = String(major || '').trim().toLowerCase();
+  if (['biology', 'bio', 'biologie', 'biochemistry', 'biochimie', 'ciochimie'].includes(norm)) {
+    return 'csvt';
+  }
+  return 'mispce';
+}
+
+function getCurrentUser() {
+  try {
+    return JSON.parse(localStorage.getItem('hub_user') || '{}');
+  } catch {
+    return {};
+  }
+}
+
 // Authentication Protection
 function getCurrentUserRole() {
-  try {
-    const user = JSON.parse(localStorage.getItem('hub_user') || '{}');
-    return (user.role || 'deleg').toLowerCase();
-  } catch {
-    return 'deleg';
-  }
+  const user = getCurrentUser();
+  return (user.role || 'deleg').toLowerCase();
+}
+
+function getCurrentUserSection() {
+  const user = getCurrentUser();
+  const role = (user.role || 'deleg').toLowerCase();
+  if (role === 'superadmin') return 'all';
+  return (user.section || 'mispce').toLowerCase();
 }
 
 function isCurrentUserDeleg() {
@@ -127,9 +150,17 @@ function checkAuth() {
     const isSuperAdmin = role === 'superadmin';
     const isAdmin = role === 'admin' || isSuperAdmin;
     const isDeleg = !isAdmin;
+    const userSec = (user.section || (isSuperAdmin ? 'all' : 'mispce')).toLowerCase();
 
     if (userNameDisplay) {
-      const roleLabel = isSuperAdmin ? 'Superadmin' : (role === 'admin' ? 'Admin' : 'Deleg');
+      let roleLabel = 'Deleg';
+      if (isSuperAdmin) {
+        roleLabel = 'Superadmin';
+      } else if (role === 'admin') {
+        roleLabel = userSec !== 'all' ? `Admin - ${userSec.toUpperCase()}` : 'Admin';
+      } else {
+        roleLabel = `Deleg - ${userSec.toUpperCase()}`;
+      }
       userNameDisplay.textContent = `${user.fullName || user.username || 'User'} (${roleLabel})`;
       userNameDisplay.title = `Signed in as ${user.username} (${roleLabel})`;
     }
@@ -137,14 +168,14 @@ function checkAuth() {
     if (isDeleg) {
       document.body.classList.add('role-deleg');
 
-      // Hide restricted nav links (Add Student, Students by Kazaa, Users)
-      document.querySelectorAll('.topbar .nav-links a:not([href*="dashboard"])').forEach(el => {
+      // Hide restricted nav links (Kazaa, Users)
+      document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"]').forEach(el => {
         el.style.display = 'none';
       });
 
-      // Hide hero action buttons on dashboard (Add New Student, Export CSV)
-      const heroActions = document.querySelector('.hero-actions');
-      if (heroActions) heroActions.style.display = 'none';
+      // Hide export button on dashboard
+      const exportBtn = document.querySelector('#exportBtn');
+      if (exportBtn) exportBtn.style.display = 'none';
 
       // Hide section distribution and political cards on dashboard
       const classInsightCard = document.querySelector('.class-insight-card');
@@ -153,9 +184,13 @@ function checkAuth() {
       const politicalStatsCard = document.querySelector('.political-stats-card');
       if (politicalStatsCard) politicalStatsCard.style.display = 'none';
 
-      // Deleg is only permitted on the dashboard
-      const restrictedPages = ['users', 'form', 'kazaa', 'kazaa-export', 'backup'];
+      // Deleg is restricted from: users, kazaa, kazaa-export, backup, and form.html in EDIT mode
+      const restrictedPages = ['users', 'kazaa', 'kazaa-export', 'backup'];
       if (restrictedPages.includes(currentPage)) {
+        window.location.replace('dashboard.html');
+        return false;
+      }
+      if (currentPage === 'form' && new URLSearchParams(window.location.search).has('edit')) {
         window.location.replace('dashboard.html');
         return false;
       }
@@ -265,7 +300,11 @@ async function loadPendingUsers() {
     count.textContent = `${json.data.length} pending`;
     pendingUsers.innerHTML = json.data.length ? json.data.map(user => `
       <article class="pending-user">
-        <div><strong>${escapeHtml(user.fullName)}</strong><span>@${escapeHtml(user.username)}</span><small>Requested ${new Date(user.createdAt).toLocaleDateString()}</small></div>
+        <div>
+          <strong>${escapeHtml(user.fullName)}</strong>
+          <span>@${escapeHtml(user.username)}</span>
+          <small>Requested ${new Date(user.createdAt).toLocaleDateString()} • Section: ${escapeHtml((user.section || 'mispce').toUpperCase())}</small>
+        </div>
         <div class="pending-actions"><button type="button" class="approve-user" onclick="reviewUser('${user.id}', true)">Approve</button><button type="button" class="reject-user" onclick="reviewUser('${user.id}', false)">Reject</button></div>
       </article>`).join('') : '<p class="no-pending">No pending account requests.</p>';
   } catch (error) {
@@ -308,6 +347,7 @@ async function loadAllUsers() {
 
     allUsersList.innerHTML = json.data.length ? json.data.map(user => {
       const uRole = (user.role || 'deleg').toLowerCase();
+      const uSection = (user.section || (uRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
       let roleLabel = 'Deleg';
       let roleClass = 'role-deleg';
       if (uRole === 'superadmin') {
@@ -325,7 +365,10 @@ async function loadAllUsers() {
       <article class="system-user">
         <div class="system-user-avatar">${escapeHtml(`${user.fullName?.[0] || user.username?.[0] || 'U'}`.toUpperCase())}</div>
         <div class="system-user-identity"><strong>${escapeHtml(user.fullName || user.username)}</strong><span>@${escapeHtml(user.username)}</span></div>
-        <span class="user-role ${roleClass}">${escapeHtml(roleLabel)}</span>
+        <div class="user-meta-badges">
+          <span class="user-role ${roleClass}">${escapeHtml(roleLabel)}</span>
+          <span class="section-tag section-badge-${escapeHtml(uSection)}">${escapeHtml(uSection.toUpperCase())}</span>
+        </div>
         <span class="user-status ${user.approved ? 'approved' : 'pending'}">${user.approved ? 'Approved' : 'Pending'}</span>
         <small>${new Date(user.createdAt).toLocaleDateString()}</small>
         <div class="system-user-actions">
@@ -350,6 +393,10 @@ function openUserEditor(id) {
   editor.elements.username.value = user.username || '';
   const normalizedRole = user.role === 'staff' ? 'deleg' : (user.role || 'deleg');
   editor.elements.role.value = normalizedRole;
+  if (editor.elements.section) {
+    editor.elements.section.value = user.section || (normalizedRole === 'superadmin' ? 'all' : 'mispce');
+    editor.elements.section._syncCustomSelect?.();
+  }
   editor.elements.approved.value = String(user.approved);
   editor.elements.password.value = '';
   document.querySelector('#userEditorMessage').textContent = '';
@@ -555,10 +602,21 @@ async function checkDbConnection() {
   }
 }
 
+let currentDashboardSection = 'all';
+
 // Fetch all students from backend
 async function fetchStudents() {
   try {
-    const res = await fetch(`${API_BASE}/students`, {
+    const userRole = getCurrentUserRole();
+    const userSec = getCurrentUserSection();
+    const isSuper = userRole === 'superadmin' || userSec === 'all';
+
+    let url = `${API_BASE}/students`;
+    if (isSuper && currentDashboardSection && currentDashboardSection !== 'all') {
+      url += `?section=${encodeURIComponent(currentDashboardSection)}`;
+    }
+
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
     });
     const json = await parseApiResponse(res);
@@ -689,9 +747,14 @@ function renderStudents(query = '') {
       `;
     }
 
+    const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
+
     return `
       <article class="student-card">
-        <span class="tag">${escapeHtml(student.status)}</span>
+        <div class="card-tags">
+          <span class="tag">${escapeHtml(student.status)}</span>
+          <span class="section-tag section-badge-${escapeHtml(studentSec)}">${escapeHtml(studentSec.toUpperCase())}</span>
+        </div>
         <div class="student-top">
           <div class="avatar">${escapeHtml(initials)}</div>
           <div>
@@ -835,14 +898,37 @@ function updateStats() {
   if (englishBar) englishBar.style.width = `${percent(english)}%`;
   if (campusDonut) campusDonut.style.setProperty('--fanar', `${percent(fanar)}%`);
 
+  const userRole = getCurrentUserRole();
+  const userSec = getCurrentUserSection();
+  const isSuper = userRole === 'superadmin' || userSec === 'all';
+  const activeSection = isSuper ? currentDashboardSection : userSec;
+
+  let visibleMajors = ['Mathematics', 'Informatics', 'Statistics', 'Physics', 'Chemistry', 'Electronics', 'Biology', 'Biochemistry'];
+  if (activeSection === 'mispce') {
+    visibleMajors = MISPCE_MAJORS_LIST;
+  } else if (activeSection === 'csvt') {
+    visibleMajors = CSVT_MAJORS_LIST;
+  }
+
+  const majorCountBadge = document.querySelector('#majorCountBadge');
+  if (majorCountBadge) {
+    majorCountBadge.textContent = `${visibleMajors.length} majors`;
+  }
+
   document.querySelectorAll('.major-stat').forEach(card => {
     const major = card.dataset.major;
-    const majorCount = students.filter(student => (student.major || '').toLowerCase() === major.toLowerCase()).length;
-    const majorPercent = percent(majorCount);
-    card.querySelector('b').textContent = majorCount;
-    card.querySelector('i').style.width = `${majorPercent}%`;
-    card.querySelector('small').textContent = `${majorPercent}% of students`;
+    const isVisible = visibleMajors.some(m => m.toLowerCase() === major.toLowerCase());
+    card.style.display = isVisible ? '' : 'none';
+    if (isVisible) {
+      const majorCount = students.filter(student => (student.major || '').toLowerCase() === major.toLowerCase()).length;
+      const majorPercent = percent(majorCount);
+      card.querySelector('b').textContent = majorCount;
+      card.querySelector('i').style.width = `${majorPercent}%`;
+      card.querySelector('small').textContent = `${majorPercent}% of students`;
+    }
   });
+
+  updateMajorFilterOptions(visibleMajors);
 
   const grpAB = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B').length;
   const grpCD = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D').length;
@@ -876,6 +962,59 @@ function updateStats() {
 
   if (!isCurrentUserDeleg()) {
     renderPoliticalStats();
+  }
+}
+
+function updateMajorFilterOptions(visibleMajors) {
+  if (!majorFilter) return;
+  const currentVal = majorFilter.value;
+  const optionsHtml = [
+    '<option value="">All majors</option>',
+    ...visibleMajors.map(m => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`)
+  ].join('');
+  if (majorFilter.innerHTML !== optionsHtml) {
+    majorFilter.innerHTML = optionsHtml;
+    if (visibleMajors.some(m => m.toLowerCase() === currentVal.toLowerCase())) {
+      majorFilter.value = currentVal;
+    } else {
+      majorFilter.value = '';
+    }
+    majorFilter._rebuildCustomSelect?.();
+  }
+}
+
+function setupSectionSwitchTabs() {
+  const switchWrapper = document.querySelector('#sectionSwitchWrapper');
+  if (!switchWrapper) return;
+
+  const userRole = getCurrentUserRole();
+  const userSec = getCurrentUserSection();
+  const isSuper = userRole === 'superadmin' || userSec === 'all';
+
+  const tabs = switchWrapper.querySelector('.section-switch-tabs');
+  const lockedIndicator = switchWrapper.querySelector('#sectionLockedIndicator');
+  const lockedTag = switchWrapper.querySelector('#sectionLockedIndicatorTag');
+
+  if (isSuper) {
+    if (tabs) tabs.style.display = 'inline-flex';
+    if (lockedIndicator) lockedIndicator.classList.add('hidden');
+    switchWrapper.querySelectorAll('.section-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        switchWrapper.querySelectorAll('.section-tab').forEach(t => t.classList.remove('is-active'));
+        tab.classList.add('is-active');
+        currentDashboardSection = tab.dataset.section || 'all';
+        fetchStudents();
+      });
+    });
+  } else {
+    if (tabs) tabs.style.display = 'none';
+    if (lockedIndicator) {
+      lockedIndicator.classList.remove('hidden');
+      if (lockedTag) {
+        lockedTag.textContent = userSec.toUpperCase();
+        lockedTag.className = `section-tag section-badge-${userSec}`;
+      }
+    }
   }
 }
 
@@ -1202,6 +1341,69 @@ async function deleteStudentRecord(id) {
   }
 }
 
+function updateMajorSelectOptions(section, selectedMajor = '') {
+  const majorSelect = document.querySelector('#studentMajorSelect');
+  if (!majorSelect) return;
+  const majors = (section === 'csvt') ? CSVT_MAJORS_LIST : MISPCE_MAJORS_LIST;
+  const options = ['<option value="" disabled>Select a major</option>'];
+  majors.forEach(m => {
+    options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`);
+  });
+  majorSelect.innerHTML = options.join('');
+  if (selectedMajor && majors.some(m => m.toLowerCase() === selectedMajor.toLowerCase())) {
+    majorSelect.value = selectedMajor;
+  } else {
+    majorSelect.selectedIndex = 0;
+  }
+  majorSelect._rebuildCustomSelect?.();
+}
+
+function initStudentForm() {
+  if (!form) return;
+  const userRole = getCurrentUserRole();
+  const userSec = getCurrentUserSection();
+  const isSuper = userRole === 'superadmin' || userSec === 'all';
+
+  const sectionSelect = document.querySelector('#studentSectionSelect');
+  const lockedBadge = document.querySelector('#sectionLockedBadge');
+  const lockedTag = document.querySelector('#sectionLockedTag');
+  const lockedInput = document.querySelector('#studentLockedSectionInput');
+
+  if (!isSuper) {
+    const assignedSec = userSec || 'mispce';
+    if (sectionSelect) {
+      sectionSelect.value = assignedSec;
+      sectionSelect.disabled = true;
+      const customWrapper = sectionSelect.closest('.custom-select');
+      if (customWrapper) customWrapper.style.display = 'none';
+      else sectionSelect.style.display = 'none';
+    }
+    if (lockedBadge) {
+      lockedBadge.classList.remove('hidden');
+      if (lockedTag) {
+        lockedTag.textContent = assignedSec.toUpperCase();
+        lockedTag.className = `section-tag section-badge-${assignedSec}`;
+      }
+    }
+    if (lockedInput) {
+      lockedInput.disabled = false;
+      lockedInput.value = assignedSec;
+    }
+    updateMajorSelectOptions(assignedSec);
+  } else {
+    if (lockedBadge) lockedBadge.classList.add('hidden');
+    if (lockedInput) lockedInput.disabled = true;
+    if (sectionSelect) {
+      sectionSelect.disabled = false;
+      sectionSelect.style.display = '';
+      updateMajorSelectOptions(sectionSelect.value || 'mispce');
+      sectionSelect.addEventListener('change', () => {
+        updateMajorSelectOptions(sectionSelect.value);
+      });
+    }
+  }
+}
+
 // Form logic (Add / Edit Student)
 if (form) {
   form.addEventListener('submit', async event => {
@@ -1225,18 +1427,24 @@ if (form) {
     const submitBtn = document.querySelector('#submitBtn');
     if (submitBtn) submitBtn.disabled = true;
 
+    const token = localStorage.getItem('hub_token') || '';
+    const authHeaders = {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
+
     try {
       let res, json;
       if (editingId) {
         res = await fetch(`${API_BASE}/students/${editingId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify(studentData),
         });
       } else {
         res = await fetch(`${API_BASE}/students`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders,
           body: JSON.stringify(studentData),
         });
       }
@@ -1288,11 +1496,22 @@ async function initFormEditMode() {
   if (cancelEdit) cancelEdit.classList.remove('hidden');
 
   try {
-    const res = await fetch(`${API_BASE}/students/${editId}`);
+    const res = await fetch(`${API_BASE}/students/${editId}`, {
+      headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
+    });
     const json = await parseApiResponse(res);
     if (json.success && json.data) {
       const student = json.data;
+      const sec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
+      const sectionSelect = document.querySelector('#studentSectionSelect');
+      if (sectionSelect && !sectionSelect.disabled) {
+        sectionSelect.value = sec;
+        sectionSelect._syncCustomSelect?.();
+      }
+      updateMajorSelectOptions(sec, student.major);
+
       Object.entries(student).forEach(([key, value]) => {
+        if (key === 'section' || key === 'major') return;
         const input = form.querySelector(`[name="${key}"][value="${CSS.escape(value || '')}"]`) || form.querySelector(`[name="${key}"]`);
         if (input) {
           if (input.type === 'radio') {
@@ -1303,6 +1522,11 @@ async function initFormEditMode() {
           }
         }
       });
+      const majorSelect = document.querySelector('#studentMajorSelect');
+      if (majorSelect && student.major) {
+        majorSelect.value = student.major;
+        majorSelect._syncCustomSelect?.();
+      }
     }
   } catch (err) {
     console.error('Failed to load student for editing:', err);
@@ -1618,6 +1842,9 @@ function initCustomSelects(scope = document) {
     select.addEventListener('invalid', () => trigger.classList.add('invalid'));
     select.addEventListener('focus', () => trigger.focus());
 
+    select._rebuildCustomSelect = renderOptions;
+    select._syncCustomSelect = sync;
+
     renderOptions();
   });
 }
@@ -1634,11 +1861,13 @@ document.addEventListener('click', e => {
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
-  initCustomSelects();
   if (!checkAuth()) return;
+  initStudentForm();
+  initCustomSelects();
   setupNotes();
   setupPoliticalTabs();
   setupClassStatClicks();
+  setupSectionSwitchTabs();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   if (document.body.dataset.page !== 'kazaa') fetchStudents();

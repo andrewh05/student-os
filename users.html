@@ -43,9 +43,10 @@
       <div class="card-heading"><div><span class="step">USER</span><h2>Create system account</h2></div><p>Fields marked <b>*</b> are required</p></div>
       <form id="userForm" novalidate>
         <div class="section-label"><span>User information</span></div>
-        <div class="fields two-cols">
+        <div class="fields three-cols">
           <label><span>Full name *</span><input name="fullName" autocomplete="name" required placeholder="e.g. Maya Haddad"></label>
           <label><span>Role *</span><select name="role" required><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="deleg" selected>Deleg</option></select></label>
+          <label><span>Academic section *</span><select name="section" required><option value="mispce" selected>MISPCE</option><option value="csvt">CSVT</option><option value="all">All Sections (Superadmin)</option></select></label>
         </div>
         <div class="section-label"><span>Login credentials</span></div>
         <div class="fields two-cols">
@@ -80,6 +81,7 @@
             <label><span>Full name *</span><input name="fullName" required></label>
             <label><span>Username *</span><input name="username" minlength="3" required></label>
             <label><span>Role *</span><select name="role"><option value="superadmin">Superadmin</option><option value="admin">Admin</option><option value="deleg">Deleg</option></select></label>
+            <label><span>Section *</span><select name="section"><option value="mispce">MISPCE</option><option value="csvt">CSVT</option><option value="all">All Sections (Superadmin)</option></select></label>
             <label><span>Status *</span><select name="approved"><option value="true">Approved</option><option value="false">Pending</option></select></label>
             <label class="editor-password"><span>New password</span><input name="password" type="password" minlength="8" autocomplete="new-password" placeholder="Leave blank to keep current password"></label>
           </div>

@@ -78,6 +78,18 @@
       </form>
     </dialog>
 
+    <div class="section-switch-wrapper" id="sectionSwitchWrapper">
+      <div class="section-switch-tabs" role="tablist" aria-label="Filter by academic section">
+        <button type="button" class="section-tab is-active" data-section="all">All Sections</button>
+        <button type="button" class="section-tab" data-section="mispce">MISPCE</button>
+        <button type="button" class="section-tab" data-section="csvt">CSVT</button>
+      </div>
+      <div class="section-locked-indicator hidden" id="sectionLockedIndicator">
+        <span class="section-tag" id="sectionLockedIndicatorTag">MISPCE</span>
+        <small>Assigned academic section</small>
+      </div>
+    </div>
+
     <section class="records" id="recordsSection">
       <div class="stats-grid">
         <article class="stat-card featured">
@@ -149,7 +161,7 @@
       <article class="major-insight-card">
         <div class="major-insight-heading">
           <div><span>Academic distribution</span><h3>Students by major</h3></div>
-          <span class="insight-badge">6 majors</span>
+          <span class="insight-badge" id="majorCountBadge">Live majors</span>
         </div>
         <div class="major-stats-grid">
           <div class="major-stat" data-major="Mathematics"><div class="major-stat-top"><span>Mathematics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
@@ -158,6 +170,8 @@
           <div class="major-stat" data-major="Physics"><div class="major-stat-top"><span>Physics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
           <div class="major-stat" data-major="Chemistry"><div class="major-stat-top"><span>Chemistry</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
           <div class="major-stat" data-major="Electronics"><div class="major-stat-top"><span>Electronics</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Biology"><div class="major-stat-top"><span>Biology</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
+          <div class="major-stat" data-major="Biochemistry"><div class="major-stat-top"><span>Biochemistry</span><b>0</b></div><div class="major-progress"><i></i></div><small>0% of students</small></div>
         </div>
       </article>
 
@@ -239,7 +253,7 @@
 
       <div class="student-filters" aria-label="Filter student records">
         <label><span>Status</span><select id="statusFilter"><option value="">All statuses</option><option value="New">New</option><option value="Mu3id">Mu3id</option></select></label>
-        <label><span>Major</span><select id="majorFilter"><option value="">All majors</option><option value="Mathematics">Mathematics</option><option value="Informatics">Informatics</option><option value="Statistics">Statistics</option><option value="Physics">Physics</option><option value="Chemistry">Chemistry</option><option value="Electronics">Electronics</option></select></label>
+        <label><span>Major</span><select id="majorFilter"><option value="">All majors</option><option value="Mathematics">Mathematics</option><option value="Informatics">Informatics</option><option value="Statistics">Statistics</option><option value="Physics">Physics</option><option value="Chemistry">Chemistry</option><option value="Electronics">Electronics</option><option value="Biology">Biology</option><option value="Biochemistry">Biochemistry</option></select></label>
         <label><span>Campus</span><select id="campusFilter"><option value="">All campuses</option><option value="Fanar">Fanar</option><option value="Amshit">Amshit</option></select></label>
         <label><span>Language</span><select id="languageFilter"><option value="">All languages</option><option value="French">French</option><option value="English">English</option></select></label>
         <label><span>Group</span><select id="groupFilter">

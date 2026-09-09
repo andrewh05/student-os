@@ -59,7 +59,12 @@ function verifyPassword(password, stored) {
 }
 
 function signSession(user) {
-  const payload = Buffer.from(JSON.stringify({ id: user.id, role: user.role, exp: Date.now() + 12 * 60 * 60 * 1000 })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    id: user.id,
+    role: user.role,
+    section: user.section || (user.role === 'superadmin' ? 'all' : 'mispce'),
+    exp: Date.now() + 12 * 60 * 60 * 1000
+  })).toString('base64url');
   const signature = crypto.createHmac('sha256', getEncryptionKey()).update(payload).digest('base64url');
   return `${payload}.${signature}`;
 }
@@ -70,7 +75,11 @@ function verifySession(token) {
     const expected = crypto.createHmac('sha256', getEncryptionKey()).update(payload).digest('base64url');
     if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
-    return session.exp > Date.now() ? session : null;
+    if (!session || session.exp <= Date.now()) return null;
+    if (!session.section) {
+      session.section = session.role === 'superadmin' ? 'all' : 'mispce';
+    }
+    return session;
   } catch {
     return null;
   }

@@ -81,10 +81,21 @@
         </div>
 
         <div class="section-label"><span>University Details</span></div>
-        <div class="fields two-cols">
+        <div class="fields three-cols">
+          <label id="sectionFieldLabel">
+            <span>Academic section *</span>
+            <select name="section" id="studentSectionSelect" required>
+              <option value="mispce" selected>MISPCE</option>
+              <option value="csvt">CSVT</option>
+            </select>
+            <div id="sectionLockedBadge" class="section-locked-badge hidden">
+              <span class="section-tag section-badge-mispce" id="sectionLockedTag">MISPCE</span>
+              <input type="hidden" name="section" id="studentLockedSectionInput" value="mispce" disabled>
+            </div>
+          </label>
           <label><span>Previous school *</span><input name="school" required placeholder="e.g. Collège des Apôtres"></label>
           <label><span>University major *</span>
-            <select name="major" required>
+            <select name="major" id="studentMajorSelect" required>
               <option value="" selected disabled>Select a major</option>
               <option value="Mathematics">Mathematics</option>
               <option value="Informatics">Informatics</option>
