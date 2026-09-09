@@ -6,6 +6,7 @@ const assets = [
   'index.html',
   'kazaa.html',
   'kazaa-page.js',
+  'kazaa-export.html',
   'dashboard.html',
   'form.html',
   'users.html',

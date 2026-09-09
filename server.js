@@ -10,47 +10,76 @@ const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizati
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-function readStudentNote(value) {
-  if (!value) return '';
-  return JSON.parse(decryptValue(value, 'students.note')).text;
+function parseStudentNotePayload(value) {
+  if (!value) return { text: '', assignedGroup: '' };
+  try {
+    const decrypted = decryptValue(value, 'students.note');
+    if (!decrypted) return { text: '', assignedGroup: '' };
+    const parsed = JSON.parse(decrypted);
+    return {
+      text: typeof parsed.text === 'string' ? parsed.text : '',
+      assignedGroup: typeof parsed.assignedGroup === 'string' ? parsed.assignedGroup : ''
+    };
+  } catch {
+    return { text: '', assignedGroup: '' };
+  }
 }
 
-const mapStudent = row => ({
-  id: row.id,
-  note: readStudentNote(row.note),
-  firstName: decryptValue(row.first_name, 'students.first_name'),
-  fatherName: decryptValue(row.father_name, 'students.father_name'),
-  familyName: decryptValue(row.family_name, 'students.family_name'),
-  origin: decryptValue(row.origin, 'students.origin'),
-  address: decryptValue(row.address, 'students.address'),
-  school: decryptValue(row.school, 'students.school'),
-  major: decryptValue(row.major, 'students.major'),
-  politicalAffiliation: decryptValue(row.political_affiliation, 'students.political_affiliation'),
-  status: decryptValue(row.status, 'students.status'),
-  language: decryptValue(row.language, 'students.language'),
-  campus: decryptValue(row.campus, 'students.campus'),
-  phone: decryptValue(row.phone, 'students.phone'),
-  email: decryptValue(row.email, 'students.email'),
-  inGroup: Boolean(row.in_group),
-  leftGroup: Boolean(row.left_group),
-  createdAt: row.created_at
-});
+function readStudentNote(value) {
+  return parseStudentNotePayload(value).text;
+}
 
-const toStudentRow = student => ({
-  first_name: encryptValue(student.firstName, 'students.first_name'),
-  father_name: encryptValue(student.fatherName, 'students.father_name'),
-  family_name: encryptValue(student.familyName, 'students.family_name'),
-  origin: encryptValue(student.origin || '', 'students.origin'),
-  address: encryptValue(student.address || '', 'students.address'),
-  school: encryptValue(student.school, 'students.school'),
-  major: encryptValue(student.major, 'students.major'),
-  political_affiliation: encryptValue(student.politicalAffiliation || '', 'students.political_affiliation'),
-  status: encryptValue(student.status, 'students.status'),
-  language: encryptValue(student.language, 'students.language'),
-  campus: encryptValue(student.campus, 'students.campus'),
-  phone: encryptValue(student.phone, 'students.phone'),
-  email: encryptValue(student.email, 'students.email')
-});
+const mapStudent = row => {
+  const notePayload = parseStudentNotePayload(row.note);
+  const assignedGroup = row.assigned_group
+    ? decryptValue(row.assigned_group, 'students.assigned_group')
+    : (row.assignedGroup || notePayload.assignedGroup || '');
+
+  return {
+    id: row.id,
+    note: notePayload.text,
+    kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
+    firstName: decryptValue(row.first_name, 'students.first_name'),
+    fatherName: decryptValue(row.father_name, 'students.father_name'),
+    familyName: decryptValue(row.family_name, 'students.family_name'),
+    origin: decryptValue(row.origin, 'students.origin'),
+    address: decryptValue(row.address, 'students.address'),
+    school: decryptValue(row.school, 'students.school'),
+    major: decryptValue(row.major, 'students.major'),
+    politicalAffiliation: decryptValue(row.political_affiliation, 'students.political_affiliation'),
+    status: decryptValue(row.status, 'students.status'),
+    language: decryptValue(row.language, 'students.language'),
+    campus: decryptValue(row.campus, 'students.campus'),
+    phone: decryptValue(row.phone, 'students.phone'),
+    email: decryptValue(row.email, 'students.email'),
+    inGroup: Boolean(row.in_group),
+    leftGroup: Boolean(row.left_group),
+    assignedGroup: assignedGroup || '',
+    createdAt: row.created_at
+  };
+};
+
+const toStudentRow = student => {
+  const row = {
+    first_name: encryptValue(student.firstName, 'students.first_name'),
+    father_name: encryptValue(student.fatherName, 'students.father_name'),
+    family_name: encryptValue(student.familyName, 'students.family_name'),
+    origin: encryptValue(student.origin || '', 'students.origin'),
+    address: encryptValue(student.address || '', 'students.address'),
+    school: encryptValue(student.school, 'students.school'),
+    major: encryptValue(student.major, 'students.major'),
+    political_affiliation: encryptValue(student.politicalAffiliation || '', 'students.political_affiliation'),
+    status: encryptValue(student.status, 'students.status'),
+    language: encryptValue(student.language, 'students.language'),
+    campus: encryptValue(student.campus, 'students.campus'),
+    phone: encryptValue(student.phone, 'students.phone'),
+    email: encryptValue(student.email, 'students.email')
+  };
+  if (student.kazaa !== undefined) {
+    row.kazaa = student.kazaa ? encryptValue(student.kazaa, 'students.kazaa') : '';
+  }
+  return row;
+};
 
 const normalizeText = value => String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
 const normalizePhone = value => String(value || '').replace(/\D/g, '');
@@ -110,7 +139,8 @@ if (hasLocalFilesystem) {
 const requireAdmin = (req, res, next) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
-  if (!session || session.role !== 'admin') return res.status(403).json({ success: false, error: 'Administrator approval required' });
+  if (!session) return res.status(401).json({ success: false, error: 'Please sign in again.' });
+  if (session.role !== 'admin') return res.status(403).json({ success: false, error: 'Administrator approval required' });
   next();
 };
 
@@ -128,21 +158,31 @@ app.get('/api/kazaa', requireSession, async (req, res) => {
     if (supabase) {
       rows = [];
       for (let offset = 0; ; offset += 1000) {
-        const { data, error } = await supabase.from('students').select('id, first_name, family_name, origin').order('id').range(offset, offset + 999);
+        let { data, error } = await supabase.from('students').select('id, first_name, family_name, origin, kazaa').order('id').range(offset, offset + 999);
+        if (error && (error.code === '42703' || /kazaa/i.test(error.message))) {
+          const fallback = await supabase.from('students').select('id, first_name, family_name, origin').order('id').range(offset, offset + 999);
+          if (fallback.error) throw fallback.error;
+          data = fallback.data;
+          error = null;
+        }
         if (error) throw error;
         rows.push(...data);
         if (data.length < 1000) break;
       }
     } else {
-      ({ rows } = await pool.query('SELECT id, first_name, family_name, origin FROM students ORDER BY id'));
+      try {
+        ({ rows } = await pool.query('SELECT id, first_name, family_name, origin, kazaa FROM students ORDER BY id'));
+      } catch {
+        ({ rows } = await pool.query('SELECT id, first_name, family_name, origin FROM students ORDER BY id'));
+      }
     }
     res.json({ success: true, configured: Boolean(process.env.GROQ_API_KEY), districts: DISTRICTS,
-      data: rows.map(row => ({ id: row.id, firstName: decryptValue(row.first_name, 'students.first_name'), familyName: decryptValue(row.family_name, 'students.family_name'), origin: decryptValue(row.origin, 'students.origin') })) });
+      data: rows.map(row => ({ id: row.id, firstName: decryptValue(row.first_name, 'students.first_name'), familyName: decryptValue(row.family_name, 'students.family_name'), origin: decryptValue(row.origin, 'students.origin'), kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '' })) });
   } catch {
     res.status(500).json({ success: false, error: 'Could not load students. Please reload to try again.' });
   }
 });
-app.post('/api/kazaa/classify', requireSession, async (req, res) => {
+app.post('/api/kazaa/classify', requireAdmin, async (req, res) => {
   const { origins } = req.body || {};
   if (!Array.isArray(origins) || !origins.length || origins.length > 30 || origins.some(value => typeof value !== 'string' || !value.trim() || value.length > 300)) {
     return res.status(400).json({ success: false, error: 'Send 1–30 origin names, up to 300 characters each.' });
@@ -153,6 +193,47 @@ app.post('/api/kazaa/classify', requireSession, async (req, res) => {
     res.json({ success: true, data });
   } catch (err) {
     res.status(502).json({ success: false, error: err.name === 'TimeoutError' ? 'Groq took too long. Please try again.' : err.message });
+  }
+});
+
+app.post('/api/kazaa/batch', requireSession, async (req, res) => {
+  const { assignments } = req.body || {};
+  if (!Array.isArray(assignments) || !assignments.length || assignments.length > 500) {
+    return res.status(400).json({ success: false, error: 'Send an array of up to 500 assignments.' });
+  }
+  for (const item of assignments) {
+    if (!item || typeof item.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid student ID in batch.' });
+    }
+    if (item.district && !DISTRICTS.includes(item.district)) {
+      return res.status(400).json({ success: false, error: `Invalid district: ${item.district}` });
+    }
+  }
+  try {
+    if (supabase) {
+      for (const item of assignments) {
+        const districtValue = item.district || '';
+        const encrypted = districtValue ? encryptValue(districtValue, 'students.kazaa') : '';
+        const { error } = await supabase.from('students').update({ kazaa: encrypted }).eq('id', item.id);
+        if (error) throw error;
+      }
+    } else {
+      for (const item of assignments) {
+        const districtValue = item.district || '';
+        const encrypted = districtValue ? encryptValue(districtValue, 'students.kazaa') : '';
+        await pool.query('UPDATE students SET kazaa = $1 WHERE id = $2', [encrypted, item.id]);
+      }
+    }
+    res.json({ success: true, count: assignments.length });
+  } catch (err) {
+    console.error('Error batch updating kazaa:', err.message);
+    const needsMigration = err.code === '42703' || /kazaa/i.test(err.message);
+    res.status(500).json({
+      success: false,
+      error: needsMigration
+        ? 'Kazaa column is not enabled in the database yet. Run the migration in supabase_kazaa_migration.sql.'
+        : 'Could not save kazaa assignments. Please try again.'
+    });
   }
 });
 
@@ -219,6 +300,15 @@ app.post('/api/users', async (req, res) => {
   if (!['admin', 'staff'].includes(role)) {
     return res.status(400).json({ success: false, error: 'Invalid user role' });
   }
+
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  const isAdmin = Boolean(session && session.role === 'admin');
+
+  // Only authenticated administrators can grant admin privileges or immediately pre-approve
+  const assignedRole = (isAdmin && role === 'admin') ? 'admin' : 'staff';
+  const isApproved = Boolean(isAdmin && req.body.approved === true);
+
   try {
     if (supabase) {
       const { data: existingUsers, error: lookupError } = await supabase.from('users').select('id, username');
@@ -229,20 +319,31 @@ app.post('/api/users', async (req, res) => {
         username: encryptValue(username.trim(), 'users.username'),
         password: hashPassword(password),
         full_name: encryptValue(fullName.trim(), 'users.full_name'),
-        role: encryptValue(role, 'users.role')
+        role: encryptValue(assignedRole, 'users.role'),
+        approved: isApproved
       };
-      const { data, error } = await supabase.from('users').insert(encryptedUser).select('id, username, full_name, role').single();
+      const { data, error } = await supabase.from('users').insert(encryptedUser).select('id, username, full_name, role, approved').single();
       if (error) {
         if (error.code === '23505') return res.status(409).json({ success: false, error: 'This username already exists' });
         throw error;
       }
-      return res.status(201).json({ success: true, provider: 'Supabase', data: { id: data.id, username: username.trim(), full_name: fullName.trim(), role }, message: 'Portal user created successfully' });
+      return res.status(201).json({
+        success: true,
+        provider: 'Supabase',
+        data: { id: data.id, username: username.trim(), full_name: fullName.trim(), role: assignedRole, approved: isApproved },
+        message: isApproved ? 'Portal user created successfully' : 'Portal user created and is waiting for administrator approval'
+      });
     }
     const { rows } = await pool.query(
-      `INSERT INTO users (username, password, full_name, role) VALUES ($1, $2, $3, $4) RETURNING id, username, full_name AS "fullName", role`,
-      [encryptValue(username.trim(), 'users.username'), hashPassword(password), encryptValue(fullName.trim(), 'users.full_name'), encryptValue(role, 'users.role')]
+      `INSERT INTO users (username, password, full_name, role, approved) VALUES ($1, $2, $3, $4, $5) RETURNING id, username, full_name AS "fullName", role, approved`,
+      [encryptValue(username.trim(), 'users.username'), hashPassword(password), encryptValue(fullName.trim(), 'users.full_name'), encryptValue(assignedRole, 'users.role'), isApproved]
     );
-    return res.status(201).json({ success: true, provider: 'PostgreSQL', data: rows[0], message: 'Portal user created successfully' });
+    return res.status(201).json({
+      success: true,
+      provider: 'PostgreSQL',
+      data: rows[0],
+      message: isApproved ? 'Portal user created successfully' : 'Portal user created and is waiting for administrator approval'
+    });
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ success: false, error: 'This username already exists' });
     console.error('Error creating portal user:', err.message);
@@ -401,11 +502,14 @@ app.post('/api/login', async (req, res) => {
         user: { id: data.id, username: decryptedUsername, fullName: decryptedName || decryptedUsername, role: decryptedRole }
       });
     }
-    const { rows } = await pool.query(`SELECT id, username, password, full_name AS "fullName", role FROM users;`);
+    const { rows } = await pool.query(`SELECT id, username, password, full_name AS "fullName", role, approved FROM users;`);
     const matched = rows.find(user => decryptValue(user.username, 'users.username').toLowerCase() === username.toLowerCase());
 
     if (!matched || !verifyPassword(password, matched.password)) {
       return res.status(401).json({ success: false, error: 'Invalid username or password' });
+    }
+    if (matched.approved === false) {
+      return res.status(403).json({ success: false, error: 'Your account is waiting for administrator approval' });
     }
 
     const user = matched;
@@ -442,6 +546,7 @@ app.get('/api/students', async (req, res) => {
     const { rows } = await pool.query(`
       SELECT 
         note,
+        kazaa,
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
@@ -462,7 +567,7 @@ app.get('/api/students', async (req, res) => {
       FROM students 
       ORDER BY created_at DESC;
     `);
-    res.json({ success: true, data: rows.map(row => ({ ...row, note: readStudentNote(row.note) })) });
+    res.json({ success: true, data: rows.map(row => ({ ...row, note: readStudentNote(row.note), kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '' })) });
   } catch (err) {
     console.error('Error fetching students:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -482,6 +587,7 @@ app.get('/api/students/:id', async (req, res) => {
     const { rows } = await pool.query(`
       SELECT 
         note,
+        kazaa,
         id, 
         first_name AS "firstName", 
         father_name AS "fatherName", 
@@ -506,7 +612,7 @@ app.get('/api/students/:id', async (req, res) => {
     if (rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
-    res.json({ success: true, data: { ...rows[0], note: readStudentNote(rows[0].note) } });
+    res.json({ success: true, data: { ...rows[0], note: readStudentNote(rows[0].note), kazaa: rows[0].kazaa ? decryptValue(rows[0].kazaa, 'students.kazaa') : '' } });
   } catch (err) {
     console.error('Error fetching student:', err.message);
     res.status(500).json({ success: false, error: err.message });
@@ -654,14 +760,24 @@ app.patch('/api/students/:id/note', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Note must be text of at most 5,000 characters.' });
   }
   try {
-    // Wrap user text so encryption-looking input is still treated as plaintext.
-    const encrypted = note.trim() ? encryptValue(JSON.stringify({ text: note.trim() }), 'students.note') : '';
     let row;
     if (supabase) {
+      const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
+      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '' };
+      const newPayload = { text: note.trim(), assignedGroup: currentPayload.assignedGroup || '' };
+      const encrypted = (newPayload.text || newPayload.assignedGroup)
+        ? encryptValue(JSON.stringify(newPayload), 'students.note')
+        : '';
       const { data, error } = await supabase.from('students').update({ note: encrypted }).eq('id', id).select('id').maybeSingle();
       if (error) throw error;
       row = data;
     } else {
+      const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
+      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '' };
+      const newPayload = { text: note.trim(), assignedGroup: currentPayload.assignedGroup || '' };
+      const encrypted = (newPayload.text || newPayload.assignedGroup)
+        ? encryptValue(JSON.stringify(newPayload), 'students.note')
+        : '';
       const { rows } = await pool.query('UPDATE students SET note = $1 WHERE id = $2 RETURNING id', [encrypted, id]);
       row = rows[0];
     }
@@ -673,39 +789,131 @@ app.patch('/api/students/:id/note', async (req, res) => {
   }
 });
 
+// Update only the selected student's kazaa (district); normal profile edits preserve it.
+app.patch('/api/students/:id/kazaa', async (req, res) => {
+  const session = verifySession((req.headers.authorization || '').replace(/^Bearer\s+/i, ''));
+  if (!session) return res.status(401).json({ success: false, error: 'Please sign in again to save kazaa.' });
+  const { id } = req.params;
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return res.status(400).json({ success: false, error: 'Invalid student ID.' });
+  }
+  const { kazaa } = req.body || {};
+  const districtValue = typeof kazaa === 'string' ? kazaa.trim() : '';
+  if (districtValue && !DISTRICTS.includes(districtValue)) {
+    return res.status(400).json({ success: false, error: 'Invalid kazaa district.' });
+  }
+  const encrypted = districtValue ? encryptValue(districtValue, 'students.kazaa') : '';
+  try {
+    let row;
+    if (supabase) {
+      const { data, error } = await supabase.from('students').update({ kazaa: encrypted }).eq('id', id).select('id').maybeSingle();
+      if (error) throw error;
+      row = data;
+    } else {
+      const { rows } = await pool.query('UPDATE students SET kazaa = $1 WHERE id = $2 RETURNING id', [encrypted, id]);
+      row = rows[0];
+    }
+    if (!row) return res.status(404).json({ success: false, error: 'Student not found.' });
+    res.json({ success: true, data: { id: row.id, kazaa: districtValue } });
+  } catch (err) {
+    console.error('Error saving student kazaa:', err.message);
+    const needsMigration = err.code === '42703' || /kazaa/i.test(err.message);
+    res.status(500).json({
+      success: false,
+      error: needsMigration
+        ? 'Kazaa column is not enabled in the database yet. Run the migration in supabase_kazaa_migration.sql.'
+        : 'Could not save kazaa. Please try again.'
+    });
+  }
+});
+
 // PATCH group membership without changing the rest of the student record
 app.patch('/api/students/:id/group', async (req, res) => {
   const { id } = req.params;
-  const { inGroup, leftGroup = false } = req.body;
+  const { inGroup, leftGroup = false, assignedGroup } = req.body;
   if (typeof inGroup !== 'boolean') {
     return res.status(400).json({ success: false, error: 'inGroup must be true or false' });
   }
   if (typeof leftGroup !== 'boolean') {
     return res.status(400).json({ success: false, error: 'leftGroup must be true or false' });
   }
+  if (assignedGroup !== undefined && typeof assignedGroup !== 'string') {
+    return res.status(400).json({ success: false, error: 'assignedGroup must be a string' });
+  }
 
   const nextInGroup = leftGroup ? false : inGroup;
+  const nextAssignedGroup = leftGroup ? '' : (assignedGroup !== undefined ? assignedGroup.trim() : undefined);
 
   try {
     if (supabase) {
-      const { data, error } = await supabase
+      let updatePayload = { in_group: nextInGroup, left_group: leftGroup };
+      if (nextAssignedGroup !== undefined) {
+        updatePayload.assigned_group = nextAssignedGroup ? encryptValue(nextAssignedGroup, 'students.assigned_group') : '';
+      }
+
+      let updateResult = await supabase
         .from('students')
-        .update({ in_group: nextInGroup, left_group: leftGroup })
+        .update(updatePayload)
         .eq('id', id)
         .select()
         .maybeSingle();
-      if (error) throw error;
-      if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
-      return res.json({ success: true, data: mapStudent(data) });
+
+      // If assigned_group column is not present in Supabase table (PGRST204 or 42703), fallback to note payload
+      if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /assigned_group/i.test(updateResult.error.message))) {
+        const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
+        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '' };
+        const newPayload = {
+          text: currentPayload.text,
+          assignedGroup: nextAssignedGroup !== undefined ? nextAssignedGroup : (currentPayload.assignedGroup || '')
+        };
+        const encryptedNote = (newPayload.text || newPayload.assignedGroup)
+          ? encryptValue(JSON.stringify(newPayload), 'students.note')
+          : '';
+
+        updateResult = await supabase
+          .from('students')
+          .update({ in_group: nextInGroup, left_group: leftGroup, note: encryptedNote })
+          .eq('id', id)
+          .select()
+          .maybeSingle();
+      }
+
+      if (updateResult.error) throw updateResult.error;
+      if (!updateResult.data) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, data: mapStudent(updateResult.data) });
     }
 
-    const { rows } = await pool.query(
-      `UPDATE students SET in_group = $1, left_group = $2 WHERE id = $3
-       RETURNING id, in_group AS "inGroup", left_group AS "leftGroup";`,
-      [nextInGroup, leftGroup, id]
-    );
-    if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
-    return res.json({ success: true, data: rows[0] });
+    // Postgres pool handling
+    try {
+      const { rows } = await pool.query(
+        `UPDATE students SET in_group = $1, left_group = $2, assigned_group = $3 WHERE id = $4
+         RETURNING id, in_group AS "inGroup", left_group AS "leftGroup", assigned_group AS "assignedGroup";`,
+        [nextInGroup, leftGroup, nextAssignedGroup || '', id]
+      );
+      if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
+      return res.json({ success: true, data: rows[0] });
+    } catch (pgErr) {
+      if (pgErr.code === '42703' || /assigned_group/i.test(pgErr.message)) {
+        const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
+        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '' };
+        const newPayload = {
+          text: currentPayload.text,
+          assignedGroup: nextAssignedGroup !== undefined ? nextAssignedGroup : (currentPayload.assignedGroup || '')
+        };
+        const encryptedNote = (newPayload.text || newPayload.assignedGroup)
+          ? encryptValue(JSON.stringify(newPayload), 'students.note')
+          : '';
+
+        const { rows } = await pool.query(
+          `UPDATE students SET in_group = $1, left_group = $2, note = $3 WHERE id = $4
+           RETURNING id, in_group AS "inGroup", left_group AS "leftGroup";`,
+          [nextInGroup, leftGroup, encryptedNote, id]
+        );
+        if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
+        return res.json({ success: true, data: { ...rows[0], assignedGroup: newPayload.assignedGroup } });
+      }
+      throw pgErr;
+    }
   } catch (err) {
     console.error('Error updating group membership:', err.message);
     const needsMigration = err.code === '42703' || /in_group|left_group/i.test(err.message);

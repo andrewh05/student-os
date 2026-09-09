@@ -161,14 +161,69 @@
         </div>
       </article>
 
+      <article class="class-insight-card">
+        <div class="class-insight-heading">
+          <div><span>Section distribution</span><h3>Students by class / section</h3></div>
+          <span class="insight-badge">Live sections</span>
+        </div>
+        <div class="class-stats-grid">
+          <div class="class-stat" data-group="Grp A,B">
+            <div class="class-stat-top"><span>Grp A,B (French)</span><b id="grpABCount">0</b></div>
+            <div class="class-progress"><i id="grpABBar"></i></div>
+            <small id="grpABPercent">0% of students</small>
+          </div>
+          <div class="class-stat" data-group="Grp C,D">
+            <div class="class-stat-top"><span>Grp C,D (French)</span><b id="grpCDCount">0</b></div>
+            <div class="class-progress"><i id="grpCDBar"></i></div>
+            <small id="grpCDPercent">0% of students</small>
+          </div>
+          <div class="class-stat" data-group="Grp E1">
+            <div class="class-stat-top"><span>Grp E1 (English)</span><b id="grpE1Count">0</b></div>
+            <div class="class-progress"><i id="grpE1Bar"></i></div>
+            <small id="grpE1Percent">0% of students</small>
+          </div>
+          <div class="class-stat" data-group="Grp E2">
+            <div class="class-stat-top"><span>Grp E2 (English)</span><b id="grpE2Count">0</b></div>
+            <div class="class-progress"><i id="grpE2Bar"></i></div>
+            <small id="grpE2Percent">0% of students</small>
+          </div>
+          <div class="class-stat" data-group="unassigned">
+            <div class="class-stat-top"><span>Unassigned section</span><b id="unassignedCount">0</b></div>
+            <div class="class-progress"><i id="unassignedBar"></i></div>
+            <small id="unassignedPercent">0% of students</small>
+          </div>
+        </div>
+      </article>
+
       <article class="political-stats-card">
         <div class="political-stats-heading">
-          <div><span>Sensitive overview</span><h3>Political affiliations</h3></div>
+          <div><span>Sensitive overview</span><h3>Political affiliations by group</h3></div>
           <button type="button" id="politicalStatsToggle" class="sensitive-field-toggle" aria-controls="politicalStatsPanel" aria-expanded="false">Show political statistics</button>
         </div>
         <div id="politicalStatsPanel" class="political-stats-panel" hidden>
           <p class="political-stats-note">Aggregate statistics only. Individual affiliations remain hidden on student cards.</p>
+          
+          <div class="political-group-selector" role="tablist" aria-label="Filter political affiliation by group">
+            <button type="button" class="political-group-tab is-active" data-group="all">All students</button>
+            <button type="button" class="political-group-tab" data-group="Grp A,B">Grp A,B</button>
+            <button type="button" class="political-group-tab" data-group="Grp C,D">Grp C,D</button>
+            <button type="button" class="political-group-tab" data-group="Grp E1">Grp E1</button>
+            <button type="button" class="political-group-tab" data-group="Grp E2">Grp E2</button>
+            <button type="button" class="political-group-tab" data-group="in_group">All in group</button>
+            <button type="button" class="political-group-tab" data-group="not_in_group">Not in group</button>
+          </div>
+
+          <div class="political-group-header">
+            <h4 id="politicalGroupTitle">All students</h4>
+            <span id="politicalGroupSub">0 students</span>
+          </div>
+
           <div id="politicalStatsGrid" class="political-stats-grid"></div>
+
+          <div class="political-breakdown-section">
+            <h4>Political affiliation breakdown across each group</h4>
+            <div id="politicalByGroupGrid" class="political-by-group-grid"></div>
+          </div>
         </div>
       </article>
 
@@ -187,8 +242,21 @@
         <label><span>Major</span><select id="majorFilter"><option value="">All majors</option><option value="Mathematics">Mathematics</option><option value="Informatics">Informatics</option><option value="Statistics">Statistics</option><option value="Physics">Physics</option><option value="Chemistry">Chemistry</option><option value="Electronics">Electronics</option></select></label>
         <label><span>Campus</span><select id="campusFilter"><option value="">All campuses</option><option value="Fanar">Fanar</option><option value="Amshit">Amshit</option></select></label>
         <label><span>Language</span><select id="languageFilter"><option value="">All languages</option><option value="French">French</option><option value="English">English</option></select></label>
-        <label><span>Group</span><select id="groupFilter"><option value="">All students</option><option value="in">In group</option><option value="out">Not in group</option><option value="left">Left group</option></select></label>
-        <button type="button" id="clearFilters" class="clear-filters">Clear filters</button>
+        <label><span>Group</span><select id="groupFilter">
+          <option value="">All students</option>
+          <option value="in">In group (Any)</option>
+          <option value="out">Not in group</option>
+          <option value="left">Left group</option>
+          <option value="Grp A,B">Grp A,B</option>
+          <option value="Grp C,D">Grp C,D</option>
+          <option value="Grp E1">Grp E1</option>
+          <option value="Grp E2">Grp E2</option>
+          <option value="unassigned">Unassigned section</option>
+        </select></label>
+        <button type="button" id="clearFilters" class="clear-filters">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          Clear filters
+        </button>
       </div>
 
       <div id="recordsGrid" class="records-grid"></div>

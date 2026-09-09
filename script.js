@@ -73,6 +73,16 @@ const backupStatus = document.querySelector('#backupStatus');
 
 let students = [];
 let editingId = null;
+let currentPoliticalGroup = 'all';
+
+function getStudentAssignedGroup(student) {
+  const norm = (student?.assignedGroup || '').trim().toLowerCase();
+  if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
+  if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
+  if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
+  if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+  return '';
+}
 let systemUsers = [];
 
 const escapeHtml = (value = '') => String(value || '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#039;','"':'&quot;'}[char]));
@@ -410,12 +420,29 @@ if (userForm) {
     submitButton.disabled = true;
     message.textContent = '';
     delete values.confirmPassword;
+    if (values.approved !== undefined) {
+      values.approved = values.approved === 'true';
+    }
     try {
-      const response = await fetch(`${API_BASE}/users`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(values) });
+      const token = localStorage.getItem('hub_token');
+      const response = await fetch(`${API_BASE}/users`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(values)
+      });
       const json = await parseApiResponse(response);
       if (!json.success) throw new Error(json.error || 'Could not create user');
       userForm.reset();
-      showToast('User created', `${values.fullName} can now sign in to student-os.com.`);
+      if (json.data?.approved) {
+        showToast('User created', `${values.fullName} is approved and can now sign in.`);
+      } else {
+        showToast('Account requested', `${values.fullName} requires administrator approval before sign-in.`);
+      }
+      loadPendingUsers();
+      loadAllUsers();
     } catch (error) {
       message.textContent = error.message;
     } finally {
@@ -461,6 +488,7 @@ async function fetchStudents() {
     const json = await parseApiResponse(res);
     if (json.success) {
       students = json.data || [];
+      updateStats();
       renderStudents(searchInput ? searchInput.value : '');
     } else {
       console.error('Failed to fetch students:', json.error);
@@ -468,6 +496,15 @@ async function fetchStudents() {
   } catch (err) {
     console.error('Error connecting to backend:', err);
   }
+}
+
+let renderStudentsRaf = null;
+function scheduleRenderStudents(query = '') {
+  if (renderStudentsRaf) cancelAnimationFrame(renderStudentsRaf);
+  renderStudentsRaf = requestAnimationFrame(() => {
+    renderStudents(query);
+    renderStudentsRaf = null;
+  });
 }
 
 // Render student grid and stats (for dashboard)
@@ -496,16 +533,17 @@ function renderStudents(query = '') {
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
     const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
     const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
+    const assignedGroup = getStudentAssignedGroup(student);
     const matchesGroup = !groupFilter?.value
       || (groupFilter.value === 'in' ? (student.inGroup && !student.leftGroup)
         : groupFilter.value === 'out' ? (!student.inGroup && !student.leftGroup)
         : groupFilter.value === 'left' ? Boolean(student.leftGroup)
-        : true);
+        : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
+        : groupFilter.value === assignedGroup);
     return matchesSearch && matchesStatus && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
   if (recordCount) recordCount.textContent = students.length;
-  updateStats();
   const directorySummary = document.querySelector('#directorySummary');
   if (directorySummary) {
     const filtering = needle || statusFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
@@ -521,6 +559,58 @@ function renderStudents(query = '') {
   recordsGrid.innerHTML = filtered.map(student => {
     const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
     const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
+    const lang = (student.language || '').trim().toLowerCase();
+    const isFrench = lang.includes('french');
+    const isEnglish = lang.includes('english');
+    const isLeft = Boolean(student.leftGroup);
+    const groupDisabledAttr = isLeft ? 'disabled title="This student left the group"' : '';
+
+    let groupButtonsHtml = '';
+    const assigned = getStudentAssignedGroup(student);
+    if (isFrench) {
+      const isAB = assigned === 'Grp A,B';
+      const isCD = assigned === 'Grp C,D';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isAB ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp A,B', this)"
+              aria-pressed="${isAB ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isAB ? '✓ Grp A,B' : 'Grp A,B'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isCD ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp C,D', this)"
+              aria-pressed="${isCD ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isCD ? '✓ Grp C,D' : 'Grp C,D'}
+            </button>
+          </div>
+      `;
+    } else if (isEnglish) {
+      const isE1 = assigned === 'Grp E1';
+      const isE2 = assigned === 'Grp E2';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isE1 ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp E1', this)"
+              aria-pressed="${isE1 ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isE1 ? '✓ Grp E1' : 'Grp E1'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isE2 ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp E2', this)"
+              aria-pressed="${isE2 ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isE2 ? '✓ Grp E2' : 'Grp E2'}
+            </button>
+          </div>
+      `;
+    }
+
     return `
       <article class="student-card">
         <span class="tag">${escapeHtml(student.status)}</span>
@@ -554,12 +644,13 @@ function renderStudents(query = '') {
             onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
             aria-pressed="${student.inGroup ? 'true' : 'false'}"
             ${student.leftGroup ? 'disabled title="This student left the group"' : ''}>
-            ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? '✓ In group' : '+ Add to group')}
+            ${student.leftGroup ? 'In group (disabled)' : (student.inGroup ? (student.assignedGroup ? `✓ In group (${escapeHtml(student.assignedGroup)})` : '✓ In group') : '+ Add to group')}
           </button>
           ${student.inGroup && !student.leftGroup ? `
             <button type="button" class="btn-action left-group"
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
+          ${groupButtonsHtml}
           <div class="record-edit-actions">
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
           <button type="button" class="btn-action student-note-button" data-student-id="${escapeHtml(student.id)}">${student.note ? 'Edit Note' : 'Add Note'}</button>
@@ -673,22 +764,212 @@ function updateStats() {
     card.querySelector('small').textContent = `${majorPercent}% of students`;
   });
 
+  const grpAB = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B').length;
+  const grpCD = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D').length;
+  const grpE1 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E1').length;
+  const grpE2 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E2').length;
+  const unassigned = students.filter(s => !getStudentAssignedGroup(s)).length;
+
+  setText('#grpABCount', grpAB);
+  setText('#grpCDCount', grpCD);
+  setText('#grpE1Count', grpE1);
+  setText('#grpE2Count', grpE2);
+  setText('#unassignedCount', unassigned);
+
+  setText('#grpABPercent', `${percent(grpAB)}% of students`);
+  setText('#grpCDPercent', `${percent(grpCD)}% of students`);
+  setText('#grpE1Percent', `${percent(grpE1)}% of students`);
+  setText('#grpE2Percent', `${percent(grpE2)}% of students`);
+  setText('#unassignedPercent', `${percent(unassigned)}% of students`);
+
+  const grpABBar = document.querySelector('#grpABBar');
+  const grpCDBar = document.querySelector('#grpCDBar');
+  const grpE1Bar = document.querySelector('#grpE1Bar');
+  const grpE2Bar = document.querySelector('#grpE2Bar');
+  const unassignedBar = document.querySelector('#unassignedBar');
+
+  if (grpABBar) grpABBar.style.width = `${percent(grpAB)}%`;
+  if (grpCDBar) grpCDBar.style.width = `${percent(grpCD)}%`;
+  if (grpE1Bar) grpE1Bar.style.width = `${percent(grpE1)}%`;
+  if (grpE2Bar) grpE2Bar.style.width = `${percent(grpE2)}%`;
+  if (unassignedBar) unassignedBar.style.width = `${percent(unassigned)}%`;
+
+  renderPoliticalStats();
+}
+
+function getStudentsForPoliticalGroup(groupKey) {
+  if (groupKey === 'Grp A,B') return students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B');
+  if (groupKey === 'Grp C,D') return students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
+  if (groupKey === 'Grp E1') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
+  if (groupKey === 'Grp E2') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
+  if (groupKey === 'in_group') return students.filter(s => s.inGroup && !s.leftGroup);
+  if (groupKey === 'not_in_group') return students.filter(s => !s.inGroup && !s.leftGroup);
+  return students;
+}
+
+const POLITICAL_GROUP_LABELS = {
+  all: 'All students',
+  'Grp A,B': 'Grp A,B (French)',
+  'Grp C,D': 'Grp C,D (French)',
+  'Grp E1': 'Grp E1 (English)',
+  'Grp E2': 'Grp E2 (English)',
+  in_group: 'All in group',
+  not_in_group: 'Not in group'
+};
+
+function renderPoliticalStats() {
   const politicalStatsGrid = document.querySelector('#politicalStatsGrid');
+  const politicalGroupTitle = document.querySelector('#politicalGroupTitle');
+  const politicalGroupSub = document.querySelector('#politicalGroupSub');
+  const politicalByGroupGrid = document.querySelector('#politicalByGroupGrid');
+
+  const activeSubset = getStudentsForPoliticalGroup(currentPoliticalGroup);
+  const activeTotal = activeSubset.length;
+  const overallTotal = students.length;
+
+  if (politicalGroupTitle) {
+    politicalGroupTitle.textContent = POLITICAL_GROUP_LABELS[currentPoliticalGroup] || currentPoliticalGroup;
+  }
+  if (politicalGroupSub) {
+    const overallPct = overallTotal ? Math.round(activeTotal / overallTotal * 100) : 0;
+    politicalGroupSub.textContent = currentPoliticalGroup === 'all'
+      ? `${activeTotal} student${activeTotal === 1 ? '' : 's'}`
+      : `${activeTotal} student${activeTotal === 1 ? '' : 's'} (${overallPct}% of total)`;
+  }
+
   if (politicalStatsGrid) {
-    const affiliationCounts = students.reduce((counts, student) => {
+    const affiliationCounts = activeSubset.reduce((counts, student) => {
       const affiliation = (student.politicalAffiliation || '').trim() || 'Not provided';
       counts[affiliation] = (counts[affiliation] || 0) + 1;
       return counts;
     }, {});
     const rows = Object.entries(affiliationCounts).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+    const subsetPercent = count => activeTotal ? Math.round(count / activeTotal * 100) : 0;
     politicalStatsGrid.innerHTML = rows.length ? rows.map(([affiliation, affiliationCount]) => {
-      const affiliationPercent = percent(affiliationCount);
+      const affiliationPercent = subsetPercent(affiliationCount);
       return `
         <div class="political-stat-row">
           <div class="political-stat-copy"><span>${escapeHtml(affiliation)}</span><b>${affiliationCount} <small>(${affiliationPercent}%)</small></b></div>
           <div class="political-stat-progress" aria-hidden="true"><i style="width:${affiliationPercent}%"></i></div>
         </div>`;
-    }).join('') : '<p class="political-stats-empty">No student records are available.</p>';
+    }).join('') : '<p class="political-stats-empty">No student records in this group.</p>';
+  }
+
+  if (politicalByGroupGrid) {
+    const breakdownGroups = [
+      { key: 'Grp A,B', label: 'Grp A,B (French)' },
+      { key: 'Grp C,D', label: 'Grp C,D (French)' },
+      { key: 'Grp E1', label: 'Grp E1 (English)' },
+      { key: 'Grp E2', label: 'Grp E2 (English)' },
+      { key: 'in_group', label: 'All in group' },
+      { key: 'not_in_group', label: 'Not in group' }
+    ];
+
+    politicalByGroupGrid.innerHTML = breakdownGroups.map(grp => {
+      const grpStudents = getStudentsForPoliticalGroup(grp.key);
+      const grpTotal = grpStudents.length;
+      const grpAffiliations = grpStudents.reduce((acc, student) => {
+        const aff = (student.politicalAffiliation || '').trim() || 'Not provided';
+        acc[aff] = (acc[aff] || 0) + 1;
+        return acc;
+      }, {});
+      const sortedAffs = Object.entries(grpAffiliations).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+      const listHtml = sortedAffs.length ? sortedAffs.map(([aff, cnt]) => {
+        const pct = grpTotal ? Math.round(cnt / grpTotal * 100) : 0;
+        return `
+          <div class="political-group-card-row">
+            <span title="${escapeHtml(aff)}">${escapeHtml(aff)}</span>
+            <b>${cnt} <small>(${pct}%)</small></b>
+          </div>
+        `;
+      }).join('') : '<span class="political-group-empty">No students</span>';
+
+      return `
+        <div class="political-group-card">
+          <div class="political-group-card-head">
+            <strong>${escapeHtml(grp.label)}</strong>
+            <span>${grpTotal} student${grpTotal === 1 ? '' : 's'}</span>
+          </div>
+          <div class="political-group-card-list">
+            ${listHtml}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+}
+
+function setupPoliticalTabs() {
+  const container = document.querySelector('.political-group-selector');
+  if (!container) return;
+  container.addEventListener('click', event => {
+    const tab = event.target.closest('.political-group-tab');
+    if (!tab) return;
+    container.querySelectorAll('.political-group-tab').forEach(t => t.classList.remove('is-active'));
+    tab.classList.add('is-active');
+    currentPoliticalGroup = tab.dataset.group || 'all';
+    renderPoliticalStats();
+  });
+}
+
+function setupClassStatClicks() {
+  document.querySelectorAll('.class-stat').forEach(card => {
+    card.addEventListener('click', () => {
+      const grp = card.dataset.group;
+      if (!groupFilter) return;
+      if (groupFilter.value === grp) {
+        groupFilter.value = '';
+      } else {
+        groupFilter.value = grp;
+      }
+      groupFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      scheduleRenderStudents(searchInput ? searchInput.value : '');
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+}
+
+async function setStudentAssignedGroup(id, targetGroup, button) {
+  const student = students.find(item => String(item.id) === String(id));
+  if (!student) return;
+
+  const currentNorm = (student.assignedGroup || '').trim().toLowerCase();
+  const targetNorm = targetGroup.trim().toLowerCase();
+  const isAlreadyInTarget = currentNorm === targetNorm || currentNorm === targetNorm.replace(/^grp\s*/, '');
+  const nextGroup = isAlreadyInTarget ? '' : targetGroup;
+  const nextInGroup = Boolean(nextGroup);
+
+  if (button) button.disabled = true;
+  try {
+    const response = await fetch(`${API_BASE}/students/${id}/group`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inGroup: nextInGroup,
+        assignedGroup: nextGroup,
+        leftGroup: false
+      })
+    });
+    const json = await parseApiResponse(response);
+    if (!json.success) throw new Error(json.error || 'Could not update assigned group');
+
+    student.inGroup = nextInGroup;
+    student.assignedGroup = nextGroup;
+    student.leftGroup = false;
+
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
+    showToast(
+      nextGroup ? `Assigned to ${nextGroup}` : 'Group assignment removed',
+      nextGroup ? `The student is now assigned to ${nextGroup}.` : 'The student has no assigned group section.'
+    );
+  } catch (err) {
+    if (button) button.disabled = false;
+    await showPopup({ title: 'Could not update group', message: err.message, danger: true });
   }
 }
 
@@ -698,14 +979,18 @@ async function toggleGroupMembership(id, inGroup, button) {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inGroup })
+      body: JSON.stringify({ inGroup, assignedGroup: inGroup ? undefined : '' })
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update group membership');
 
     const student = students.find(item => item.id === id);
-    if (student) student.inGroup = inGroup;
-    renderStudents(searchInput ? searchInput.value : '');
+    if (student) {
+      student.inGroup = inGroup;
+      if (!inGroup) student.assignedGroup = '';
+    }
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
     showToast(
       inGroup ? 'Added to group' : 'Removed from group',
       inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
@@ -722,7 +1007,7 @@ async function markStudentLeftGroup(id, button) {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inGroup: false, leftGroup: true })
+      body: JSON.stringify({ inGroup: false, leftGroup: true, assignedGroup: '' })
     });
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not mark the student as having left');
@@ -731,8 +1016,10 @@ async function markStudentLeftGroup(id, button) {
     if (student) {
       student.inGroup = false;
       student.leftGroup = true;
+      student.assignedGroup = '';
     }
-    renderStudents(searchInput ? searchInput.value : '');
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
     showToast('Student left the group', 'The In group option is now disabled for this student.');
   } catch (err) {
     if (button) button.disabled = false;
@@ -833,6 +1120,11 @@ if (form) {
     event.preventDefault();
     const required = [...form.querySelectorAll('[required]')];
     required.forEach(input => input.classList.toggle('invalid', !input.validity.valid));
+    form.querySelectorAll('.custom-select').forEach(cs => {
+      const sel = cs.querySelector('select');
+      const trig = cs.querySelector('.custom-select-trigger');
+      if (sel && trig) trig.classList.toggle('invalid', !sel.validity.valid);
+    });
     const firstInvalid = required.find(input => !input.validity.valid);
     if (firstInvalid) {
       const msg = document.querySelector('#formMessage');
@@ -919,6 +1211,7 @@ async function initFormEditMode() {
             input.checked = true;
           } else {
             input.value = value || '';
+            input.dispatchEvent(new Event('change', { bubbles: true }));
           }
         }
       });
@@ -930,20 +1223,23 @@ async function initFormEditMode() {
 
 // Search input listener
 if (searchInput) {
-  searchInput.addEventListener('input', () => renderStudents(searchInput.value));
+  searchInput.addEventListener('input', () => scheduleRenderStudents(searchInput.value));
 }
 
 [statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
-  if (filter) filter.addEventListener('change', () => renderStudents(searchInput?.value || ''));
+  if (filter) filter.addEventListener('change', () => scheduleRenderStudents(searchInput?.value || ''));
 });
 
 if (clearFilters) {
   clearFilters.addEventListener('click', () => {
     if (searchInput) searchInput.value = '';
     [statusFilter, majorFilter, campusFilter, languageFilter, groupFilter].forEach(filter => {
-      if (filter) filter.value = '';
+      if (filter) {
+        filter.value = '';
+        filter.dispatchEvent(new Event('change', { bubbles: true }));
+      }
     });
-    renderStudents('');
+    scheduleRenderStudents('');
   });
 }
 
@@ -952,7 +1248,7 @@ const exportBtn = document.querySelector('#exportBtn');
 if (exportBtn) {
   exportBtn.addEventListener('click', () => {
     if (!students.length) return showToast('Nothing to export', 'No student records available.');
-    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','politicalAffiliation','status','language','campus','email','inGroup'];
+    const columns = ['firstName','fatherName','familyName','school','address','origin','phone','major','politicalAffiliation','status','language','campus','email','inGroup','assignedGroup'];
     const csv = [columns.join(','), ...students.map(s => columns.map(key => `"${String(s[key] || '').replaceAll('"','""')}"`).join(','))].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([csv], {type:'text/csv'}));
@@ -1024,11 +1320,235 @@ function setupNotes() {
   });
 }
 
+// Modern Animated Custom Select Component
+function initCustomSelects(scope = document) {
+  const selects = scope.querySelectorAll('.form-card select, .student-filters select, select.custom-select-target');
+  selects.forEach(select => {
+    if (select.dataset.customized === 'true') return;
+    select.dataset.customized = 'true';
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'custom-select';
+    wrapper.dataset.selectName = select.name || select.id || '';
+
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'custom-select-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+
+    const valueSpan = document.createElement('span');
+    valueSpan.className = 'custom-select-value';
+
+    const chevron = document.createElement('span');
+    chevron.className = 'custom-select-chevron';
+    chevron.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>`;
+
+    trigger.appendChild(valueSpan);
+    trigger.appendChild(chevron);
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'custom-select-dropdown';
+    dropdown.setAttribute('role', 'listbox');
+    dropdown.setAttribute('tabindex', '-1');
+
+    select.parentNode.insertBefore(wrapper, select);
+    wrapper.appendChild(trigger);
+    wrapper.appendChild(dropdown);
+    wrapper.appendChild(select);
+    select.classList.add('sr-only-select');
+
+    let ignoreNextTriggerClick = false;
+
+    function sync() {
+      const idx = select.selectedIndex >= 0 ? select.selectedIndex : 0;
+      const current = select.options[idx];
+      if (current) {
+        valueSpan.textContent = current.textContent;
+        valueSpan.classList.toggle('is-placeholder', !current.value && current.disabled);
+      }
+      wrapper.classList.toggle('has-value', Boolean(select.value));
+      dropdown.querySelectorAll('.custom-select-option').forEach(el => {
+        const isSel = el.dataset.index === String(idx);
+        el.classList.toggle('is-selected', isSel);
+        el.setAttribute('aria-selected', String(isSel));
+      });
+      trigger.classList.toggle('invalid', select.classList.contains('invalid'));
+    }
+
+    function renderOptions() {
+      dropdown.innerHTML = '';
+      const selectedIndex = select.selectedIndex >= 0 ? select.selectedIndex : 0;
+      const currentOption = select.options[selectedIndex];
+
+      if (currentOption) {
+        valueSpan.textContent = currentOption.textContent;
+        valueSpan.classList.toggle('is-placeholder', !currentOption.value && currentOption.disabled);
+      }
+      wrapper.classList.toggle('has-value', Boolean(select.value));
+
+      Array.from(select.options).forEach((opt, idx) => {
+        const item = document.createElement('div');
+        item.className = 'custom-select-option';
+        item.dataset.value = opt.value;
+        item.dataset.index = String(idx);
+        item.setAttribute('role', 'option');
+
+        if (opt.disabled) {
+          item.classList.add('is-disabled');
+          item.setAttribute('aria-disabled', 'true');
+        }
+        if (idx === selectedIndex) {
+          item.classList.add('is-selected');
+          item.setAttribute('aria-selected', 'true');
+        }
+        if (!opt.value && opt.disabled) {
+          item.classList.add('is-placeholder');
+        }
+
+        const label = document.createElement('span');
+        label.className = 'option-label';
+        label.textContent = opt.textContent;
+        item.appendChild(label);
+
+        const check = document.createElement('span');
+        check.className = 'option-check';
+        check.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        item.appendChild(check);
+
+        item.addEventListener('mousedown', e => {
+          e.preventDefault();
+          e.stopPropagation();
+        });
+
+        item.addEventListener('click', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (opt.disabled) return;
+          select.selectedIndex = idx;
+          select.value = opt.value;
+          select.classList.remove('invalid');
+          trigger.classList.remove('invalid');
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          sync();
+          close(true);
+          trigger.focus();
+        });
+
+        dropdown.appendChild(item);
+      });
+    }
+
+    function open() {
+      document.querySelectorAll('.custom-select.is-open').forEach(other => {
+        if (other !== wrapper) {
+          other.classList.remove('is-open');
+          other.querySelector('.custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+      wrapper.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      const selected = dropdown.querySelector('.custom-select-option.is-selected');
+      if (selected) {
+        selected.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function close(fromSelection = false) {
+      wrapper.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      if (fromSelection) {
+        ignoreNextTriggerClick = true;
+        setTimeout(() => { ignoreNextTriggerClick = false; }, 300);
+      }
+    }
+
+    dropdown.addEventListener('mousedown', e => {
+      e.stopPropagation();
+    });
+
+    dropdown.addEventListener('click', e => {
+      e.stopPropagation();
+    });
+
+    trigger.addEventListener('click', e => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (ignoreNextTriggerClick) {
+        ignoreNextTriggerClick = false;
+        return;
+      }
+      if (wrapper.classList.contains('is-open')) {
+        close();
+      } else {
+        open();
+      }
+    });
+
+    trigger.addEventListener('keydown', e => {
+      if (e.key === 'Tab') {
+        close();
+        return;
+      }
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (!wrapper.classList.contains('is-open')) {
+          open();
+          return;
+        }
+        const delta = e.key === 'ArrowDown' ? 1 : -1;
+        let nextIdx = select.selectedIndex + delta;
+        while (nextIdx >= 0 && nextIdx < select.options.length && select.options[nextIdx].disabled) {
+          nextIdx += delta;
+        }
+        if (nextIdx >= 0 && nextIdx < select.options.length) {
+          select.selectedIndex = nextIdx;
+          select.value = select.options[nextIdx].value;
+          select.dispatchEvent(new Event('change', { bubbles: true }));
+          select.dispatchEvent(new Event('input', { bubbles: true }));
+          sync();
+          const targetItem = dropdown.querySelector(`[data-index="${nextIdx}"]`);
+          targetItem?.scrollIntoView({ block: 'nearest' });
+        }
+      } else if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (wrapper.classList.contains('is-open')) {
+          close();
+        } else {
+          open();
+        }
+      } else if (e.key === 'Escape') {
+        close();
+      }
+    });
+
+    select.addEventListener('change', sync);
+    select.addEventListener('input', sync);
+    select.addEventListener('invalid', () => trigger.classList.add('invalid'));
+    select.addEventListener('focus', () => trigger.focus());
+
+    renderOptions();
+  });
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.custom-select')) {
+    document.querySelectorAll('.custom-select.is-open').forEach(el => {
+      el.classList.remove('is-open');
+      el.querySelector('.custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+  }
+});
+
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
+  initCustomSelects();
   if (!checkAuth()) return;
   setupNotes();
+  setupPoliticalTabs();
+  setupClassStatClicks();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   if (document.body.dataset.page !== 'kazaa') fetchStudents();

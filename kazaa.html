@@ -50,11 +50,21 @@
       <div class="hero-content"><div class="eyebrow"><span></span> Discover where students are from</div>
         <h1>Students by <em>Kazaa</em></h1>
         <p>Group students by their place of origin across Lebanon’s districts.</p></div>
-      <div class="hero-actions"><button type="button" id="classifyBtn" class="btn-primary" disabled>Analyze origins with Groq</button></div>
+      <div class="hero-actions">
+        <button type="button" id="exportKazaaBtn" class="export-btn" disabled title="Export individual Kazaa roster with full student info">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="exportKazaaLabel">Export Kazaa</span>
+        </button>
+        <button type="button" id="saveAllBtn" class="btn-primary" disabled>
+          <svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span id="saveAllLabel">Save all to database</span>
+        </button>
+        <button type="button" id="classifyBtn" class="btn-secondary" disabled>Analyze origins with Groq</button>
+      </div>
     </section>
     <section class="insight-card kazaa-info">
       <p>Groq receives origin text only. AI suggestions can be wrong; review them and correct each student’s district below.</p>
-      <p>District assignments are saved for your account in this browser. Students with missing or unclear origins stay under Needs review. Beirut is listed separately.</p>
+      <p>District assignments are saved to the database. Students with missing or unclear origins stay under Needs review. Beirut is listed separately.</p>
       <p id="kazaaStatus" role="status" aria-live="polite">Loading students…</p>
       <button type="button" id="reloadKazaa" class="btn-action">Reload students</button>
     </section>
@@ -62,10 +72,45 @@
     <div class="student-filters">
       <label><span>Search name or origin</span><input type="search" id="kazaaSearch" placeholder="Search students…"></label>
       <label><span>Kazaa</span><select id="kazaaFilter"><option value="">All districts</option></select></label>
+      <button type="button" id="filterExportBtn" class="export-filter-btn" disabled title="Export this district's student roster">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export</span>
+      </button>
     </div>
     <div id="kazaaCounts" class="kazaa-counts" aria-label="Students per district"></div>
     <section id="kazaaStudents" class="kazaa-students" aria-label="Student district assignments"></section>
+
+    <dialog id="kazaaExportModal" class="export-dialog" aria-labelledby="exportModalTitle">
+      <div class="card-heading">
+        <div>
+          <span class="step">EXPORT</span>
+          <h2 id="exportModalTitle">Export District Roster</h2>
+        </div>
+        <button type="button" class="editor-close" id="closeExportModal" aria-label="Close">×</button>
+      </div>
+      <p class="export-desc">Export each Kazaa individually with all student information (Full Name, Origin, Contact, Address, School, Major, Status, Group, Notes) in a professional design matching our website theme.</p>
+      <div class="form-group" style="margin-bottom: 16px;">
+        <label for="exportDistrictSelect" style="display:block; font-size:12px; font-weight:700; margin-bottom:6px;">Select Kazaa / District</label>
+        <select id="exportDistrictSelect" style="width:100%; padding:10px; border-radius:8px; border:1px solid var(--line); background:var(--paper); color:var(--ink);"></select>
+      </div>
+      <div id="exportDistrictStats" class="export-stats-preview">
+        <div class="export-stat-item"><small>Students</small><strong id="modalStatTotal">0</strong></div>
+        <div class="export-stat-item"><small>In Group</small><strong id="modalStatInGroup">0</strong></div>
+        <div class="export-stat-item"><small>Towns</small><strong id="modalStatTowns">0</strong></div>
+      </div>
+      <div class="export-action-choices">
+        <button type="button" id="modalOpenReportBtn" class="submit-btn export-action-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>View &amp; Print Themed Report (PDF)</span>
+        </button>
+        <button type="button" id="modalDownloadCsvBtn" class="cancel-btn export-action-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Download District CSV (All Fields)</span>
+        </button>
+      </div>
+    </dialog>
   </main>
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Saved</b><small id="toastMsg">Data saved to database.</small></p></div>
   <script src="script.js"></script>
   <script src="kazaa-page.js"></script>
 </body>

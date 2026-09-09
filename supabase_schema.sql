@@ -53,3 +53,9 @@ VALUES
 
 -- Per-student encrypted note
 ALTER TABLE students ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';
+
+-- Per-student encrypted kazaa (district)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS kazaa TEXT NOT NULL DEFAULT '';
+
+-- Per-student encrypted assigned group section (Grp A,B / Grp C,D / Grp E1 / Grp E2)
+ALTER TABLE students ADD COLUMN IF NOT EXISTS assigned_group TEXT NOT NULL DEFAULT '';
