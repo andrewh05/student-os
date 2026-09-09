@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2.2">
 </head>
 <body data-page="kazaa">
   <div class="grain"></div>
@@ -51,6 +51,11 @@
         <h1>Students by <em>Kazaa</em></h1>
         <p>Group students by their place of origin across Lebanon’s districts.</p></div>
       <div class="hero-actions">
+        <div class="hero-section-switch" id="sectionSwitchTabs" role="tablist" aria-label="Filter by academic section">
+          <button type="button" class="hero-section-btn is-active" data-section="all">All</button>
+          <button type="button" class="hero-section-btn" data-section="mispce">MISPCE</button>
+          <button type="button" class="hero-section-btn" data-section="csvt">CSVT</button>
+        </div>
         <button type="button" id="exportKazaaBtn" class="export-btn" disabled title="Export individual Kazaa roster with full student info">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span id="exportKazaaLabel">Export Kazaa</span>

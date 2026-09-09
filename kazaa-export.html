@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=2.2">
 </head>
 <body data-page="kazaa-export" class="report-page">
   <div class="grain"></div>
@@ -319,6 +319,14 @@
 
         allStudents = studentsJson.data || [];
         districtsList = kazaaJson.districts || [];
+
+        const params = new URLSearchParams(window.location.search);
+        const sectionParam = (params.get('section') || '').toLowerCase();
+        if (sectionParam && sectionParam !== 'all') {
+          allStudents = allStudents.filter(s => (s.section || '').toLowerCase() === sectionParam);
+          const sub = document.querySelector('#reportSubtitle');
+          if (sub) sub.textContent = `${sectionParam.toUpperCase()} Section • Comprehensive student directory and demographics by origin`;
+        }
 
         assignments = {};
         allStudents.forEach(s => {

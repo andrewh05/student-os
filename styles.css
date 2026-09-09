@@ -2634,6 +2634,8 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
   .report-table tbody tr:nth-child(even) {
     background: #f9fafb !important;
   }
+}
+
 /* Deleg Role Access Restrictions */
 body.role-deleg .class-insight-card,
 body.role-deleg .political-stats-card,
@@ -2655,33 +2657,40 @@ body.role-deleg .hero-section-switch {
 .hero-section-switch {
   display: inline-flex;
   align-items: center;
+  height: 45px;
   background: var(--paper, #ffffff);
-  border: 1px solid var(--line, #fed7aa);
-  padding: 3px;
+  border: 1.5px solid var(--line, #fed7aa);
+  padding: 4px;
   border-radius: 10px;
-  gap: 3px;
-  box-shadow: 0 2px 8px rgba(124, 45, 18, 0.05);
+  gap: 4px;
+  box-shadow: 0 2px 8px rgba(124, 45, 18, 0.06);
+  box-sizing: border-box;
 }
 .hero-section-btn {
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 35px;
+  padding: 0 16px;
   border-radius: 7px;
-  font: 800 11px/1 "Manrope", sans-serif;
+  font: 800 12px/1 "Manrope", sans-serif;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   color: var(--muted, #78350f);
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
 }
 .hero-section-btn:hover {
   color: var(--orange-primary, #ea580c);
   background: var(--orange-soft, #fffaf5);
 }
 .hero-section-btn.is-active {
-  background: var(--orange-primary, #ea580c);
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
   color: #ffffff;
-  box-shadow: 0 2px 6px rgba(234, 88, 12, 0.25);
+  box-shadow: 0 3px 10px rgba(234, 88, 12, 0.3);
 }
 html[data-theme="dark"] .hero-section-switch {
   background: #170e0b;
@@ -2696,7 +2705,7 @@ html[data-theme="dark"] .hero-section-btn:hover {
   color: #fb923c;
 }
 html[data-theme="dark"] .hero-section-btn.is-active {
-  background: var(--orange-primary, #ea580c);
+  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
   color: #ffffff;
 }
 

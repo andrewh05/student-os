@@ -19,6 +19,13 @@
   const filter = document.querySelector('#kazaaFilter');
   const search = document.querySelector('#kazaaSearch');
   let records = [], districts = [], assignments = {}, configured = false, busy = false;
+  let currentSection = 'all';
+
+  const getSectionFilteredRecords = () => {
+    if (currentSection === 'all') return records;
+    return records.filter(s => (s.section || '').toLowerCase() === currentSection);
+  };
+
   try { assignments = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch { assignments = {}; }
   if (!assignments || typeof assignments !== 'object' || Array.isArray(assignments)) assignments = {};
   const headers = () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` });
@@ -31,35 +38,39 @@
     catch { status.textContent = 'Browser storage is unavailable. These assignments will last only until you leave this page.'; }
   }
   function render() {
+    const secRecords = getSectionFilteredRecords();
     const counts = Object.fromEntries([...districts, 'Needs review'].map(name => [name, 0]));
-    records.forEach(student => counts[assignment(student)?.district || 'Needs review']++);
-    const assigned = records.length - counts['Needs review'];
-    document.querySelector('#kazaaSummary').textContent = `${records.length} students · ${assigned} assigned · ${counts['Needs review']} need review`;
+    secRecords.forEach(student => counts[assignment(student)?.district || 'Needs review']++);
+    const assigned = secRecords.length - counts['Needs review'];
+    const sectionPrefix = currentSection === 'all' ? '' : `${currentSection.toUpperCase()} • `;
+    document.querySelector('#kazaaSummary').textContent = `${sectionPrefix}${secRecords.length} students · ${assigned} assigned · ${counts['Needs review']} need review`;
     document.querySelector('#kazaaCounts').innerHTML = Object.entries(counts).map(([name,count]) => `<button type="button" class="kazaa-count" data-district="${escapeHtml(name)}" aria-pressed="${filter.value === name}"><span>${escapeHtml(name)}</span><strong>${count}</strong></button>`).join('');
     const needle = search.value.trim().toLocaleLowerCase();
-    const visible = records.filter(student => (!filter.value || (assignment(student)?.district || 'Needs review') === filter.value) && `${student.firstName} ${student.familyName} ${student.origin}`.toLocaleLowerCase().includes(needle));
+    const visible = secRecords.filter(student => (!filter.value || (assignment(student)?.district || 'Needs review') === filter.value) && `${student.firstName} ${student.familyName} ${student.origin}`.toLocaleLowerCase().includes(needle));
     document.querySelector('#kazaaStudents').innerHTML = visible.length ? visible.map(student => {
       const current = assignment(student);
+      const studentSec = (student.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(student.major) : '') || '').toUpperCase();
+      const secLabel = studentSec ? ` • <b style="color:var(--orange-primary);font-weight:700">${escapeHtml(studentSec)}</b>` : '';
       return `<article class="kazaa-student">
-        <div><a href="form.html?edit=${encodeURIComponent(student.id)}">${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}</a><p>Origin: ${escapeHtml(student.origin || 'Not provided')}</p><small>${current ? (current.manual ? 'Manually assigned' : 'AI suggestion — please review') : 'Needs review'}</small></div>
+        <div><a href="form.html?edit=${encodeURIComponent(student.id)}">${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}</a><p>Origin: ${escapeHtml(student.origin || 'Not provided')}${secLabel}</p><small>${current ? (current.manual ? 'Manually assigned' : 'AI suggestion — please review') : 'Needs review'}</small></div>
         <label><span>Kazaa</span><select data-student-id="${escapeHtml(student.id)}" ${busy ? 'disabled' : ''} aria-label="Kazaa for ${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}"><option value="">Needs review</option>${districts.map(district => `<option ${current?.district === district ? 'selected' : ''}>${escapeHtml(district)}</option>`).join('')}</select></label>
       </article>`;
     }).join('') : '<p class="kazaa-empty">No students match this view.</p>';
-    analyze.disabled = busy || !isAdmin || !configured || !records.some(student => student.origin?.trim() && student.origin.length <= 300 && !assignment(student));
+    analyze.disabled = busy || !isAdmin || !configured || !secRecords.some(student => student.origin?.trim() && student.origin.length <= 300 && !assignment(student));
     if (!isAdmin) {
       analyze.title = 'Administrator privileges required to run Groq AI analysis';
     } else {
       analyze.title = '';
     }
-    if (saveAll) saveAll.disabled = busy || !records.length;
+    if (saveAll) saveAll.disabled = busy || !secRecords.length;
     if (exportBtn) {
-      exportBtn.disabled = busy || !records.length;
+      exportBtn.disabled = busy || !secRecords.length;
       if (exportLabel) {
         exportLabel.textContent = filter.value ? `Export ${filter.value}` : 'Export Kazaa';
       }
     }
     if (filterExportBtn) {
-      filterExportBtn.disabled = busy || !records.length;
+      filterExportBtn.disabled = busy || !secRecords.length;
       filterExportBtn.title = filter.value ? `Export ${filter.value} roster` : 'Export Kazaa roster';
     }
     reload.disabled = busy;
@@ -72,12 +83,31 @@
     analyze.disabled = reload.disabled = true;
     status.textContent = 'Loading students…';
     try {
-      const response = await fetch(`${API_BASE}/kazaa`, { headers: headers() });
+      const [response, studentsRes] = await Promise.all([
+        fetch(`${API_BASE}/kazaa`, { headers: headers() }),
+        fetch(`${API_BASE}/students`, { headers: headers() }).catch(() => null)
+      ]);
       const json = await parseApiResponse(response);
       if (!response.ok || !json.success) throw new Error(json.error || 'Could not load students.');
       records = json.data;
       districts = json.districts;
       configured = json.configured;
+
+      if (studentsRes) {
+        const studentsJson = await parseApiResponse(studentsRes).catch(() => null);
+        if (studentsJson && studentsJson.success && Array.isArray(studentsJson.data)) {
+          fullStudentsCache = studentsJson.data;
+          const studentMap = new Map(studentsJson.data.map(s => [String(s.id), s]));
+          records.forEach(r => {
+            const full = studentMap.get(String(r.id));
+            if (full) {
+              r.section = (full.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(full.major) : 'mispce')).toLowerCase();
+              r.major = full.major || '';
+            }
+          });
+        }
+      }
+
       assignments = {};
       records.forEach(student => {
         if (student.kazaa && districts.includes(student.kazaa)) {
@@ -275,7 +305,8 @@
   }
 
   function updateModalStats(districtName) {
-    const matching = records.filter(s => getDistrictForStudent(s) === districtName);
+    const secRecords = getSectionFilteredRecords();
+    const matching = secRecords.filter(s => getDistrictForStudent(s) === districtName);
     const inGroup = matching.filter(s => {
       const full = fullStudentsCache?.find(fs => String(fs.id) === String(s.id));
       return full ? full.inGroup : false;
@@ -288,14 +319,15 @@
   }
 
   function openExportDialog(preferredDistrict = '') {
-    if (!records.length || !exportModal) return;
+    const secRecords = getSectionFilteredRecords();
+    if (!secRecords.length || !exportModal) return;
 
     // Pre-warm full students cache
     getFullStudents();
 
     // Collect all districts that currently have students
     const counts = {};
-    records.forEach(s => {
+    secRecords.forEach(s => {
       const d = getDistrictForStudent(s);
       counts[d] = (counts[d] || 0) + 1;
     });
@@ -327,7 +359,8 @@
     status.textContent = `Preparing CSV export for ${districtName}…`;
     const fullList = await getFullStudents();
 
-    const matched = records.filter(s => getDistrictForStudent(s) === districtName);
+    const secRecords = getSectionFilteredRecords();
+    const matched = secRecords.filter(s => getDistrictForStudent(s) === districtName);
     if (!matched.length) {
       status.textContent = `No students found for ${districtName}.`;
       return;
@@ -343,11 +376,12 @@
       'Full Name',
       'Origin (Town/Village)',
       'Kazaa (District)',
+      'Section',
+      'Major',
       'Phone',
       'Email',
       'Address',
       'School/Faculty',
-      'Major',
       'Campus',
       'Language',
       'Status',
@@ -364,6 +398,7 @@
       const father = full.fatherName || '';
       const famName = full.familyName || rec.familyName || '';
       const fullName = [fName, father, famName].filter(Boolean).join(' ');
+      const secVal = (rec.section || full.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(rec.major || full.major) : 'mispce')).toUpperCase();
 
       return [
         full.id || rec.id,
@@ -373,11 +408,12 @@
         fullName,
         rec.origin || full.origin || '',
         districtName,
+        secVal,
+        rec.major || full.major || '',
         full.phone || '',
         full.email || '',
         full.address || '',
         full.school || '',
-        full.major || '',
         full.campus || '',
         full.language || '',
         full.status || '',
@@ -397,14 +433,38 @@
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
+    const secPrefix = currentSection !== 'all' ? `${currentSection.toLowerCase()}-` : '';
     const slug = districtName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-    link.download = `student-os-kazaa-${slug}.csv`;
+    link.download = `student-os-kazaa-${secPrefix}${slug}.csv`;
     link.click();
     URL.revokeObjectURL(link.href);
 
     status.textContent = `Exported ${rows.length} students from ${districtName} to CSV.`;
     if (typeof showToast === 'function') {
-      showToast('CSV Exported', `Downloaded full roster for ${districtName} (${rows.length} students).`);
+      showToast('CSV Exported', `Downloaded roster for ${districtName} (${rows.length} students).`);
+    }
+  }
+
+  function setupKazaaSectionSwitch() {
+    const switchTabs = document.querySelector('#sectionSwitchTabs');
+    if (!switchTabs) return;
+
+    const userSec = (user?.section || (role === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
+    const isSuper = role === 'superadmin' || userSec === 'all';
+
+    if (isSuper) {
+      switchTabs.style.display = 'inline-flex';
+      switchTabs.querySelectorAll('.hero-section-btn').forEach(tab => {
+        tab.addEventListener('click', () => {
+          switchTabs.querySelectorAll('.hero-section-btn').forEach(t => t.classList.remove('is-active'));
+          tab.classList.add('is-active');
+          currentSection = tab.dataset.section || 'all';
+          render();
+        });
+      });
+    } else {
+      currentSection = userSec;
+      switchTabs.style.display = 'none';
     }
   }
 
@@ -426,7 +486,8 @@
       const selected = exportDistrictSelect?.value;
       if (!selected) return;
       if (exportModal) exportModal.close();
-      window.open(`kazaa-export.html?district=${encodeURIComponent(selected)}`, '_blank');
+      const secQuery = currentSection !== 'all' ? `&section=${encodeURIComponent(currentSection)}` : '';
+      window.open(`kazaa-export.html?district=${encodeURIComponent(selected)}${secQuery}`, '_blank');
     });
   }
   if (modalDownloadCsvBtn) {
@@ -449,6 +510,7 @@
   filter.addEventListener('change', render);
   search.addEventListener('input', render);
   reload.addEventListener('click', load);
+  setupKazaaSectionSwitch();
   load();
 })();
 
