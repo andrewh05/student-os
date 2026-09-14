@@ -874,6 +874,150 @@ app.get('/api/students', async (req, res) => {
   }
 });
 
+// Helper to escape special characters for vCard RFC 2426
+function escapeVCardValue(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// Generate valid vCard 3.0 string for iOS / iPhone and Android contact import
+function generateVCardString(student) {
+  const firstName = (student.firstName || '').trim();
+  const fatherName = (student.fatherName || '').trim();
+  const familyName = (student.familyName || '').trim();
+  const fullName = [firstName, fatherName, familyName].filter(Boolean).join(' ') || 'Student';
+
+  const lines = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${escapeVCardValue(familyName)};${escapeVCardValue(firstName)};${escapeVCardValue(fatherName)};;`,
+    `FN:${escapeVCardValue(fullName)}`
+  ];
+
+  if (student.phone) {
+    lines.push(`TEL;TYPE=CELL,VOICE:${String(student.phone).trim()}`);
+  }
+
+  if (student.email) {
+    lines.push(`EMAIL;TYPE=INTERNET,HOME:${String(student.email).trim()}`);
+  }
+
+  const school = (student.school || '').trim();
+  const campus = (student.campus || '').trim();
+  if (school || campus) {
+    const org = [school, campus].filter(Boolean).join(' - ');
+    lines.push(`ORG:${escapeVCardValue(org)}`);
+  }
+
+  const major = (student.major || '').trim();
+  const sec = (student.section || inferSectionFromMajor(student.major) || '').toUpperCase();
+  if (major || sec) {
+    const title = [major, sec].filter(Boolean).join(' • ');
+    lines.push(`TITLE:${escapeVCardValue(title)}`);
+  }
+
+  if (student.address || student.origin) {
+    const street = student.address ? escapeVCardValue(student.address) : '';
+    const locality = student.origin ? escapeVCardValue(student.origin) : '';
+    lines.push(`ADR;TYPE=HOME:;;${street};${locality};;;`);
+  }
+
+  const noteParts = [];
+  if (student.status) noteParts.push(`Status: ${student.status}`);
+  if (student.language) noteParts.push(`Language: ${student.language}`);
+  if (student.origin) noteParts.push(`Origin: ${student.origin}`);
+  if (student.assignedGroup) noteParts.push(`Group: ${student.assignedGroup}`);
+  if (student.note) noteParts.push(`Note: ${student.note}`);
+  if (noteParts.length) {
+    lines.push(`NOTE:${escapeVCardValue(noteParts.join(' | '))}`);
+  }
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n') + '\r\n';
+}
+
+app.generateVCardString = generateVCardString;
+
+// GET batch export contacts as vCard (.vcf) - Superadmin only (registered before /:id routes)
+app.get('/api/students/export/vcard', async (req, res) => {
+  const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
+  let callerRole = (session.role || 'deleg').toLowerCase();
+  if (session.id) {
+    try {
+      const liveUser = await getUserById(session.id);
+      if (liveUser && liveUser.approved !== false) {
+        callerRole = (liveUser.role || 'deleg').toLowerCase();
+      }
+    } catch {}
+  }
+
+  if (callerRole !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Forbidden: Superadmin privileges required to export contacts.' });
+  }
+
+  const statusFilter = (req.query.status || 'both').toLowerCase();
+  const idFilter = req.query.ids ? String(req.query.ids).split(',').map(s => s.trim()).filter(Boolean) : null;
+
+  try {
+    let studentList = [];
+    if (supabase) {
+      const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      studentList = (data || []).map(mapStudent);
+    } else {
+      const { rows } = await pool.query(`
+        SELECT 
+          note, kazaa, id, first_name AS "firstName", father_name AS "fatherName", family_name AS "familyName",
+          origin, address, school, major, political_affiliation AS "politicalAffiliation",
+          status, language, campus, phone, email, in_group AS "inGroup", left_group AS "leftGroup", created_at AS "createdAt"
+        FROM students 
+        ORDER BY created_at DESC;
+      `);
+      studentList = rows.map(row => {
+        const mapped = mapStudent(row);
+        return {
+          ...row,
+          note: readStudentNote(row.note),
+          kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
+          section: mapped.section
+        };
+      });
+    }
+
+    let filtered = studentList;
+    if (statusFilter === 'new') {
+      filtered = filtered.filter(s => String(s.status || '').trim().toLowerCase() === 'new');
+    } else if (statusFilter === 'mu3id') {
+      filtered = filtered.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id');
+    }
+
+    if (idFilter && idFilter.length) {
+      const idSet = new Set(idFilter);
+      filtered = filtered.filter(s => idSet.has(String(s.id)));
+    }
+
+    const combined = filtered.map(generateVCardString).join('');
+    const filename = `students_vcard_${statusFilter}_${filtered.length}.vcf`;
+
+    res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.send(combined);
+  } catch (err) {
+    console.error('Error exporting vCard batch:', err.message);
+    res.status(500).json({ success: false, error: 'Failed to export vCards' });
+  }
+});
+
 // GET single student by ID
 app.get('/api/students/:id', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');

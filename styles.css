@@ -2443,6 +2443,177 @@ html[data-theme="dark"] .db-pill { background: #2d1a12; border-color: var(--line
   padding: 14px 20px;
 }
 
+/* Superadmin vCard Export Modal & Triggers */
+.card-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.card-heading-actions p {
+  margin: 0;
+}
+
+.btn-action.export-vcard-trigger-btn {
+  background: var(--orange-primary);
+  color: #ffffff;
+  border-color: var(--orange-primary);
+  box-shadow: 0 2px 6px rgba(249, 115, 22, 0.25);
+}
+.btn-action.export-vcard-trigger-btn:hover {
+  background: var(--orange-dark);
+  border-color: var(--orange-dark);
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.hero-actions .export-vcard-trigger-btn {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 700;
+}
+
+.export-field-group {
+  margin-bottom: 20px;
+}
+.export-field-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.vcard-scope-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vcard-scope-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--cream);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.vcard-scope-item:hover {
+  border-color: var(--orange-primary);
+}
+.vcard-scope-item input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--orange-primary);
+  cursor: pointer;
+}
+.vcard-scope-info strong {
+  display: block;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.vcard-scope-info small {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.vcard-summary-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(249, 115, 22, 0.08);
+  border: 1px solid rgba(249, 115, 22, 0.2);
+  margin: 20px 0 10px;
+}
+.vcard-summary-main span {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+.vcard-summary-main strong {
+  display: block;
+  font: 700 20px "Space Grotesk", sans-serif;
+  color: var(--orange-primary);
+}
+.vcard-summary-meta {
+  text-align: right;
+  font-size: 12px;
+}
+.vcard-summary-meta #vcardStatusBreakdown {
+  font-weight: 600;
+  color: var(--ink);
+}
+.vcard-summary-meta small {
+  color: var(--muted);
+  display: block;
+  margin-top: 3px;
+}
+
+.vcard-dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.vcard-action-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vcard-reset-btn {
+  background: transparent;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.vcard-reset-btn:hover {
+  color: #dc2626;
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
+/* Dark theme overrides for vCard export */
+html[data-theme="dark"] .btn-action.export-vcard-trigger-btn {
+  background: var(--orange-primary);
+  color: #ffffff;
+  border-color: var(--orange-primary);
+}
+html[data-theme="dark"] .btn-action.export-vcard-trigger-btn:hover {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+html[data-theme="dark"] .vcard-scope-item {
+  background: #1e130c;
+  border-color: var(--line);
+}
+html[data-theme="dark"] .vcard-scope-item:hover {
+  border-color: var(--orange-primary);
+}
+html[data-theme="dark"] .vcard-summary-card {
+  background: rgba(249, 115, 22, 0.12);
+  border-color: rgba(249, 115, 22, 0.3);
+}
+html[data-theme="dark"] .vcard-reset-btn:hover {
+  background: #351416;
+  color: #fca5a5;
+  border-color: #7f1d1d;
+}
+
+
 /* Professional Report Page (kazaa-export.html) */
 .report-container {
   max-width: 1380px;

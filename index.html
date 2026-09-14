@@ -62,6 +62,12 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           Add New Student
         </a>
+        <button id="dashboardExportVCardBtn" class="export-btn export-vcard-trigger-btn" type="button" style="display:none;" title="Superadmin: Export contacts as vCard">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+          </svg>
+          Export vCard
+        </button>
         <button id="exportBtn" class="export-btn" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           Export CSV
@@ -81,6 +87,79 @@
           <button class="popup-confirm" type="submit">Save Note</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="vcardExportModal" class="export-dialog" aria-labelledby="vcardExportModalTitle">
+      <div class="card-heading">
+        <div>
+          <span class="step">VCARD EXPORT</span>
+          <h2 id="vcardExportModalTitle">Export Contacts (.vcf)</h2>
+        </div>
+        <button type="button" class="editor-close" id="closeVCardExportModal" aria-label="Close">×</button>
+      </div>
+      <p class="export-desc">
+        Export student contacts as a <b>.vcf</b> file for iPhone, iOS, and Android address books.
+      </p>
+
+      <div class="vcard-export-body">
+        <!-- Status Filter -->
+        <div class="export-field-group">
+          <label class="export-field-label">Student Status</label>
+          <div class="segmented" id="vcardStatusOptions">
+            <label><input type="radio" name="vcardStatusFilter" value="both" checked><span>Both</span></label>
+            <label><input type="radio" name="vcardStatusFilter" value="New"><span>New students</span></label>
+            <label><input type="radio" name="vcardStatusFilter" value="Mu3id"><span>Mu3id students</span></label>
+          </div>
+        </div>
+
+        <!-- Scope Option -->
+        <div class="export-field-group">
+          <label class="export-field-label">Export Scope</label>
+          <div class="vcard-scope-list">
+            <label class="vcard-scope-item">
+              <input type="radio" name="vcardScopeFilter" value="unexported" checked>
+              <div class="vcard-scope-info">
+                <strong id="vcardUnexportedTitle">Only new / unexported students</strong>
+                <small id="vcardUnexportedDesc">Students added since your last export</small>
+              </div>
+            </label>
+            <label class="vcard-scope-item">
+              <input type="radio" name="vcardScopeFilter" value="all">
+              <div class="vcard-scope-info">
+                <strong id="vcardAllTitle">All matching students</strong>
+                <small id="vcardAllDesc">Re-export all contacts</small>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Live Summary Box -->
+        <div class="vcard-summary-card">
+          <div class="vcard-summary-main">
+            <span>Ready to export</span>
+            <strong id="vcardExportCount">0 contacts</strong>
+          </div>
+          <div class="vcard-summary-meta">
+            <div id="vcardStatusBreakdown">New: 0 • Mu3id: 0</div>
+            <small id="vcardLastExportInfo">Last exported: Never</small>
+          </div>
+        </div>
+      </div>
+
+      <div class="popup-actions vcard-dialog-actions">
+        <button type="button" class="btn-action vcard-reset-btn" id="vcardResetHistoryBtn" title="Reset export history so all contacts are treated as unexported">
+          Reset export history
+        </button>
+        <div class="vcard-action-btns">
+          <button type="button" class="popup-cancel" id="cancelVCardExportBtn">Cancel</button>
+          <button type="button" class="popup-confirm" id="confirmVCardExportBtn">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            <span id="confirmVCardBtnText">Export vCard</span>
+          </button>
+        </div>
+      </div>
     </dialog>
 
     <section class="records" id="recordsSection">

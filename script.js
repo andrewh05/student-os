@@ -197,6 +197,11 @@ function applyUserRoleUI(user) {
     if (politicalStatsCard) politicalStatsCard.style.display = '';
   }
 
+  // Show/hide Superadmin-only vCard export trigger buttons
+  document.querySelectorAll('.export-vcard-trigger-btn').forEach(el => {
+    el.style.display = isSuperAdmin ? '' : 'none';
+  });
+
   return true;
 }
 
@@ -762,6 +767,9 @@ async function fetchStudents() {
     if (json.success) {
       allStudentsMaster = json.data || [];
       applySectionFilter();
+      if (typeof updateVCardExportModalStats === 'function') {
+        updateVCardExportModalStats();
+      }
     } else {
       console.error('Failed to fetch students:', json.error);
     }
@@ -2293,6 +2301,341 @@ document.addEventListener('click', e => {
   }
 });
 
+// --- Superadmin Batch vCard Export & New Student Tracking ---
+const STORAGE_KEY_EXPORTED_VCARD_IDS = 'student_os_exported_vcard_ids';
+const STORAGE_KEY_LAST_VCARD_EXPORT = 'student_os_last_vcard_export_time';
+
+function getExportedVCardIds() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_EXPORTED_VCARD_IDS);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw);
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch (err) {
+    console.warn('Error reading exported vCard IDs from storage:', err);
+    return new Set();
+  }
+}
+
+function markStudentsAsExported(ids) {
+  if (!ids || !ids.length) return;
+  const set = getExportedVCardIds();
+  ids.forEach(id => set.add(String(id)));
+  try {
+    localStorage.setItem(STORAGE_KEY_EXPORTED_VCARD_IDS, JSON.stringify(Array.from(set)));
+    localStorage.setItem(STORAGE_KEY_LAST_VCARD_EXPORT, new Date().toISOString());
+  } catch (err) {
+    console.warn('Error saving exported vCard IDs to storage:', err);
+  }
+}
+
+function resetExportedVCardHistory() {
+  localStorage.removeItem(STORAGE_KEY_EXPORTED_VCARD_IDS);
+  localStorage.removeItem(STORAGE_KEY_LAST_VCARD_EXPORT);
+  const unexpRadio = document.querySelector('input[name="vcardScopeFilter"][value="unexported"]');
+  if (unexpRadio) unexpRadio.checked = true;
+  updateVCardExportModalStats();
+  showToast('Export history reset', 'All contacts are now marked as unexported.');
+}
+
+function getVCardExportStudents() {
+  if (Array.isArray(allStudentsMaster) && allStudentsMaster.length) {
+    return allStudentsMaster;
+  }
+  if (Array.isArray(students) && students.length) {
+    return students;
+  }
+  return [];
+}
+
+async function openVCardExportModal() {
+  const modal = document.querySelector('#vcardExportModal');
+  if (!modal) return;
+
+  if (!getVCardExportStudents().length) {
+    try {
+      await fetchStudents();
+    } catch (err) {
+      console.warn('Could not prefetch students for vCard export modal:', err);
+    }
+  }
+
+  const exportedSet = getExportedVCardIds();
+  const allList = getVCardExportStudents();
+  const statusVal = (document.querySelector('input[name="vcardStatusFilter"]:checked')?.value || 'both').toLowerCase();
+
+  let statusMatching = allList;
+  if (statusVal === 'new') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'new');
+  } else if (statusVal === 'mu3id') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id');
+  }
+
+  const unexportedCount = statusMatching.filter(s => !exportedSet.has(String(s.id))).length;
+  const unexpRadio = document.querySelector('input[name="vcardScopeFilter"][value="unexported"]');
+  const allRadio = document.querySelector('input[name="vcardScopeFilter"][value="all"]');
+
+  if (unexportedCount > 0) {
+    if (unexpRadio) unexpRadio.checked = true;
+  } else {
+    if (allRadio) allRadio.checked = true;
+  }
+
+  updateVCardExportModalStats();
+  modal.showModal();
+}
+
+function updateVCardExportModalStats() {
+  const modal = document.querySelector('#vcardExportModal');
+  if (!modal) return;
+
+  const exportedSet = getExportedVCardIds();
+  const allList = getVCardExportStudents();
+
+  const statusVal = (document.querySelector('input[name="vcardStatusFilter"]:checked')?.value || 'both').toLowerCase();
+  const scopeVal = document.querySelector('input[name="vcardScopeFilter"]:checked')?.value || 'unexported';
+
+  let statusMatching = allList;
+  if (statusVal === 'new') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'new');
+  } else if (statusVal === 'mu3id') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id');
+  }
+
+  const unexportedMatching = statusMatching.filter(s => !exportedSet.has(String(s.id)));
+  const totalInStatus = statusMatching.length;
+  const unexportedCount = unexportedMatching.length;
+
+  const unexportedTitle = document.querySelector('#vcardUnexportedTitle');
+  const unexportedDesc = document.querySelector('#vcardUnexportedDesc');
+  const allTitle = document.querySelector('#vcardAllTitle');
+  const allDesc = document.querySelector('#vcardAllDesc');
+
+  if (unexportedTitle) {
+    unexportedTitle.textContent = `Only new / unexported students (${unexportedCount})`;
+  }
+  if (allTitle) {
+    allTitle.textContent = `All matching students (${totalInStatus})`;
+  }
+
+  if (unexportedDesc) {
+    if (unexportedCount === 0 && totalInStatus > 0) {
+      unexportedDesc.textContent = `All ${totalInStatus} students were already exported. Select "All matching" to re-export.`;
+    } else if (totalInStatus === 0) {
+      unexportedDesc.textContent = 'No students match the selected status filter.';
+    } else {
+      unexportedDesc.textContent = `${unexportedCount} student${unexportedCount === 1 ? '' : 's'} added since your last export`;
+    }
+  }
+
+  if (allDesc) {
+    allDesc.textContent = totalInStatus > 0
+      ? `Re-export all ${totalInStatus} contact${totalInStatus === 1 ? '' : 's'}`
+      : 'No students match the selected status filter';
+  }
+
+  const targetList = scopeVal === 'unexported' ? unexportedMatching : statusMatching;
+  const exportCount = targetList.length;
+
+  const countEl = document.querySelector('#vcardExportCount');
+  if (countEl) {
+    countEl.textContent = `${exportCount} contact${exportCount === 1 ? '' : 's'}`;
+  }
+
+  const breakdownEl = document.querySelector('#vcardStatusBreakdown');
+  if (breakdownEl) {
+    const newCount = targetList.filter(s => String(s.status || '').trim().toLowerCase() === 'new').length;
+    const mu3idCount = targetList.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id').length;
+    breakdownEl.textContent = `New: ${newCount} • Mu3id: ${mu3idCount}`;
+  }
+
+  const lastExportEl = document.querySelector('#vcardLastExportInfo');
+  if (lastExportEl) {
+    const lastIso = localStorage.getItem(STORAGE_KEY_LAST_VCARD_EXPORT);
+    if (lastIso) {
+      try {
+        const d = new Date(lastIso);
+        lastExportEl.textContent = `Last exported: ${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+      } catch {
+        lastExportEl.textContent = 'Last exported: Previously';
+      }
+    } else {
+      lastExportEl.textContent = 'Last exported: Never';
+    }
+  }
+
+  const confirmBtn = document.querySelector('#confirmVCardExportBtn');
+  if (confirmBtn) {
+    confirmBtn.disabled = exportCount === 0;
+  }
+}
+
+async function executeVCardExport() {
+  const confirmBtn = document.querySelector('#confirmVCardExportBtn');
+  const btnText = document.querySelector('#confirmVCardBtnText');
+  const modal = document.querySelector('#vcardExportModal');
+  const originalHtml = btnText ? btnText.textContent : 'Export vCard';
+
+  const exportedSet = getExportedVCardIds();
+  const allList = getVCardExportStudents();
+
+  const statusVal = (document.querySelector('input[name="vcardStatusFilter"]:checked')?.value || 'both');
+  const scopeVal = document.querySelector('input[name="vcardScopeFilter"]:checked')?.value || 'unexported';
+
+  let statusMatching = allList;
+  if (statusVal.toLowerCase() === 'new') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'new');
+  } else if (statusVal.toLowerCase() === 'mu3id') {
+    statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id');
+  }
+
+  const targetList = scopeVal === 'unexported'
+    ? statusMatching.filter(s => !exportedSet.has(String(s.id)))
+    : statusMatching;
+
+  if (!targetList.length) {
+    showToast('Nothing to export', 'No matching contacts found to export.');
+    return;
+  }
+
+  const targetIds = targetList.map(s => s.id);
+
+  try {
+    if (confirmBtn) confirmBtn.disabled = true;
+    if (btnText) btnText.textContent = 'Generating…';
+
+    const token = localStorage.getItem('hub_token') || '';
+    const queryParams = new URLSearchParams({
+      status: statusVal,
+      ids: targetIds.join(',')
+    });
+
+    const res = await fetch(`${API_BASE}/students/export/vcard?${queryParams.toString()}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) {
+      const errJson = await parseApiResponse(res);
+      throw new Error(errJson.error || `HTTP ${res.status}`);
+    }
+
+    const vcfText = await res.text();
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const filename = `students_vcard_${statusVal.toLowerCase()}_${targetIds.length}_${dateStr}.vcf`;
+
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    let shared = false;
+    if (navigator.share && typeof File !== 'undefined') {
+      try {
+        const file = new File([vcfText], filename, { type: 'text/vcard' });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            files: [file],
+            title: `Student Contacts (${targetIds.length})`
+          });
+          shared = true;
+        }
+      } catch (shareErr) {
+        if (shareErr.name === 'AbortError') {
+          if (confirmBtn) confirmBtn.disabled = false;
+          if (btnText) btnText.textContent = originalHtml;
+          return;
+        }
+        console.warn('navigator.share failed, using direct download fallback:', shareErr);
+      }
+    }
+
+    if (!shared) {
+      const blob = new Blob([vcfText], { type: 'text/vcard;charset=utf-8' });
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+    }
+
+    markStudentsAsExported(targetIds);
+
+    if (modal) modal.close();
+
+    showToast(
+      'Export Complete',
+      isIOS
+        ? `Exported ${targetIds.length} contact${targetIds.length === 1 ? '' : 's'}. Tap download in Safari to add to Contacts.`
+        : `Exported ${targetIds.length} contact${targetIds.length === 1 ? '' : 's'} as vCard.`
+    );
+  } catch (err) {
+    console.error('Error exporting vCards:', err);
+    showToast('Export Failed', err.message || 'Could not export student vCards.');
+  } finally {
+    if (confirmBtn) confirmBtn.disabled = false;
+    if (btnText) btnText.textContent = originalHtml;
+  }
+}
+
+function setupVCardExportUI() {
+  const isSuperAdmin = getCurrentUserRole() === 'superadmin';
+  document.querySelectorAll('.export-vcard-trigger-btn').forEach(el => {
+    el.style.display = isSuperAdmin ? '' : 'none';
+    el.addEventListener('click', () => {
+      if (getCurrentUserRole() !== 'superadmin') return;
+      openVCardExportModal();
+    });
+  });
+
+  const modal = document.querySelector('#vcardExportModal');
+  if (!modal) return;
+
+  const closeBtn = document.querySelector('#closeVCardExportModal');
+  if (closeBtn) closeBtn.addEventListener('click', () => modal.close());
+
+  const cancelBtn = document.querySelector('#cancelVCardExportBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => modal.close());
+
+  document.querySelectorAll('input[name="vcardStatusFilter"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      const exportedSet = getExportedVCardIds();
+      const allList = getVCardExportStudents();
+      const statusVal = (radio.value || 'both').toLowerCase();
+      let statusMatching = allList;
+      if (statusVal === 'new') {
+        statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'new');
+      } else if (statusVal === 'mu3id') {
+        statusMatching = allList.filter(s => String(s.status || '').trim().toLowerCase() === 'mu3id');
+      }
+      const unexportedCount = statusMatching.filter(s => !exportedSet.has(String(s.id))).length;
+      const unexpRadio = document.querySelector('input[name="vcardScopeFilter"][value="unexported"]');
+      const allRadio = document.querySelector('input[name="vcardScopeFilter"][value="all"]');
+      if (unexportedCount > 0) {
+        if (unexpRadio) unexpRadio.checked = true;
+      } else {
+        if (allRadio) allRadio.checked = true;
+      }
+      updateVCardExportModalStats();
+    });
+  });
+
+  document.querySelectorAll('input[name="vcardScopeFilter"]').forEach(radio => {
+    radio.addEventListener('change', updateVCardExportModalStats);
+  });
+
+  const resetBtn = document.querySelector('#vcardResetHistoryBtn');
+  if (resetBtn) {
+    resetBtn.addEventListener('click', resetExportedVCardHistory);
+  }
+
+  const confirmBtn = document.querySelector('#confirmVCardExportBtn');
+  if (confirmBtn) {
+    confirmBtn.addEventListener('click', executeVCardExport);
+  }
+}
+
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
@@ -2303,6 +2646,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupPoliticalTabs();
   setupClassStatClicks();
   setupSectionSwitchTabs();
+  setupVCardExportUI();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   if (document.body.dataset.page !== 'kazaa') fetchStudents();
@@ -2313,3 +2657,4 @@ document.addEventListener('DOMContentLoaded', () => {
   // Periodically re-verify DB connection status
   setInterval(checkDbConnection, 15000);
 });
+

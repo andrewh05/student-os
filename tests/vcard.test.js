@@ -36,6 +36,7 @@ require.cache[require.resolve('../db')] = {
         assert.equal(tableName, 'students');
         return {
           select: () => ({
+            order: () => Promise.resolve({ data: [mockStudent], error: null }),
             eq: (field, value) => ({
               maybeSingle: async () => ({
                 data: mockStudent.id === value ? { ...mockStudent } : null,
@@ -132,4 +133,56 @@ test('GET /api/students/:id/vcard excludes confidential notes for delegates', as
   assert.ok(text.includes('BEGIN:VCARD'));
   assert.ok(!text.includes('Confidential admin note'));
   assert.ok(!text.includes('Independent'));
+});
+
+test('GET /api/students/export/vcard rejects non-superadmin with 403', async () => {
+  const adminToken = signSession({ id: 'admin-1', username: 'admin', role: 'admin', section: 'all' });
+  const res = await fetch(url('/api/students/export/vcard'), {
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  assert.equal(res.status, 403);
+});
+
+test('GET /api/students/export/vcard exports vCards for superadmin', async () => {
+  const superToken = signSession({ id: 'super-1', username: 'superadmin', role: 'superadmin', section: 'all' });
+  const res = await fetch(url('/api/students/export/vcard?status=both'), {
+    headers: { Authorization: `Bearer ${superToken}` }
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'text/vcard; charset=utf-8');
+  assert.ok(res.headers.get('content-disposition').includes('attachment; filename="students_vcard_both_'));
+
+  const text = await res.text();
+  assert.ok(text.includes('BEGIN:VCARD'));
+  assert.ok(text.includes('FN:Jean-Luc Pierre Dupont'));
+  assert.ok(text.includes('END:VCARD'));
+});
+
+test('GET /api/students/export/vcard filters by status and IDs for superadmin', async () => {
+  const superToken = signSession({ id: 'super-1', username: 'superadmin', role: 'superadmin', section: 'all' });
+  
+  // Matching status
+  const resNew = await fetch(url('/api/students/export/vcard?status=New'), {
+    headers: { Authorization: `Bearer ${superToken}` }
+  });
+  assert.equal(resNew.status, 200);
+  const textNew = await resNew.text();
+  assert.ok(textNew.includes('Jean-Luc'));
+
+  // Non-matching status
+  const resMu3id = await fetch(url('/api/students/export/vcard?status=Mu3id'), {
+    headers: { Authorization: `Bearer ${superToken}` }
+  });
+  assert.equal(resMu3id.status, 200);
+  const textMu3id = await resMu3id.text();
+  assert.equal(textMu3id.trim(), ''); // No Mu3id students in mockStudent
+
+  // Matching ID
+  const resId = await fetch(url(`/api/students/export/vcard?ids=${mockStudent.id}`), {
+    headers: { Authorization: `Bearer ${superToken}` }
+  });
+  assert.equal(resId.status, 200);
+  const textId = await resId.text();
+  assert.ok(textId.includes('Jean-Luc'));
 });
