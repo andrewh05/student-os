@@ -22,4 +22,10 @@ for (const asset of assets) {
   fs.copyFileSync(path.join(__dirname, asset), path.join(outputDirectory, asset));
 }
 
-console.log(`Prepared ${assets.length} public assets for Cloudflare Workers.`);
+const headersContent = `/*
+  Cache-Control: no-cache, must-revalidate
+`;
+fs.writeFileSync(path.join(outputDirectory, '_headers'), headersContent);
+fs.writeFileSync(path.join(__dirname, '_headers'), headersContent);
+
+console.log(`Prepared ${assets.length} public assets and _headers for Cloudflare Workers.`);

@@ -85,16 +85,27 @@ after(() => new Promise(resolve => server.close(resolve)));
 const url = path => `http://127.0.0.1:${server.address().port}${path}`;
 
 test('PATCH /api/students/:id/group sets assignedGroup and fallback persists via note payload', async () => {
-  const res = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
+  const resA = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inGroup: true, assignedGroup: 'Grp A,B' })
+    body: JSON.stringify({ inGroup: true, assignedGroup: 'Grp A' })
   });
-  assert.equal(res.status, 200);
-  const json = await res.json();
-  assert.equal(json.success, true);
-  assert.equal(json.data.inGroup, true);
-  assert.equal(json.data.assignedGroup, 'Grp A,B');
+  assert.equal(resA.status, 200);
+  const jsonA = await resA.json();
+  assert.equal(jsonA.success, true);
+  assert.equal(jsonA.data.inGroup, true);
+  assert.equal(jsonA.data.assignedGroup, 'Grp A');
+
+  const resB = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/group'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inGroup: true, assignedGroup: 'Grp B' })
+  });
+  assert.equal(resB.status, 200);
+  const jsonB = await resB.json();
+  assert.equal(jsonB.success, true);
+  assert.equal(jsonB.data.inGroup, true);
+  assert.equal(jsonB.data.assignedGroup, 'Grp B');
 });
 
 test('PATCH /api/students/:id/group can clear assignedGroup and inGroup', async () => {
@@ -135,6 +146,8 @@ test('marking student leftGroup clears assignedGroup', async () => {
 test('group section normalization correctly classifies sections', () => {
   function getStudentAssignedGroup(student) {
     const norm = (student?.assignedGroup || '').trim().toLowerCase();
+    if (norm === 'grp a' || norm === 'a') return 'Grp A';
+    if (norm === 'grp b' || norm === 'b') return 'Grp B';
     if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
     if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
     if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
@@ -142,6 +155,10 @@ test('group section normalization correctly classifies sections', () => {
     return '';
   }
 
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp A' }), 'Grp A');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'a' }), 'Grp A');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp B' }), 'Grp B');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'b' }), 'Grp B');
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp A,B' }), 'Grp A,B');
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'a,b' }), 'Grp A,B');
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp C,D' }), 'Grp C,D');
@@ -156,9 +173,9 @@ test('group section normalization correctly classifies sections', () => {
 
 test('political affiliations breakdown per group accurately aggregates counts', () => {
   const sampleStudents = [
-    { assignedGroup: 'Grp A,B', inGroup: true, leftGroup: false, politicalAffiliation: 'Party X' },
-    { assignedGroup: 'Grp A,B', inGroup: true, leftGroup: false, politicalAffiliation: 'Party X' },
-    { assignedGroup: 'Grp A,B', inGroup: true, leftGroup: false, politicalAffiliation: 'Party Y' },
+    { assignedGroup: 'Grp A', inGroup: true, leftGroup: false, politicalAffiliation: 'Party X' },
+    { assignedGroup: 'Grp A', inGroup: true, leftGroup: false, politicalAffiliation: 'Party X' },
+    { assignedGroup: 'Grp B', inGroup: true, leftGroup: false, politicalAffiliation: 'Party Y' },
     { assignedGroup: 'Grp C,D', inGroup: true, leftGroup: false, politicalAffiliation: 'Party Z' },
     { assignedGroup: 'Grp E1', inGroup: true, leftGroup: false, politicalAffiliation: 'Independent' },
     { assignedGroup: 'Grp E2', inGroup: true, leftGroup: false, politicalAffiliation: 'Party X' },
@@ -168,6 +185,8 @@ test('political affiliations breakdown per group accurately aggregates counts', 
 
   function getStudentAssignedGroup(student) {
     const norm = (student?.assignedGroup || '').trim().toLowerCase();
+    if (norm === 'grp a' || norm === 'a') return 'Grp A';
+    if (norm === 'grp b' || norm === 'b') return 'Grp B';
     if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
     if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
     if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
@@ -176,7 +195,9 @@ test('political affiliations breakdown per group accurately aggregates counts', 
   }
 
   function getStudentsForPoliticalGroup(groupKey) {
-    if (groupKey === 'Grp A,B') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp A,B');
+    if (groupKey === 'Grp A') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp A');
+    if (groupKey === 'Grp B') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp B');
+    if (groupKey === 'Grp A,B') return sampleStudents.filter(s => ['Grp A,B', 'Grp A', 'Grp B'].includes(getStudentAssignedGroup(s)));
     if (groupKey === 'Grp C,D') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
     if (groupKey === 'Grp E1') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
     if (groupKey === 'Grp E2') return sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
@@ -185,14 +206,24 @@ test('political affiliations breakdown per group accurately aggregates counts', 
     return sampleStudents;
   }
 
-  const grpAB = getStudentsForPoliticalGroup('Grp A,B');
-  assert.equal(grpAB.length, 3);
-  const grpABAffs = grpAB.reduce((acc, s) => {
+  const grpA = getStudentsForPoliticalGroup('Grp A');
+  assert.equal(grpA.length, 2);
+  const grpAAffs = grpA.reduce((acc, s) => {
     acc[s.politicalAffiliation] = (acc[s.politicalAffiliation] || 0) + 1;
     return acc;
   }, {});
-  assert.equal(grpABAffs['Party X'], 2);
-  assert.equal(grpABAffs['Party Y'], 1);
+  assert.equal(grpAAffs['Party X'], 2);
+
+  const grpB = getStudentsForPoliticalGroup('Grp B');
+  assert.equal(grpB.length, 1);
+  assert.equal(grpB[0].politicalAffiliation, 'Party Y');
+
+  const grpAB = getStudentsForPoliticalGroup('Grp A,B');
+  assert.equal(grpAB.length, 3);
+
+  const grpCD = getStudentsForPoliticalGroup('Grp C,D');
+  assert.equal(grpCD.length, 1);
+  assert.equal(grpCD[0].politicalAffiliation, 'Party Z');
 
   const inGrp = getStudentsForPoliticalGroup('in_group');
   assert.equal(inGrp.length, 6);

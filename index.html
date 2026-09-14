@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.3">
+  <link rel="stylesheet" href="styles.css?v=2.4">
 </head>
 <body data-page="dashboard">
   <div class="grain"></div>
@@ -174,10 +174,15 @@
           <span class="insight-badge">Live sections</span>
         </div>
         <div class="class-stats-grid">
-          <div class="class-stat" data-group="Grp A,B">
-            <div class="class-stat-top"><span>Grp A,B (French)</span><b id="grpABCount">0</b></div>
-            <div class="class-progress"><i id="grpABBar"></i></div>
-            <small id="grpABPercent">0% of students</small>
+          <div class="class-stat" data-group="Grp A">
+            <div class="class-stat-top"><span>Grp A (French)</span><b id="grpACount">0</b></div>
+            <div class="class-progress"><i id="grpABar"></i></div>
+            <small id="grpAPercent">0% of students</small>
+          </div>
+          <div class="class-stat" data-group="Grp B">
+            <div class="class-stat-top"><span>Grp B (French)</span><b id="grpBCount">0</b></div>
+            <div class="class-progress"><i id="grpBBar"></i></div>
+            <small id="grpBPercent">0% of students</small>
           </div>
           <div class="class-stat" data-group="Grp C,D">
             <div class="class-stat-top"><span>Grp C,D (French)</span><b id="grpCDCount">0</b></div>
@@ -212,7 +217,8 @@
           
           <div class="political-group-selector" role="tablist" aria-label="Filter political affiliation by group">
             <button type="button" class="political-group-tab is-active" data-group="all">All students</button>
-            <button type="button" class="political-group-tab" data-group="Grp A,B">Grp A,B</button>
+            <button type="button" class="political-group-tab" data-group="Grp A">Grp A</button>
+            <button type="button" class="political-group-tab" data-group="Grp B">Grp B</button>
             <button type="button" class="political-group-tab" data-group="Grp C,D">Grp C,D</button>
             <button type="button" class="political-group-tab" data-group="Grp E1">Grp E1</button>
             <button type="button" class="political-group-tab" data-group="Grp E2">Grp E2</button>
@@ -254,7 +260,8 @@
           <option value="in">In group (Any)</option>
           <option value="out">Not in group</option>
           <option value="left">Left group</option>
-          <option value="Grp A,B">Grp A,B</option>
+          <option value="Grp A">Grp A</option>
+          <option value="Grp B">Grp B</option>
           <option value="Grp C,D">Grp C,D</option>
           <option value="Grp E1">Grp E1</option>
           <option value="Grp E2">Grp E2</option>
@@ -284,6 +291,6 @@
 
   <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Student saved</b><small id="toastMsg">The record was saved securely to student-os.com.</small></p></div>
 
-  <script src="script.js?v=2.3"></script>
+  <script src="script.js?v=2.4"></script>
 </body>
 </html>

@@ -63,7 +63,18 @@
       const studentSec = (student.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(student.major) : '') || '').toUpperCase();
       const secLabel = studentSec ? ` • <b style="color:var(--orange-primary);font-weight:700">${escapeHtml(studentSec)}</b>` : '';
       return `<article class="kazaa-student">
-        <div><a href="form.html?edit=${encodeURIComponent(student.id)}">${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}</a><p>Origin: ${escapeHtml(student.origin || 'Not provided')}${secLabel}</p><small>${current ? (current.manual ? 'Manually assigned' : 'AI suggestion — please review') : 'Needs review'}</small></div>
+        <div>
+          <div class="kazaa-student-name-row">
+            <a href="form.html?edit=${encodeURIComponent(student.id)}">${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}</a>
+            <button type="button" class="btn-kazaa-contact" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)} to Contacts" aria-label="Save contact">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+              </svg>
+            </button>
+          </div>
+          <p>Origin: ${escapeHtml(student.origin || 'Not provided')}${secLabel}</p>
+          <small>${current ? (current.manual ? 'Manually assigned' : 'AI suggestion — please review') : 'Needs review'}</small>
+        </div>
         <label><span>Kazaa</span><select data-student-id="${escapeHtml(student.id)}" ${busy ? 'disabled' : ''} aria-label="Kazaa for ${escapeHtml(student.firstName)} ${escapeHtml(student.familyName)}"><option value="">Needs review</option>${districts.map(district => `<option ${current?.district === district ? 'selected' : ''}>${escapeHtml(district)}</option>`).join('')}</select></label>
       </article>`;
     }).join('') : '<p class="kazaa-empty">No students match this view.</p>';

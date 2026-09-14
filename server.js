@@ -184,9 +184,28 @@ async function findDuplicateStudent(candidate, excludedId = null) {
 
 app.use(cors());
 app.use(express.json());
+const APP_VERSION = '2.4.0';
+
+const userCache = new Map();
+const USER_CACHE_TTL = 15000;
+
+function invalidateUserCache(id) {
+  if (id) {
+    userCache.delete(String(id));
+  } else {
+    userCache.clear();
+  }
+}
+
 const hasLocalFilesystem = typeof __dirname !== 'undefined';
 if (hasLocalFilesystem) {
-  app.use(express.static(path.join(__dirname)));
+  app.use(express.static(path.join(__dirname), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        res.set('Cache-Control', 'no-cache, must-revalidate');
+      }
+    }
+  }));
 }
 
 const VALID_ROLES = ['superadmin', 'admin', 'deleg', 'staff'];
@@ -194,35 +213,47 @@ const isAdminRole = role => role === 'admin' || role === 'superadmin';
 const isSuperAdminRole = role => role === 'superadmin';
 
 async function getUserById(id) {
+  if (!id) return null;
+  const key = String(id);
+  const cached = userCache.get(key);
+  if (cached && (Date.now() - cached.timestamp < USER_CACHE_TTL)) {
+    return cached.user;
+  }
+  let user = null;
   if (supabase) {
     const { data, error } = await supabase.from('users').select('id, username, full_name, role, approved').eq('id', id).maybeSingle();
     if (error || !data) return null;
     const decryptedName = decryptValue(data.full_name, 'users.full_name');
     const parsed = parseUserFullNamePayload(decryptedName);
     const role = decryptValue(data.role, 'users.role');
-    return {
+    user = {
       id: data.id,
       username: decryptValue(data.username, 'users.username'),
       fullName: parsed.fullName,
       role,
       section: parsed.section || (role === 'superadmin' ? 'all' : 'mispce'),
-      approved: data.approved
+      approved: data.approved !== false
+    };
+  } else {
+    const { rows } = await pool.query(`SELECT id, username, full_name, role, approved FROM users WHERE id = $1`, [id]);
+    if (!rows || !rows.length) return null;
+    const u = rows[0];
+    const decryptedName = decryptValue(u.full_name, 'users.full_name');
+    const parsed = parseUserFullNamePayload(decryptedName);
+    const role = decryptValue(u.role, 'users.role');
+    user = {
+      id: u.id,
+      username: decryptValue(u.username, 'users.username'),
+      fullName: parsed.fullName,
+      role,
+      section: parsed.section || (role === 'superadmin' ? 'all' : 'mispce'),
+      approved: u.approved !== false
     };
   }
-  const { rows } = await pool.query(`SELECT id, username, full_name, role, approved FROM users WHERE id = $1`, [id]);
-  if (!rows || !rows.length) return null;
-  const u = rows[0];
-  const decryptedName = decryptValue(u.full_name, 'users.full_name');
-  const parsed = parseUserFullNamePayload(decryptedName);
-  const role = decryptValue(u.role, 'users.role');
-  return {
-    id: u.id,
-    username: decryptValue(u.username, 'users.username'),
-    fullName: parsed.fullName,
-    role,
-    section: parsed.section || (role === 'superadmin' ? 'all' : 'mispce'),
-    approved: u.approved
-  };
+  if (user) {
+    userCache.set(key, { user, timestamp: Date.now() });
+  }
+  return user;
 }
 
 const requireAdmin = (req, res, next) => {
@@ -540,6 +571,7 @@ app.patch('/api/users/:id/approval', requireAdmin, async (req, res) => {
     const { data, error } = await query;
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'Request not found' });
+    invalidateUserCache(req.params.id);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
@@ -603,7 +635,18 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
     const { data, error } = await supabase.from('users').update(update).eq('id', req.params.id).select('id').maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'User not found' });
-    return res.json({ success: true, data: { id: req.params.id, username: username.trim(), fullName: fullName.trim(), role: assignedRole, section: assignedSection, approved } });
+    invalidateUserCache(req.params.id);
+
+    let freshToken = null;
+    if (session && session.id === req.params.id) {
+      freshToken = signSession({ id: req.params.id, role: assignedRole, section: assignedSection });
+    }
+
+    return res.json({
+      success: true,
+      data: { id: req.params.id, username: username.trim(), fullName: fullName.trim(), role: assignedRole, section: assignedSection, approved },
+      token: freshToken
+    });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
@@ -623,10 +666,60 @@ app.delete('/api/users/:id', requireAdmin, async (req, res) => {
     const { data, error } = await supabase.from('users').delete().eq('id', req.params.id).select('id').maybeSingle();
     if (error) throw error;
     if (!data) return res.status(404).json({ success: false, error: 'User not found' });
+    invalidateUserCache(req.params.id);
     return res.json({ success: true });
   } catch (err) {
     return res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// CURRENT SESSION / USER STATUS Endpoint
+app.get('/api/auth/me', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session || !session.id) {
+    return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+  }
+
+  try {
+    const user = await getUserById(session.id);
+    if (!user) {
+      return res.status(401).json({ success: false, error: 'User account no longer exists', unauthenticated: true });
+    }
+    if (user.approved === false) {
+      return res.status(403).json({ success: false, error: 'Your account is waiting for administrator approval', unauthenticated: true });
+    }
+
+    const freshToken = signSession({
+      id: user.id,
+      role: user.role,
+      section: user.section
+    });
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        username: user.username,
+        fullName: user.fullName || user.username,
+        role: user.role,
+        section: user.section,
+        approved: user.approved
+      },
+      token: freshToken,
+      version: APP_VERSION
+    });
+  } catch (err) {
+    console.error('Error in /api/auth/me:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// App Version endpoint for live deployment update detection
+app.get('/api/version', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ success: true, version: APP_VERSION });
 });
 
 // LOGIN Endpoint (Username & Password authentication against PostgreSQL)
@@ -705,9 +798,20 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/students', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
-  const callerRole = session ? (session.role || 'deleg').toLowerCase() : null;
-  const callerSection = session ? (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase() : 'all';
-  const isDeleg = Boolean(session && session.role === 'deleg');
+  let callerRole = session ? (session.role || 'deleg').toLowerCase() : null;
+  let callerSection = session ? (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase() : 'all';
+  let isDeleg = Boolean(session && session.role === 'deleg');
+
+  if (session && session.id) {
+    try {
+      const liveUser = await getUserById(session.id);
+      if (liveUser && liveUser.approved !== false) {
+        callerRole = (liveUser.role || 'deleg').toLowerCase();
+        callerSection = (liveUser.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
+        isDeleg = callerRole === 'deleg';
+      }
+    } catch {}
+  }
   const querySection = req.query.section ? String(req.query.section).toLowerCase() : null;
 
   try {
@@ -774,9 +878,20 @@ app.get('/api/students', async (req, res) => {
 app.get('/api/students/:id', async (req, res) => {
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
-  const callerRole = session ? (session.role || 'deleg').toLowerCase() : null;
-  const callerSection = session ? (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase() : 'all';
-  const isDeleg = Boolean(session && session.role === 'deleg');
+  let callerRole = session ? (session.role || 'deleg').toLowerCase() : null;
+  let callerSection = session ? (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase() : 'all';
+  let isDeleg = Boolean(session && session.role === 'deleg');
+
+  if (session && session.id) {
+    try {
+      const liveUser = await getUserById(session.id);
+      if (liveUser && liveUser.approved !== false) {
+        callerRole = (liveUser.role || 'deleg').toLowerCase();
+        callerSection = (liveUser.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
+        isDeleg = callerRole === 'deleg';
+      }
+    } catch {}
+  }
 
   try {
     const { id } = req.params;
@@ -834,6 +949,166 @@ app.get('/api/students/:id', async (req, res) => {
     res.status(500).json({ success: false, error: err.message });
   }
 });
+
+// Helper to escape special characters for vCard RFC 2426
+function escapeVCardValue(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// Generate valid vCard 3.0 string for iOS / iPhone and Android contact import
+function generateVCardString(student) {
+  const firstName = (student.firstName || '').trim();
+  const fatherName = (student.fatherName || '').trim();
+  const familyName = (student.familyName || '').trim();
+  const fullName = [firstName, fatherName, familyName].filter(Boolean).join(' ') || 'Student';
+
+  const lines = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${escapeVCardValue(familyName)};${escapeVCardValue(firstName)};${escapeVCardValue(fatherName)};;`,
+    `FN:${escapeVCardValue(fullName)}`
+  ];
+
+  if (student.phone) {
+    lines.push(`TEL;TYPE=CELL,VOICE:${String(student.phone).trim()}`);
+  }
+
+  if (student.email) {
+    lines.push(`EMAIL;TYPE=INTERNET,HOME:${String(student.email).trim()}`);
+  }
+
+  const school = (student.school || '').trim();
+  const campus = (student.campus || '').trim();
+  if (school || campus) {
+    const org = [school, campus].filter(Boolean).join(' - ');
+    lines.push(`ORG:${escapeVCardValue(org)}`);
+  }
+
+  const major = (student.major || '').trim();
+  const sec = (student.section || inferSectionFromMajor(student.major) || '').toUpperCase();
+  if (major || sec) {
+    const title = [major, sec].filter(Boolean).join(' • ');
+    lines.push(`TITLE:${escapeVCardValue(title)}`);
+  }
+
+  if (student.address || student.origin) {
+    const street = student.address ? escapeVCardValue(student.address) : '';
+    const locality = student.origin ? escapeVCardValue(student.origin) : '';
+    lines.push(`ADR;TYPE=HOME:;;${street};${locality};;;`);
+  }
+
+  const noteParts = [];
+  if (student.status) noteParts.push(`Status: ${student.status}`);
+  if (student.language) noteParts.push(`Language: ${student.language}`);
+  if (student.origin) noteParts.push(`Origin: ${student.origin}`);
+  if (student.assignedGroup) noteParts.push(`Group: ${student.assignedGroup}`);
+  if (student.note) noteParts.push(`Note: ${student.note}`);
+  if (noteParts.length) {
+    lines.push(`NOTE:${escapeVCardValue(noteParts.join(' | '))}`);
+  }
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n') + '\r\n';
+}
+
+app.generateVCardString = generateVCardString;
+
+// Serve vCard (.vcf) file for iPhone / iOS and mobile/desktop contacts
+async function handleVCardRequest(req, res) {
+  const token = req.query.token || (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) {
+    return res.status(401).send('Unauthorized');
+  }
+
+  let callerRole = session ? (session.role || 'deleg').toLowerCase() : null;
+  let callerSection = session ? (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase() : 'all';
+
+  if (session && session.id) {
+    try {
+      const liveUser = await getUserById(session.id);
+      if (liveUser && liveUser.approved !== false) {
+        callerRole = (liveUser.role || 'deleg').toLowerCase();
+        callerSection = (liveUser.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
+      }
+    } catch {}
+  }
+
+  try {
+    const { id } = req.params;
+    let mapped = null;
+    if (supabase) {
+      const { data, error } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).send('Student not found');
+      mapped = mapStudent(data);
+    } else {
+      const { rows } = await pool.query(`
+        SELECT 
+          note,
+          kazaa,
+          id, 
+          first_name AS "firstName", 
+          father_name AS "fatherName", 
+          family_name AS "familyName", 
+          origin, 
+          address, 
+          school, 
+          major, 
+          political_affiliation AS "politicalAffiliation",
+          status, 
+          language, 
+          campus, 
+          phone, 
+          email, 
+          in_group AS "inGroup",
+          left_group AS "leftGroup",
+          created_at AS "createdAt"
+        FROM students 
+        WHERE id = $1;
+      `, [id]);
+
+      if (rows.length === 0) {
+        return res.status(404).send('Student not found');
+      }
+      mapped = mapStudent(rows[0]);
+    }
+
+    if (callerRole === 'deleg' || (callerRole === 'admin' && callerSection !== 'all')) {
+      if (mapped.section !== callerSection) {
+        return res.status(403).send('Student not found in your section');
+      }
+    }
+
+    // Never leak confidential admin note to delegates via contact card
+    if (callerRole === 'deleg') {
+      mapped.politicalAffiliation = '';
+      mapped.note = '';
+    }
+
+    const vcard = generateVCardString(mapped);
+    const cleanFirst = (mapped.firstName || 'Student').trim().replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_');
+    const cleanFamily = (mapped.familyName || '').trim().replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_');
+    const filename = `${cleanFirst}${cleanFamily ? '_' + cleanFamily : ''}.vcf`;
+
+    const disposition = req.query.download === '1' ? 'attachment' : 'inline';
+    res.setHeader('Content-Type', 'text/vcard; charset=utf-8');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.send(vcard);
+  } catch (err) {
+    console.error('Error generating vCard:', err.message);
+    res.status(500).send('Error generating contact card');
+  }
+}
+
+app.get('/api/students/:id/vcard', handleVCardRequest);
+app.get('/api/students/:id/contact.vcf', handleVCardRequest);
 
 // POST create new student (Admins, Superadmins, and Delegates can add students)
 app.post('/api/students', async (req, res) => {
@@ -1236,6 +1511,7 @@ app.delete('/api/students/:id', requireAdmin, async (req, res) => {
 
 // HTML page routing helpers
 const servePage = page => (req, res) => {
+  res.set('Cache-Control', 'no-cache, must-revalidate');
   if (hasLocalFilesystem) return res.sendFile(path.join(__dirname, `${page}.html`));
   return res.redirect(302, `/${page}.html`);
 };

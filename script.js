@@ -1,3 +1,4 @@
+const APP_VERSION = '2.4.0';
 const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:3000/api'
   : '/api';
@@ -77,6 +78,8 @@ let currentPoliticalGroup = 'all';
 
 function getStudentAssignedGroup(student) {
   const norm = (student?.assignedGroup || '').trim().toLowerCase();
+  if (norm === 'grp a' || norm === 'a') return 'Grp A';
+  if (norm === 'grp b' || norm === 'b') return 'Grp B';
   if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
   if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
   if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
@@ -125,6 +128,162 @@ function isCurrentUserDeleg() {
   return role !== 'admin' && role !== 'superadmin';
 }
 
+function applyUserRoleUI(user) {
+  if (!user || typeof user !== 'object') return false;
+  const currentPage = document.body?.dataset?.page;
+  const role = (user.role || 'deleg').toLowerCase();
+  const isSuperAdmin = role === 'superadmin';
+  const isAdmin = role === 'admin' || isSuperAdmin;
+  const isDeleg = !isAdmin;
+  const userSec = (user.section || (isSuperAdmin ? 'all' : 'mispce')).toLowerCase();
+
+  if (userNameDisplay) {
+    let roleLabel = 'Deleg';
+    if (isSuperAdmin) {
+      roleLabel = 'Superadmin';
+    } else if (role === 'admin') {
+      roleLabel = userSec !== 'all' ? `Admin - ${userSec.toUpperCase()}` : 'Admin';
+    } else {
+      roleLabel = `Deleg - ${userSec.toUpperCase()}`;
+    }
+    userNameDisplay.textContent = `${user.fullName || user.username || 'User'} (${roleLabel})`;
+    userNameDisplay.title = `Signed in as ${user.username} (${roleLabel})`;
+  }
+
+  if (isDeleg) {
+    document.body.classList.add('role-deleg');
+
+    // Hide restricted nav links (Kazaa, Users, Backups)
+    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"]').forEach(el => {
+      el.style.display = 'none';
+    });
+
+    // Hide export button on dashboard
+    const exportBtn = document.querySelector('#exportBtn');
+    if (exportBtn) exportBtn.style.display = 'none';
+
+    // Hide section distribution and political cards on dashboard
+    const classInsightCard = document.querySelector('.class-insight-card');
+    if (classInsightCard) classInsightCard.style.display = 'none';
+
+    const politicalStatsCard = document.querySelector('.political-stats-card');
+    if (politicalStatsCard) politicalStatsCard.style.display = 'none';
+
+    // Deleg is restricted from: users, kazaa, kazaa-export, backup, and form.html in EDIT mode
+    const restrictedPages = ['users', 'kazaa', 'kazaa-export', 'backup'];
+    if (restrictedPages.includes(currentPage)) {
+      window.location.replace('dashboard.html');
+      return false;
+    }
+    if (currentPage === 'form' && new URLSearchParams(window.location.search).has('edit')) {
+      window.location.replace('dashboard.html');
+      return false;
+    }
+  } else {
+    document.body.classList.remove('role-deleg');
+
+    // Restore restricted nav links
+    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"]').forEach(el => {
+      el.style.display = '';
+    });
+
+    const exportBtn = document.querySelector('#exportBtn');
+    if (exportBtn) exportBtn.style.display = '';
+
+    const classInsightCard = document.querySelector('.class-insight-card');
+    if (classInsightCard) classInsightCard.style.display = '';
+
+    const politicalStatsCard = document.querySelector('.political-stats-card');
+    if (politicalStatsCard) politicalStatsCard.style.display = '';
+  }
+
+  return true;
+}
+
+let isSyncingSession = false;
+
+async function syncCurrentUserSession(force = false) {
+  const currentPage = document.body?.dataset?.page;
+  if (currentPage === 'login' || currentPage === 'signup') return;
+  const token = localStorage.getItem('hub_token');
+  if (!token) return;
+  if (isSyncingSession && !force) return;
+
+  isSyncingSession = true;
+  try {
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const json = await parseApiResponse(res);
+
+    if (!res.ok || !json.success) {
+      if (res.status === 401 || res.status === 403 || json.unauthenticated) {
+        localStorage.removeItem('hub_user');
+        localStorage.removeItem('hub_token');
+        showToast('Session Expired', json.error || 'Please sign in again to continue.');
+        setTimeout(() => window.location.replace('login.html'), 800);
+      }
+      return;
+    }
+
+    const serverUser = json.user;
+    const serverToken = json.token;
+    const serverVersion = json.version;
+
+    // Check if a new version was deployed
+    if (serverVersion && typeof APP_VERSION !== 'undefined' && serverVersion !== APP_VERSION) {
+      showToast('System Updated', 'Applying latest changes...');
+      setTimeout(() => window.location.reload(), 600);
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    const roleChanged = (currentUser.role || '').toLowerCase() !== (serverUser.role || '').toLowerCase();
+    const sectionChanged = (currentUser.section || '').toLowerCase() !== (serverUser.section || '').toLowerCase();
+    const nameChanged = (currentUser.fullName || currentUser.username) !== (serverUser.fullName || serverUser.username);
+    const approvedChanged = currentUser.approved !== serverUser.approved;
+
+    // Persist freshest credentials
+    localStorage.setItem('hub_user', JSON.stringify(serverUser));
+    if (serverToken) {
+      localStorage.setItem('hub_token', serverToken);
+    }
+
+    if (roleChanged || sectionChanged || nameChanged || approvedChanged) {
+      applyUserRoleUI(serverUser);
+
+      if (currentPage === 'dashboard') {
+        if (roleChanged) {
+          if (typeof setupSectionSwitchTabs === 'function') setupSectionSwitchTabs();
+          if (typeof fetchStudents === 'function') fetchStudents();
+          showToast('Role Updated', `Your role has been updated to ${serverUser.role.toUpperCase()}.`);
+        } else if (sectionChanged) {
+          if (typeof setupSectionSwitchTabs === 'function') setupSectionSwitchTabs();
+          if (typeof applySectionFilter === 'function') applySectionFilter();
+          showToast('Section Updated', `Your section was updated to ${serverUser.section.toUpperCase()}.`);
+        }
+      } else if (currentPage === 'form') {
+        if (typeof initStudentForm === 'function') initStudentForm();
+      } else if (currentPage === 'users' && typeof loadAllUsers === 'function') {
+        loadAllUsers();
+      }
+    }
+  } catch (err) {
+    // Non-fatal, will retry on next event or timer
+  } finally {
+    isSyncingSession = false;
+  }
+}
+
+// Automatically sync user session on tab activation, window focus, or periodic interval
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) syncCurrentUserSession();
+});
+window.addEventListener('focus', () => syncCurrentUserSession());
+setInterval(() => {
+  syncCurrentUserSession();
+}, 20000);
+
 function checkAuth() {
   const currentPage = document.body.dataset.page;
   const userJson = localStorage.getItem('hub_user');
@@ -146,61 +305,17 @@ function checkAuth() {
 
   try {
     const user = JSON.parse(userJson);
-    const role = (user.role || 'deleg').toLowerCase();
-    const isSuperAdmin = role === 'superadmin';
-    const isAdmin = role === 'admin' || isSuperAdmin;
-    const isDeleg = !isAdmin;
-    const userSec = (user.section || (isSuperAdmin ? 'all' : 'mispce')).toLowerCase();
-
-    if (userNameDisplay) {
-      let roleLabel = 'Deleg';
-      if (isSuperAdmin) {
-        roleLabel = 'Superadmin';
-      } else if (role === 'admin') {
-        roleLabel = userSec !== 'all' ? `Admin - ${userSec.toUpperCase()}` : 'Admin';
-      } else {
-        roleLabel = `Deleg - ${userSec.toUpperCase()}`;
-      }
-      userNameDisplay.textContent = `${user.fullName || user.username || 'User'} (${roleLabel})`;
-      userNameDisplay.title = `Signed in as ${user.username} (${roleLabel})`;
-    }
-
-    if (isDeleg) {
-      document.body.classList.add('role-deleg');
-
-      // Hide restricted nav links (Kazaa, Users)
-      document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"]').forEach(el => {
-        el.style.display = 'none';
-      });
-
-      // Hide export button on dashboard
-      const exportBtn = document.querySelector('#exportBtn');
-      if (exportBtn) exportBtn.style.display = 'none';
-
-      // Hide section distribution and political cards on dashboard
-      const classInsightCard = document.querySelector('.class-insight-card');
-      if (classInsightCard) classInsightCard.style.display = 'none';
-
-      const politicalStatsCard = document.querySelector('.political-stats-card');
-      if (politicalStatsCard) politicalStatsCard.style.display = 'none';
-
-      // Deleg is restricted from: users, kazaa, kazaa-export, backup, and form.html in EDIT mode
-      const restrictedPages = ['users', 'kazaa', 'kazaa-export', 'backup'];
-      if (restrictedPages.includes(currentPage)) {
-        window.location.replace('dashboard.html');
-        return false;
-      }
-      if (currentPage === 'form' && new URLSearchParams(window.location.search).has('edit')) {
-        window.location.replace('dashboard.html');
-        return false;
-      }
-    }
+    const ok = applyUserRoleUI(user);
+    if (!ok) return false;
   } catch (err) {
     localStorage.removeItem('hub_user');
     localStorage.removeItem('hub_token');
     window.location.replace('login.html');
     return false;
   }
+
+  // Trigger background session sync
+  syncCurrentUserSession();
 
   return true;
 }
@@ -209,6 +324,7 @@ function checkAuth() {
 if (logoutBtn) {
   logoutBtn.addEventListener('click', () => {
     localStorage.removeItem('hub_user');
+    localStorage.removeItem('hub_token');
     showToast('Logged out', 'You have been signed out successfully.');
     setTimeout(() => {
       window.location.replace('login.html');
@@ -426,8 +542,20 @@ if (userEditorForm) {
       const response = await fetch(`${API_BASE}/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }, body: JSON.stringify(values) });
       const json = await parseApiResponse(response);
       if (!json.success) throw new Error(json.error || 'Could not update user');
+
+      const currentUser = getCurrentUser();
+      if (currentUser && currentUser.id === id) {
+        const updatedUser = {
+          ...currentUser,
+          ...json.data
+        };
+        localStorage.setItem('hub_user', JSON.stringify(updatedUser));
+        if (json.token) localStorage.setItem('hub_token', json.token);
+        applyUserRoleUI(updatedUser);
+      }
+
       closeUserEditor();
-      showToast('User updated', 'The account changes were saved.');
+      showToast('User updated', 'The account changes were saved and applied.');
       loadAllUsers();
       loadPendingUsers();
     } catch (error) { message.textContent = error.message; }
@@ -686,6 +814,7 @@ function renderStudents(query = '') {
         : groupFilter.value === 'out' ? (!student.inGroup && !student.leftGroup)
         : groupFilter.value === 'left' ? Boolean(student.leftGroup)
         : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
+        : groupFilter.value === 'Grp A,B' ? (assignedGroup === 'Grp A,B' || assignedGroup === 'Grp A' || assignedGroup === 'Grp B')
         : groupFilter.value === assignedGroup);
     return matchesSearch && matchesStatus && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
@@ -726,16 +855,24 @@ function renderStudents(query = '') {
     let groupButtonsHtml = '';
     const assigned = getStudentAssignedGroup(student);
     if (isFrench) {
-      const isAB = assigned === 'Grp A,B';
+      const isA = assigned === 'Grp A';
+      const isB = assigned === 'Grp B';
       const isCD = assigned === 'Grp C,D';
       groupButtonsHtml = `
           <div class="group-section-actions">
             <button type="button"
-              class="btn-action group-section-btn ${isAB ? 'is-active' : ''}"
-              onclick="setStudentAssignedGroup('${student.id}', 'Grp A,B', this)"
-              aria-pressed="${isAB ? 'true' : 'false'}"
+              class="btn-action group-section-btn ${isA ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp A', this)"
+              aria-pressed="${isA ? 'true' : 'false'}"
               ${groupDisabledAttr}>
-              ${isAB ? '✓ Grp A,B' : 'Grp A,B'}
+              ${isA ? '✓ Grp A' : 'Grp A'}
+            </button>
+            <button type="button"
+              class="btn-action group-section-btn ${isB ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Grp B', this)"
+              aria-pressed="${isB ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isB ? '✓ Grp B' : 'Grp B'}
             </button>
             <button type="button"
               class="btn-action group-section-btn ${isCD ? 'is-active' : ''}"
@@ -776,8 +913,15 @@ function renderStudents(query = '') {
         <span class="tag">${escapeHtml(student.status)}</span>
         <div class="student-top">
           <div class="avatar">${escapeHtml(initials)}</div>
-          <div>
-            <h3>${escapeHtml(fullName)}</h3>
+          <div class="student-top-info">
+            <div class="student-name-row">
+              <h3>${escapeHtml(fullName)}</h3>
+              <button type="button" class="btn-save-contact-icon" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to Contacts" aria-label="Save ${escapeHtml(fullName)} to phone contacts">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                </svg>
+              </button>
+            </div>
             <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}</p>
           </div>
         </div>
@@ -787,7 +931,19 @@ function renderStudents(query = '') {
           <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
           <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
           <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
-          <div class="detail"><small>Phone</small><span>${escapeHtml(student.phone)}</span></div>
+          <div class="detail">
+            <small>Phone</small>
+            <div class="phone-row">
+              ${student.phone ? `<a href="tel:${escapeHtml(String(student.phone).trim())}" class="phone-link" title="Call ${escapeHtml(fullName)}">${escapeHtml(student.phone)}</a>` : '<span>N/A</span>'}
+              ${student.phone ? `
+                <button type="button" class="btn-contact-quick" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to contacts" aria-label="Save ${escapeHtml(fullName)} to phone contacts">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                  </svg>
+                </button>
+              ` : ''}
+            </div>
+          </div>
           <div class="detail"><small>Email</small><span title="${escapeHtml(student.email)}">${escapeHtml(student.email)}</span></div>
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
           ${!isDeleg ? `
@@ -813,6 +969,14 @@ function renderStudents(query = '') {
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
           ${groupButtonsHtml}
+          <button type="button" class="btn-action save-contact-btn"
+            onclick="saveStudentContact('${student.id}')"
+            title="Save ${escapeHtml(fullName)} to phone contacts">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+            Save Contact
+          </button>
           ${!isDeleg ? `
           <div class="record-edit-actions">
           <a class="btn-action edit" href="form.html?edit=${student.id}">Edit record</a>
@@ -1025,31 +1189,41 @@ function updateStats() {
 
   updateMajorFilterOptions(visibleMajors);
 
+  const grpA = students.filter(s => getStudentAssignedGroup(s) === 'Grp A').length;
+  const grpB = students.filter(s => getStudentAssignedGroup(s) === 'Grp B').length;
   const grpAB = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B').length;
   const grpCD = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D').length;
   const grpE1 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E1').length;
   const grpE2 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E2').length;
   const unassigned = students.filter(s => !getStudentAssignedGroup(s)).length;
 
-  setText('#grpABCount', grpAB);
+  setText('#grpACount', grpA);
+  setText('#grpBCount', grpB);
+  setText('#grpABCount', grpAB + grpA + grpB);
   setText('#grpCDCount', grpCD);
   setText('#grpE1Count', grpE1);
   setText('#grpE2Count', grpE2);
   setText('#unassignedCount', unassigned);
 
-  setText('#grpABPercent', `${percent(grpAB)}% of students`);
+  setText('#grpAPercent', `${percent(grpA)}% of students`);
+  setText('#grpBPercent', `${percent(grpB)}% of students`);
+  setText('#grpABPercent', `${percent(grpAB + grpA + grpB)}% of students`);
   setText('#grpCDPercent', `${percent(grpCD)}% of students`);
   setText('#grpE1Percent', `${percent(grpE1)}% of students`);
   setText('#grpE2Percent', `${percent(grpE2)}% of students`);
   setText('#unassignedPercent', `${percent(unassigned)}% of students`);
 
+  const grpABar = document.querySelector('#grpABar');
+  const grpBBar = document.querySelector('#grpBBar');
   const grpABBar = document.querySelector('#grpABBar');
   const grpCDBar = document.querySelector('#grpCDBar');
   const grpE1Bar = document.querySelector('#grpE1Bar');
   const grpE2Bar = document.querySelector('#grpE2Bar');
   const unassignedBar = document.querySelector('#unassignedBar');
 
-  if (grpABBar) grpABBar.style.width = `${percent(grpAB)}%`;
+  if (grpABar) grpABar.style.width = `${percent(grpA)}%`;
+  if (grpBBar) grpBBar.style.width = `${percent(grpB)}%`;
+  if (grpABBar) grpABBar.style.width = `${percent(grpAB + grpA + grpB)}%`;
   if (grpCDBar) grpCDBar.style.width = `${percent(grpCD)}%`;
   if (grpE1Bar) grpE1Bar.style.width = `${percent(grpE1)}%`;
   if (grpE2Bar) grpE2Bar.style.width = `${percent(grpE2)}%`;
@@ -1089,12 +1263,12 @@ function setupSectionSwitchTabs() {
   if (isSuper) {
     switchTabs.style.display = 'inline-flex';
     switchTabs.querySelectorAll('.hero-section-btn').forEach(tab => {
-      tab.addEventListener('click', () => {
+      tab.onclick = () => {
         switchTabs.querySelectorAll('.hero-section-btn').forEach(t => t.classList.remove('is-active'));
         tab.classList.add('is-active');
         currentDashboardSection = tab.dataset.section || 'all';
         applySectionFilter();
-      });
+      };
     });
   } else {
     switchTabs.style.display = 'none';
@@ -1102,7 +1276,9 @@ function setupSectionSwitchTabs() {
 }
 
 function getStudentsForPoliticalGroup(groupKey) {
-  if (groupKey === 'Grp A,B') return students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B');
+  if (groupKey === 'Grp A') return students.filter(s => getStudentAssignedGroup(s) === 'Grp A');
+  if (groupKey === 'Grp B') return students.filter(s => getStudentAssignedGroup(s) === 'Grp B');
+  if (groupKey === 'Grp A,B') return students.filter(s => ['Grp A,B', 'Grp A', 'Grp B'].includes(getStudentAssignedGroup(s)));
   if (groupKey === 'Grp C,D') return students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
   if (groupKey === 'Grp E1') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
   if (groupKey === 'Grp E2') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
@@ -1113,6 +1289,8 @@ function getStudentsForPoliticalGroup(groupKey) {
 
 const POLITICAL_GROUP_LABELS = {
   all: 'All students',
+  'Grp A': 'Grp A (French)',
+  'Grp B': 'Grp B (French)',
   'Grp A,B': 'Grp A,B (French)',
   'Grp C,D': 'Grp C,D (French)',
   'Grp E1': 'Grp E1 (English)',
@@ -1161,7 +1339,8 @@ function renderPoliticalStats() {
 
   if (politicalByGroupGrid) {
     const breakdownGroups = [
-      { key: 'Grp A,B', label: 'Grp A,B (French)' },
+      { key: 'Grp A', label: 'Grp A (French)' },
+      { key: 'Grp B', label: 'Grp B (French)' },
       { key: 'Grp C,D', label: 'Grp C,D (French)' },
       { key: 'Grp E1', label: 'Grp E1 (English)' },
       { key: 'Grp E2', label: 'Grp E2 (English)' },
@@ -1572,6 +1751,11 @@ async function initFormEditMode() {
   if (pageHeading) pageHeading.innerHTML = 'Edit <em>Student Record</em>';
   if (submitText) submitText.textContent = 'Update Student';
   if (cancelEdit) cancelEdit.classList.remove('hidden');
+  const formSaveContactBtn = document.querySelector('#formSaveContactBtn');
+  if (formSaveContactBtn) {
+    formSaveContactBtn.classList.remove('hidden');
+    formSaveContactBtn.onclick = () => saveStudentContact(editId);
+  }
 
   try {
     const res = await fetch(`${API_BASE}/students/${editId}`, {
@@ -1642,6 +1826,177 @@ if (clearFilters) {
     scheduleRenderStudents('');
   });
 }
+
+// Helper to escape special characters in vCard text fields (RFC 2426)
+function escapeVCardValue(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
+}
+
+// Generate valid vCard 3.0 for iOS / iPhone and Android contact import
+function buildVCard(student) {
+  const firstName = (student.firstName || '').trim();
+  const fatherName = (student.fatherName || '').trim();
+  const familyName = (student.familyName || '').trim();
+  const fullName = [firstName, fatherName, familyName].filter(Boolean).join(' ') || 'Student';
+
+  const lines = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    `N:${escapeVCardValue(familyName)};${escapeVCardValue(firstName)};${escapeVCardValue(fatherName)};;`,
+    `FN:${escapeVCardValue(fullName)}`
+  ];
+
+  if (student.phone) {
+    lines.push(`TEL;TYPE=CELL,VOICE:${String(student.phone).trim()}`);
+  }
+
+  if (student.email) {
+    lines.push(`EMAIL;TYPE=INTERNET,HOME:${String(student.email).trim()}`);
+  }
+
+  const school = (student.school || '').trim();
+  const campus = (student.campus || '').trim();
+  if (school || campus) {
+    const org = [school, campus].filter(Boolean).join(' - ');
+    lines.push(`ORG:${escapeVCardValue(org)}`);
+  }
+
+  const major = (student.major || '').trim();
+  const sec = (student.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(student.major) : '') || '').toUpperCase();
+  if (major || sec) {
+    const title = [major, sec].filter(Boolean).join(' • ');
+    lines.push(`TITLE:${escapeVCardValue(title)}`);
+  }
+
+  if (student.address || student.origin) {
+    const street = student.address ? escapeVCardValue(student.address) : '';
+    const locality = student.origin ? escapeVCardValue(student.origin) : '';
+    lines.push(`ADR;TYPE=HOME:;;${street};${locality};;;`);
+  }
+
+  const noteParts = [];
+  if (student.status) noteParts.push(`Status: ${student.status}`);
+  if (student.language) noteParts.push(`Language: ${student.language}`);
+  if (student.origin) noteParts.push(`Origin: ${student.origin}`);
+  if (student.assignedGroup) noteParts.push(`Group: ${student.assignedGroup}`);
+  if (student.note && (typeof isCurrentUserDeleg === 'function' ? !isCurrentUserDeleg() : true)) {
+    noteParts.push(`Note: ${student.note}`);
+  }
+  if (noteParts.length) {
+    lines.push(`NOTE:${escapeVCardValue(noteParts.join(' | '))}`);
+  }
+
+  lines.push('END:VCARD');
+  return lines.join('\r\n') + '\r\n';
+}
+
+// Save student as contact on phone (iOS / iPhone, Android, or desktop)
+async function saveStudentContact(studentId) {
+  let student = (typeof students !== 'undefined' && students.find(s => String(s.id) === String(studentId)))
+    || (typeof allStudentsMaster !== 'undefined' && allStudentsMaster.find(s => String(s.id) === String(studentId)))
+    || (typeof fullStudentsCache !== 'undefined' && fullStudentsCache.find(s => String(s.id) === String(studentId)))
+    || (typeof records !== 'undefined' && records.find(s => String(s.id) === String(studentId)));
+
+  if (!student) {
+    try {
+      const res = await fetch(`${API_BASE}/students/${encodeURIComponent(studentId)}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('hub_token') || ''}` }
+      });
+      const json = await parseApiResponse(res);
+      if (json.success && json.data) {
+        student = json.data;
+      }
+    } catch (err) {
+      console.warn('Could not fetch student for contact:', err);
+    }
+  }
+
+  if (!student) {
+    showToast('Not Found', 'Could not locate student details to save contact.');
+    return;
+  }
+
+  const firstName = (student.firstName || '').trim();
+  const fatherName = (student.fatherName || '').trim();
+  const familyName = (student.familyName || '').trim();
+  const fullName = [firstName, fatherName, familyName].filter(Boolean).join(' ') || 'Student';
+
+  const cleanFirst = firstName.replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_') || 'Student';
+  const cleanFamily = familyName.replace(/[^a-zA-Z0-9_\u0600-\u06FF-]/g, '_');
+  const filename = `${cleanFirst}${cleanFamily ? '_' + cleanFamily : ''}.vcf`;
+
+  const vcard = buildVCard(student);
+  const token = localStorage.getItem('hub_token') || '';
+
+  // Detect iOS (iPhone / iPad / iPod)
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || '') ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // 1. Try Web Share API (native on iOS Safari & Chrome 15+ and Android)
+  // Sharing a File with type 'text/vcard' opens the native iOS Share Sheet with Contacts preview,
+  // allowing user to directly tap "Contacts" or "Add to Contacts".
+  if (navigator.share && typeof File !== 'undefined') {
+    try {
+      const file = new File([vcard], filename, { type: 'text/vcard' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: fullName
+        });
+        showToast('Contact Card', `Opened contact for ${fullName}.`);
+        return;
+      }
+    } catch (err) {
+      // User tapped cancel on iOS Share Sheet -> do nothing
+      if (err.name === 'AbortError') {
+        return;
+      }
+      console.warn('Web Share failed, falling back to download:', err);
+    }
+  }
+
+  // 2. Direct server URL fallback for iOS Safari:
+  // Navigating to a direct .vcf URL on iOS Safari triggers Safari's native QuickLook contact import modal.
+  if (isIOS && token && typeof API_BASE !== 'undefined') {
+    const vcardUrl = `${API_BASE}/students/${encodeURIComponent(student.id)}/contact.vcf?token=${encodeURIComponent(token)}`;
+    window.location.href = vcardUrl;
+    showToast('Contact Card', 'Opening contact card for your iPhone…');
+    return;
+  }
+
+  // 3. Blob download fallback (for desktop, Android, and offline support)
+  try {
+    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = blobUrl;
+    link.download = filename;
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 15000);
+
+    showToast(
+      'Contact Saved',
+      isIOS
+        ? 'Contact downloaded. Tap it in Safari Downloads to add to iPhone Contacts.'
+        : `Downloaded ${filename}. Open to save to contacts.`
+    );
+  } catch (err) {
+    console.error('Error generating contact card:', err);
+    showToast('Download Error', 'Could not create contact card.');
+  }
+}
+
+window.buildVCard = buildVCard;
+window.saveStudentContact = saveStudentContact;
 
 // Export CSV button listener
 const exportBtn = document.querySelector('#exportBtn');

@@ -245,3 +245,49 @@ test('login succeeds for approved user and returns correct role', async () => {
   assert.ok(json.token);
   assert.equal(json.user.role, 'admin');
 });
+
+test('GET /api/auth/me returns latest user data and refreshed token for approved user', async () => {
+  const token = signSession({ id: 'admin-1', role: 'admin' });
+  const res = await fetch(url('/api/auth/me'), {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('cache-control'), 'no-store');
+  const json = await res.json();
+  assert.equal(json.success, true);
+  assert.equal(json.user.id, 'admin-1');
+  assert.equal(json.user.username, 'admin');
+  assert.equal(json.user.role, 'admin');
+  assert.equal(json.user.approved, true);
+  assert.ok(json.token);
+  assert.equal(json.version, '2.4.0');
+});
+
+test('GET /api/auth/me returns 403 unauthenticated for unapproved user', async () => {
+  const token = signSession({ id: 'pending-1', role: 'deleg' });
+  const res = await fetch(url('/api/auth/me'), {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+
+  assert.equal(res.status, 403);
+  const json = await res.json();
+  assert.equal(json.success, false);
+  assert.equal(json.unauthenticated, true);
+});
+
+test('GET /api/auth/me returns 401 unauthenticated for missing or invalid token', async () => {
+  const res = await fetch(url('/api/auth/me'));
+  assert.equal(res.status, 401);
+  const json = await res.json();
+  assert.equal(json.success, false);
+  assert.equal(json.unauthenticated, true);
+});
+
+test('GET /api/version returns application version', async () => {
+  const res = await fetch(url('/api/version'));
+  assert.equal(res.status, 200);
+  const json = await res.json();
+  assert.equal(json.success, true);
+  assert.equal(json.version, '2.4.0');
+});
