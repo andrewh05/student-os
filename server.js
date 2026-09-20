@@ -44,28 +44,32 @@ function buildUserFullNamePayload(fullName = '', section = 'mispce') {
 }
 
 function parseStudentNotePayload(value) {
-  if (!value) return { text: '', assignedGroup: '', section: '', inClass: false };
+  if (!value) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
   try {
     const decrypted = decryptValue(value, 'students.note');
-    if (!decrypted) return { text: '', assignedGroup: '', section: '', inClass: false };
+    if (!decrypted) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
     const parsed = JSON.parse(decrypted);
+    const approved = Boolean(parsed.linkApproved !== undefined ? parsed.linkApproved : parsed.inClass);
     return {
       text: typeof parsed.text === 'string' ? parsed.text : '',
       assignedGroup: typeof parsed.assignedGroup === 'string' ? parsed.assignedGroup : '',
       section: typeof parsed.section === 'string' ? parsed.section.toLowerCase() : '',
-      inClass: Boolean(parsed.inClass)
+      linkApproved: approved,
+      inClass: approved
     };
   } catch {
-    return { text: '', assignedGroup: '', section: '', inClass: false };
+    return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
   }
 }
 
-function buildStudentNotePayload(text = '', assignedGroup = '', section = '', inClass = false) {
+function buildStudentNotePayload(text = '', assignedGroup = '', section = '', linkApproved = false) {
+  const approved = Boolean(linkApproved);
   return JSON.stringify({
     text: text || '',
     assignedGroup: assignedGroup || '',
     section: section || '',
-    inClass: Boolean(inClass)
+    linkApproved: approved,
+    inClass: approved
   });
 }
 
@@ -80,7 +84,14 @@ const mapStudent = row => {
     : (row.assignedGroup || notePayload.assignedGroup || '');
   const major = decryptValue(row.major, 'students.major');
   const section = (row.section ? decryptValue(row.section, 'students.section') : (notePayload.section || inferSectionFromMajor(major))).toLowerCase();
-  const inClass = Boolean(row.in_class !== undefined ? row.in_class : (row.inClass !== undefined ? row.inClass : notePayload.inClass));
+  const linkApproved = Boolean(
+    row.link_approved !== undefined ? row.link_approved :
+    row.linkApproved !== undefined ? row.linkApproved :
+    row.in_class !== undefined ? row.in_class :
+    row.inClass !== undefined ? row.inClass :
+    notePayload.linkApproved !== undefined ? notePayload.linkApproved :
+    notePayload.inClass
+  );
 
   return {
     id: row.id,
@@ -103,18 +114,20 @@ const mapStudent = row => {
     inGroup: Boolean(row.in_group !== undefined ? row.in_group : row.inGroup),
     leftGroup: Boolean(row.left_group !== undefined ? row.left_group : row.leftGroup),
     assignedGroup: assignedGroup || '',
-    inClass,
+    linkApproved,
+    inClass: linkApproved,
     createdAt: row.created_at
   };
 };
 
 const toStudentRow = student => {
   const targetSection = student.section || inferSectionFromMajor(student.major);
+  const isApproved = student.linkApproved !== undefined ? Boolean(student.linkApproved) : Boolean(student.inClass);
   const notePayload = buildStudentNotePayload(
     student.note || '',
     student.assignedGroup || '',
     targetSection,
-    Boolean(student.inClass)
+    isApproved
   );
 
   const row = {
@@ -1640,12 +1653,15 @@ app.patch('/api/students/:id/group', async (req, res) => {
   }
 });
 
-// PATCH student class approval (inClass) without modifying other fields
-app.patch('/api/students/:id/class', async (req, res) => {
+// PATCH student link approval (linkApproved / inClass) without modifying other fields
+app.patch(['/api/students/:id/link-approval', '/api/students/:id/class'], async (req, res) => {
   const { id } = req.params;
-  const { inClass } = req.body;
-  if (typeof inClass !== 'boolean') {
-    return res.status(400).json({ success: false, error: 'inClass must be true or false' });
+  const linkApproved = typeof req.body.linkApproved === 'boolean'
+    ? req.body.linkApproved
+    : (typeof req.body.inClass === 'boolean' ? req.body.inClass : undefined);
+
+  if (typeof linkApproved !== 'boolean') {
+    return res.status(400).json({ success: false, error: 'linkApproved must be true or false' });
   }
 
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
@@ -1667,19 +1683,20 @@ app.patch('/api/students/:id/class', async (req, res) => {
     if (supabase) {
       let updateResult = await supabase
         .from('students')
-        .update({ in_class: inClass })
+        .update({ in_class: linkApproved })
         .eq('id', id)
         .select()
         .maybeSingle();
 
       if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /in_class/i.test(updateResult.error.message))) {
         const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', inClass: false };
+        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
         const newPayload = {
           text: currentPayload.text,
           assignedGroup: currentPayload.assignedGroup || '',
           section: currentPayload.section || '',
-          inClass
+          linkApproved,
+          inClass: linkApproved
         };
         const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
 
@@ -1699,19 +1716,20 @@ app.patch('/api/students/:id/class', async (req, res) => {
     try {
       const { rows } = await pool.query(
         `UPDATE students SET in_class = $1 WHERE id = $2 RETURNING *;`,
-        [inClass, id]
+        [linkApproved, id]
       );
       if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
       return res.json({ success: true, data: mapStudent(rows[0]) });
     } catch (pgErr) {
       if (pgErr.code === '42703' || /in_class/i.test(pgErr.message)) {
         const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
-        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', inClass: false };
+        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
         const newPayload = {
           text: currentPayload.text,
           assignedGroup: currentPayload.assignedGroup || '',
           section: currentPayload.section || '',
-          inClass
+          linkApproved,
+          inClass: linkApproved
         };
         const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
 
@@ -1725,7 +1743,7 @@ app.patch('/api/students/:id/class', async (req, res) => {
       throw pgErr;
     }
   } catch (err) {
-    console.error('Error updating class approval:', err.message);
+    console.error('Error updating approval:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
 });

@@ -143,26 +143,39 @@ test('marking student leftGroup clears assignedGroup', async () => {
   assert.equal(json.data.assignedGroup, '');
 });
 
-test('PATCH /api/students/:id/class sets inClass independently from inGroup and persists via note payload', async () => {
-  const resTrue = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/class'), {
+test('PATCH /api/students/:id/link-approval sets linkApproved and inClass independently from inGroup', async () => {
+  const resTrue = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/link-approval'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inClass: true })
+    body: JSON.stringify({ linkApproved: true })
   });
   assert.equal(resTrue.status, 200);
   const jsonTrue = await resTrue.json();
   assert.equal(jsonTrue.success, true);
+  assert.equal(jsonTrue.data.linkApproved, true);
   assert.equal(jsonTrue.data.inClass, true);
 
-  const resFalse = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/class'), {
+  const resFalse = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/link-approval'), {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inClass: false })
+    body: JSON.stringify({ linkApproved: false })
   });
   assert.equal(resFalse.status, 200);
   const jsonFalse = await resFalse.json();
   assert.equal(jsonFalse.success, true);
+  assert.equal(jsonFalse.data.linkApproved, false);
   assert.equal(jsonFalse.data.inClass, false);
+
+  // Backward compatibility check with /api/students/:id/class
+  const resClass = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/class'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inClass: true })
+  });
+  assert.equal(resClass.status, 200);
+  const jsonClass = await resClass.json();
+  assert.equal(jsonClass.success, true);
+  assert.equal(jsonClass.data.linkApproved, true);
 });
 
 test('group section normalization correctly classifies sections', () => {
@@ -350,35 +363,35 @@ test('status breakdown (New vs Mu3id) per group and in-group aggregates accurate
 
 test('approve to class button renders correct state and title independently from inGroup', () => {
   function getApproveClassButtonProps(student) {
-    const isApproved = Boolean(student.inClass);
+    const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     return {
       className: `btn-approve-class-icon ${isApproved ? 'is-approved' : ''}`.trim(),
       title: isApproved
-        ? 'Approved in class (Done)'
-        : `Approve ${student.fullName || 'student'} to class (Done)`,
+        ? 'Link sent & approved joined group'
+        : `Send link & approve ${student.fullName || 'student'} joined group`,
       iconType: isApproved ? 'check' : 'arrow'
     };
   }
 
-  // Not in class, but in group
-  const s1 = { fullName: 'Ali Ahmad', inClass: false, inGroup: true, leftGroup: false, assignedGroup: 'Grp A' };
+  // Not approved (default), even though student is in general group!
+  const s1 = { fullName: 'Ali Ahmad', linkApproved: false, inGroup: true, leftGroup: false, assignedGroup: 'Grp A' };
   const p1 = getApproveClassButtonProps(s1);
   assert.equal(p1.className, 'btn-approve-class-icon');
-  assert.equal(p1.title, 'Approve Ali Ahmad to class (Done)');
+  assert.equal(p1.title, 'Send link & approve Ali Ahmad joined group');
   assert.equal(p1.iconType, 'arrow');
 
-  // Approved in class, even if not in group or left group
-  const s2 = { fullName: 'Sara Nour', inClass: true, inGroup: false, leftGroup: true, assignedGroup: '' };
+  // Link approved, even if not in general group or left group
+  const s2 = { fullName: 'Sara Nour', linkApproved: true, inGroup: false, leftGroup: true, assignedGroup: '' };
   const p2 = getApproveClassButtonProps(s2);
   assert.equal(p2.className, 'btn-approve-class-icon is-approved');
-  assert.equal(p2.title, 'Approved in class (Done)');
+  assert.equal(p2.title, 'Link sent & approved joined group');
   assert.equal(p2.iconType, 'check');
 
-  // Both approved in class and in group
-  const s3 = { fullName: 'Omar Khalid', inClass: true, inGroup: true, leftGroup: false, assignedGroup: 'Grp B' };
+  // Both link approved and in group
+  const s3 = { fullName: 'Omar Khalid', linkApproved: true, inGroup: true, leftGroup: false, assignedGroup: 'Grp B' };
   const p3 = getApproveClassButtonProps(s3);
   assert.equal(p3.className, 'btn-approve-class-icon is-approved');
-  assert.equal(p3.title, 'Approved in class (Done)');
+  assert.equal(p3.title, 'Link sent & approved joined group');
   assert.equal(p3.iconType, 'check');
 });
 

@@ -60,7 +60,8 @@ const emptyState = document.querySelector('#emptyState');
 const recordCount = document.querySelector('#recordCount');
 const searchInput = document.querySelector('#searchInput');
 const statusFilter = document.querySelector('#statusFilter');
-const classFilter = document.querySelector('#classFilter');
+const linkFilter = document.querySelector('#linkFilter') || document.querySelector('#classFilter');
+const classFilter = linkFilter;
 const majorFilter = document.querySelector('#majorFilter');
 const campusFilter = document.querySelector('#campusFilter');
 const languageFilter = document.querySelector('#languageFilter');
@@ -813,8 +814,8 @@ function renderStudents(query = '') {
       String(value || '').replace(/\D/g, '').includes(numericNeedle)
     );
     const matchesSearch = !tokens.length || matchesFormattedText || matchesUnformattedNumber;
-    const matchesStatus = !statusFilter?.value || student.status === statusFilter.value;
-    const matchesClass = !classFilter?.value || (classFilter.value === 'in' ? Boolean(student.inClass) : !student.inClass);
+    const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
+    const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
     const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
     const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
@@ -826,7 +827,7 @@ function renderStudents(query = '') {
         : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
         : groupFilter.value === 'Grp A,B' ? (assignedGroup === 'Grp A,B' || assignedGroup === 'Grp A' || assignedGroup === 'Grp B')
         : groupFilter.value === assignedGroup);
-    return matchesSearch && matchesStatus && matchesClass && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
+    return matchesSearch && matchesStatus && matchesLink && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
   });
 
   const totalItems = filtered.length;
@@ -841,7 +842,7 @@ function renderStudents(query = '') {
   if (recordCount) recordCount.textContent = students.length;
   const directorySummary = document.querySelector('#directorySummary');
   if (directorySummary) {
-    const filtering = needle || statusFilter?.value || classFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
+    const filtering = needle || statusFilter?.value || linkFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
     directorySummary.textContent = filtering
       ? `${filtered.length} of ${students.length} students`
       : `${students.length} student${students.length === 1 ? '' : 's'}`;
@@ -932,12 +933,12 @@ function renderStudents(query = '') {
                 </svg>
               </button>
               <button type="button"
-                class="btn-approve-class-icon ${student.inClass ? 'is-approved' : ''}"
-                onclick="toggleStudentClassApproval('${student.id}', ${!student.inClass}, this)"
-                title="${student.inClass ? 'Approved in class (Done)' : `Approve ${escapeHtml(fullName)} to class (Done)`}"
-                aria-label="${student.inClass ? 'Approved in class (Done)' : `Approve ${escapeHtml(fullName)} to class`}"
-                aria-pressed="${student.inClass ? 'true' : 'false'}">
-                ${student.inClass ? `
+                class="btn-approve-class-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
+                onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
+                title="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
+                aria-label="${Boolean(student.linkApproved) ? 'Link sent & approved joined group' : `Send link & approve ${escapeHtml(fullName)} joined group`}"
+                aria-pressed="${Boolean(student.linkApproved) ? 'true' : 'false'}">
+                ${Boolean(student.linkApproved) ? `
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="20 6 9 17 4 12"/>
                   </svg>
@@ -1148,10 +1149,10 @@ function updateStats() {
   const isNew = s => String(s.status || '').trim().toLowerCase() === 'new';
   const isMu3id = s => String(s.status || '').trim().toLowerCase() === 'mu3id';
 
-  const inClassStudentsList = students.filter(student => student.inClass);
-  const inClassCount = inClassStudentsList.length;
-  const inClassNewCount = inClassStudentsList.filter(isNew).length;
-  const inClassMu3idCount = inClassStudentsList.filter(isMu3id).length;
+  const linkApprovedStudents = students.filter(student => Boolean(student.linkApproved));
+  const linkApprovedCount = linkApprovedStudents.length;
+  const linkApprovedNewCount = linkApprovedStudents.filter(isNew).length;
+  const linkApprovedMu3idCount = linkApprovedStudents.filter(isMu3id).length;
 
   const groupStudentsList = students.filter(student => student.inGroup && !student.leftGroup);
   const groupNewCount = groupStudentsList.filter(isNew).length;
@@ -1161,10 +1162,14 @@ function updateStats() {
   setText('#newStudents', newCount);
   setText('#returningStudents', returningCount);
   setText('#schoolCount', schools);
-  setText('#classStudents', inClassCount);
-  setText('#classPercentage', `${percent(inClassCount)}% of total`);
-  setText('#classNewCount', inClassNewCount);
-  setText('#classMu3idCount', inClassMu3idCount);
+  setText('#linkApprovedStudents', linkApprovedCount);
+  setText('#linkApprovedPercentage', `${percent(linkApprovedCount)}% of total`);
+  setText('#linkApprovedNewCount', linkApprovedNewCount);
+  setText('#linkApprovedMu3idCount', linkApprovedMu3idCount);
+  setText('#classStudents', linkApprovedCount);
+  setText('#classPercentage', `${percent(linkApprovedCount)}% of total`);
+  setText('#classNewCount', linkApprovedNewCount);
+  setText('#classMu3idCount', linkApprovedMu3idCount);
   setText('#groupStudents', groupCount);
   setText('#groupPercentage', `${percent(groupCount)}% of total`);
   setText('#groupNewCount', groupNewCount);
@@ -1429,12 +1434,13 @@ function setupClassStatClicks() {
     });
   });
 
-  document.querySelectorAll('[data-class-filter]').forEach(el => {
+  document.querySelectorAll('[data-link-filter], [data-class-filter]').forEach(el => {
     el.addEventListener('click', () => {
-      const val = el.dataset.classFilter;
-      if (!classFilter) return;
-      classFilter.value = (classFilter.value === val) ? '' : val;
-      classFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      const val = el.dataset.linkFilter || el.dataset.classFilter;
+      const targetFilter = linkFilter || classFilter;
+      if (!targetFilter) return;
+      targetFilter.value = (targetFilter.value === val) ? '' : val;
+      targetFilter.dispatchEvent(new Event('change', { bubbles: true }));
       scheduleRenderStudents(searchInput ? searchInput.value : '');
       const recordsGrid = document.querySelector('#recordsGrid');
       if (recordsGrid) {
@@ -1539,38 +1545,42 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
   }
 }
 
-async function toggleStudentClassApproval(id, inClass, button) {
+async function toggleStudentLinkApproval(id, linkApproved, button) {
   if (button) button.disabled = true;
   try {
-    const response = await fetch(`${API_BASE}/students/${id}/class`, {
+    const response = await fetch(`${API_BASE}/students/${id}/link-approval`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ inClass })
+      body: JSON.stringify({ linkApproved })
     });
     const json = await parseApiResponse(response);
-    if (!json.success) throw new Error(json.error || 'Could not update class approval');
+    if (!json.success) throw new Error(json.error || 'Could not update link approval');
 
     const student = students.find(item => String(item.id) === String(id));
     if (student) {
-      student.inClass = inClass;
+      student.linkApproved = linkApproved;
+      student.inClass = linkApproved;
     }
     if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
       const master = allStudentsMaster.find(item => String(item.id) === String(id));
       if (master && master !== student) {
-        master.inClass = inClass;
+        master.linkApproved = linkApproved;
+        master.inClass = linkApproved;
       }
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
     showToast(
-      inClass ? 'Approved in class' : 'Removed from class',
-      inClass ? 'The student is now approved and in the class (Done).' : 'The student is no longer marked in class.'
+      linkApproved ? 'Link Sent & Approved' : 'Approval Removed',
+      linkApproved ? 'Student marked as link sent & approved to joined group.' : 'Link approval was removed for this student.'
     );
   } catch (err) {
     if (button) button.disabled = false;
-    await showPopup({ title: 'Could not update class approval', message: err.message, danger: true });
+    await showPopup({ title: 'Could not update approval', message: err.message, danger: true });
   }
 }
+
+const toggleStudentClassApproval = toggleStudentLinkApproval;
 
 async function toggleGroupMembership(id, inGroup, button) {
   if (button) button.disabled = true;
