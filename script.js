@@ -814,6 +814,7 @@ function renderStudents(query = '') {
       String(value || '').replace(/\D/g, '').includes(numericNeedle)
     );
     const matchesSearch = !tokens.length || matchesFormattedText || matchesUnformattedNumber;
+    const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
     const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;

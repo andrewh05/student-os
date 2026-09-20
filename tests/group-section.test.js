@@ -395,3 +395,29 @@ test('approve to class button renders correct state and title independently from
   assert.equal(p3.iconType, 'check');
 });
 
+test('filterStudentsPredicate correctly filters without reference errors', () => {
+  const students = [
+    { firstName: 'Tony', familyName: 'Moussa', status: 'New', major: 'Mathematics', campus: 'Fanar', language: 'French', inGroup: true, linkApproved: false, assignedGroup: 'Grp A' },
+    { firstName: 'Rita', familyName: 'Karam', status: 'Mu3id', major: 'Informatics', campus: 'Amshit', language: 'English', inGroup: false, linkApproved: true, assignedGroup: '' }
+  ];
+
+  function runFilter(needle, statusVal, linkVal) {
+    const statusFilter = { value: statusVal };
+    const linkFilter = { value: linkVal };
+    return students.filter(student => {
+      const matchesSearch = !needle || Object.values(student).some(v => String(v).toLowerCase().includes(needle.toLowerCase()));
+      const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
+      const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
+      const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
+      return matchesSearch && matchesStatus && matchesLink;
+    });
+  }
+
+  assert.equal(runFilter('', '', '').length, 2);
+  assert.equal(runFilter('', 'New', '').length, 1);
+  assert.equal(runFilter('', 'Mu3id', '').length, 1);
+  assert.equal(runFilter('', '', 'approved').length, 1);
+  assert.equal(runFilter('', '', 'pending').length, 1);
+});
+
+
