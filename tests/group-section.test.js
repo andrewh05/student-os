@@ -143,6 +143,28 @@ test('marking student leftGroup clears assignedGroup', async () => {
   assert.equal(json.data.assignedGroup, '');
 });
 
+test('PATCH /api/students/:id/class sets inClass independently from inGroup and persists via note payload', async () => {
+  const resTrue = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/class'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inClass: true })
+  });
+  assert.equal(resTrue.status, 200);
+  const jsonTrue = await resTrue.json();
+  assert.equal(jsonTrue.success, true);
+  assert.equal(jsonTrue.data.inClass, true);
+
+  const resFalse = await fetch(url('/api/students/00000000-0000-0000-0000-000000000001/class'), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inClass: false })
+  });
+  assert.equal(resFalse.status, 200);
+  const jsonFalse = await resFalse.json();
+  assert.equal(jsonFalse.success, true);
+  assert.equal(jsonFalse.data.inClass, false);
+});
+
 test('group section normalization correctly classifies sections', () => {
   function getStudentAssignedGroup(student) {
     const norm = (student?.assignedGroup || '').trim().toLowerCase();
@@ -326,42 +348,37 @@ test('status breakdown (New vs Mu3id) per group and in-group aggregates accurate
   assert.equal(grpE2.filter(isMu3id).length, 0);
 });
 
-test('approve to group button renders correct state, title, and disabled logic', () => {
-  function getApproveButtonProps(student) {
-    const isApproved = !!student.inGroup;
-    const isLeft = !!student.leftGroup;
+test('approve to class button renders correct state and title independently from inGroup', () => {
+  function getApproveClassButtonProps(student) {
+    const isApproved = Boolean(student.inClass);
     return {
-      className: `btn-approve-group-icon ${isApproved ? 'is-approved' : ''}`.trim(),
-      disabled: isLeft,
-      title: isLeft
-        ? 'This student left the group'
-        : (isApproved
-            ? `Approved in group class (Done)${student.assignedGroup ? ' - ' + student.assignedGroup : ''}`
-            : `Approve ${student.fullName || 'student'} to group class`),
+      className: `btn-approve-class-icon ${isApproved ? 'is-approved' : ''}`.trim(),
+      title: isApproved
+        ? 'Approved in class (Done)'
+        : `Approve ${student.fullName || 'student'} to class (Done)`,
       iconType: isApproved ? 'check' : 'arrow'
     };
   }
 
-  // Not in group
-  const s1 = { fullName: 'Ali Ahmad', inGroup: false, leftGroup: false, assignedGroup: '' };
-  const p1 = getApproveButtonProps(s1);
-  assert.equal(p1.className, 'btn-approve-group-icon');
-  assert.equal(p1.disabled, false);
-  assert.equal(p1.title, 'Approve Ali Ahmad to group class');
+  // Not in class, but in group
+  const s1 = { fullName: 'Ali Ahmad', inClass: false, inGroup: true, leftGroup: false, assignedGroup: 'Grp A' };
+  const p1 = getApproveClassButtonProps(s1);
+  assert.equal(p1.className, 'btn-approve-class-icon');
+  assert.equal(p1.title, 'Approve Ali Ahmad to class (Done)');
   assert.equal(p1.iconType, 'arrow');
 
-  // Approved in group
-  const s2 = { fullName: 'Sara Nour', inGroup: true, leftGroup: false, assignedGroup: 'Grp A' };
-  const p2 = getApproveButtonProps(s2);
-  assert.equal(p2.className, 'btn-approve-group-icon is-approved');
-  assert.equal(p2.disabled, false);
-  assert.equal(p2.title, 'Approved in group class (Done) - Grp A');
+  // Approved in class, even if not in group or left group
+  const s2 = { fullName: 'Sara Nour', inClass: true, inGroup: false, leftGroup: true, assignedGroup: '' };
+  const p2 = getApproveClassButtonProps(s2);
+  assert.equal(p2.className, 'btn-approve-class-icon is-approved');
+  assert.equal(p2.title, 'Approved in class (Done)');
   assert.equal(p2.iconType, 'check');
 
-  // Student left group
-  const s3 = { fullName: 'Omar Khalid', inGroup: false, leftGroup: true, assignedGroup: '' };
-  const p3 = getApproveButtonProps(s3);
-  assert.equal(p3.disabled, true);
-  assert.equal(p3.title, 'This student left the group');
+  // Both approved in class and in group
+  const s3 = { fullName: 'Omar Khalid', inClass: true, inGroup: true, leftGroup: false, assignedGroup: 'Grp B' };
+  const p3 = getApproveClassButtonProps(s3);
+  assert.equal(p3.className, 'btn-approve-class-icon is-approved');
+  assert.equal(p3.title, 'Approved in class (Done)');
+  assert.equal(p3.iconType, 'check');
 });
 

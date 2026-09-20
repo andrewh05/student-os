@@ -535,6 +535,7 @@ legend { padding: 0; }
 .stat-icon.sand { background: #fef3c7; color: #d97706; }
 .stat-icon.mint { background: #dcfce7; color: #15803d; }
 .stat-icon.group { background: #dcfce7; color: #15803d; }
+.stat-icon.class-icon { background: #dcfce7; color: #15803d; }
 .group-stat-card { border-color: #bbf7d0; }
 .stat-icon.left-group-icon { background: #fee2e2; color: #b91c1c; }
 .combined-group-stat {
@@ -1114,6 +1115,7 @@ legend { padding: 0; }
   transform: translateY(-1px);
 }
 
+.btn-approve-class-icon,
 .btn-approve-group-icon {
   display: inline-flex;
   align-items: center;
@@ -1129,23 +1131,27 @@ legend { padding: 0; }
   flex-shrink: 0;
   padding: 0;
 }
+.btn-approve-class-icon:hover:not(:disabled),
 .btn-approve-group-icon:hover:not(:disabled) {
   background: var(--orange-primary);
   color: #ffffff;
   border-color: var(--orange-primary);
   transform: translateY(-1px);
 }
+.btn-approve-class-icon.is-approved,
 .btn-approve-group-icon.is-approved {
   background: #dcfce7;
   color: #15803d;
   border-color: #86efac;
 }
+.btn-approve-class-icon.is-approved:hover:not(:disabled),
 .btn-approve-group-icon.is-approved:hover:not(:disabled) {
   background: #bbf7d0;
   color: #166534;
   border-color: #4ade80;
   transform: translateY(-1px);
 }
+.btn-approve-class-icon:disabled,
 .btn-approve-group-icon:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -2328,18 +2334,22 @@ html[data-theme="dark"] .btn-action.group-section-btn { background: #28170f; col
 html[data-theme="dark"] .btn-action.save-contact-btn { background: #28170f; color: #fdba74; border-color: #7c2d12; }
 html[data-theme="dark"] .btn-action.save-contact-btn:hover { background: var(--orange-primary); color: #ffffff; border-color: var(--orange-primary); }
 html[data-theme="dark"] .btn-save-contact-icon,
+html[data-theme="dark"] .btn-approve-class-icon,
 html[data-theme="dark"] .btn-approve-group-icon,
 html[data-theme="dark"] .btn-contact-quick,
 html[data-theme="dark"] .btn-kazaa-contact { background: #28170f; color: #fdba74; border-color: #7c2d12; }
 html[data-theme="dark"] .btn-save-contact-icon:hover,
+html[data-theme="dark"] .btn-approve-class-icon:hover:not(:disabled),
 html[data-theme="dark"] .btn-approve-group-icon:hover:not(:disabled),
 html[data-theme="dark"] .btn-contact-quick:hover,
 html[data-theme="dark"] .btn-kazaa-contact:hover { background: var(--orange-primary); color: #ffffff; border-color: var(--orange-primary); }
+html[data-theme="dark"] .btn-approve-class-icon.is-approved,
 html[data-theme="dark"] .btn-approve-group-icon.is-approved {
   background: #12351f;
   color: #86efac;
   border-color: #267044;
 }
+html[data-theme="dark"] .btn-approve-class-icon.is-approved:hover:not(:disabled),
 html[data-theme="dark"] .btn-approve-group-icon.is-approved:hover:not(:disabled) {
   background: #194a2b;
   color: #bbf7d0;
