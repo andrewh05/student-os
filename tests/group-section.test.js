@@ -232,3 +232,37 @@ test('political affiliations breakdown per group accurately aggregates counts', 
   assert.equal(notInGrp.length, 1);
 });
 
+test('changing assigned group from Grp A to another group requires confirmation', () => {
+  function shouldConfirmGroupChange(student, targetGroup) {
+    function getStudentAssignedGroup(s) {
+      const norm = (s?.assignedGroup || '').trim().toLowerCase();
+      if (norm === 'grp a' || norm === 'a') return 'Grp A';
+      if (norm === 'grp b' || norm === 'b') return 'Grp B';
+      if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
+      if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
+      if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
+      if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+      return '';
+    }
+
+    const currentNorm = (student.assignedGroup || '').trim().toLowerCase();
+    const targetNorm = targetGroup.trim().toLowerCase();
+    const isAlreadyInTarget = currentNorm === targetNorm || currentNorm === targetNorm.replace(/^grp\s*/, '');
+    const currentGroup = getStudentAssignedGroup(student) || (student.assignedGroup ? student.assignedGroup.trim() : '');
+
+    return Boolean(currentGroup && !isAlreadyInTarget);
+  }
+
+  // Student in Grp A clicking other groups requires confirmation
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp A' }, 'Grp B'), true);
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp A' }, 'Grp C,D'), true);
+  // Clicking Grp A when already in Grp A toggles off/unassigns without confirmation
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp A' }, 'Grp A'), false);
+  // Student with no group assigned initially clicking Grp A does not require confirmation
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: '' }, 'Grp A'), false);
+  // Student in Grp B clicking Grp A requires confirmation
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp B' }, 'Grp A'), true);
+  // Student in Grp E1 clicking Grp E2 requires confirmation
+  assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp E1' }, 'Grp E2'), true);
+});
+

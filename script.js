@@ -1428,6 +1428,24 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
   const nextGroup = isAlreadyInTarget ? '' : targetGroup;
   const nextInGroup = Boolean(nextGroup);
 
+  const currentGroup = getStudentAssignedGroup(student) || (student.assignedGroup ? student.assignedGroup.trim() : '');
+  if (currentGroup && !isAlreadyInTarget) {
+    const studentName = [student.firstName, student.fatherName, student.familyName]
+      .map(part => (part || '').trim())
+      .filter(Boolean)
+      .join(' ');
+    const studentLabel = studentName ? `for ${studentName}` : 'for this student';
+    const confirmed = await showPopup({
+      title: 'Change student group?',
+      message: `Do you really want to change the group ${studentLabel} from ${currentGroup} to ${targetGroup}?`,
+      confirmLabel: 'Change group',
+      cancelLabel: 'Cancel',
+      showCancel: true,
+      icon: '?'
+    });
+    if (!confirmed) return;
+  }
+
   if (button) button.disabled = true;
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
@@ -1445,6 +1463,15 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
     student.inGroup = nextInGroup;
     student.assignedGroup = nextGroup;
     student.leftGroup = false;
+
+    if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+      const master = allStudentsMaster.find(item => String(item.id) === String(id));
+      if (master && master !== student) {
+        master.inGroup = nextInGroup;
+        master.assignedGroup = nextGroup;
+        master.leftGroup = false;
+      }
+    }
 
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
@@ -1523,7 +1550,7 @@ function showToast(title, message) {
   window.setTimeout(() => toast.classList.remove('show'), 3500);
 }
 
-function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false, danger = false }) {
+function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel', showCancel = false, danger = false, icon }) {
   let overlay = document.querySelector('#popupOverlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -1547,7 +1574,7 @@ function showPopup({ title, message, confirmLabel = 'OK', cancelLabel = 'Cancel'
   const confirmButton = overlay.querySelector('#popupConfirm');
   overlay.querySelector('#popupTitle').textContent = title;
   overlay.querySelector('#popupMessage').textContent = message;
-  overlay.querySelector('#popupIcon').textContent = danger ? '!' : 'i';
+  overlay.querySelector('#popupIcon').textContent = icon || (danger ? '!' : 'i');
   cancelButton.textContent = cancelLabel;
   cancelButton.hidden = !showCancel;
   confirmButton.textContent = confirmLabel;
