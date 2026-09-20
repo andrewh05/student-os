@@ -1333,7 +1333,6 @@ function renderPoliticalStats() {
   const politicalStatsGrid = document.querySelector('#politicalStatsGrid');
   const politicalGroupTitle = document.querySelector('#politicalGroupTitle');
   const politicalGroupSub = document.querySelector('#politicalGroupSub');
-  const politicalByGroupGrid = document.querySelector('#politicalByGroupGrid');
 
   const activeSubset = getStudentsForPoliticalGroup(currentPoliticalGroup);
   const activeTotal = activeSubset.length;
@@ -1365,51 +1364,6 @@ function renderPoliticalStats() {
           <div class="political-stat-progress" aria-hidden="true"><i style="width:${affiliationPercent}%"></i></div>
         </div>`;
     }).join('') : '<p class="political-stats-empty">No student records in this group.</p>';
-  }
-
-  if (politicalByGroupGrid) {
-    const breakdownGroups = [
-      { key: 'Grp A', label: 'Grp A (French)' },
-      { key: 'Grp B', label: 'Grp B (French)' },
-      { key: 'Grp C,D', label: 'Grp C,D (French)' },
-      { key: 'Grp E1', label: 'Grp E1 (English)' },
-      { key: 'Grp E2', label: 'Grp E2 (English)' },
-      { key: 'in_group', label: 'All in group' },
-      { key: 'not_in_group', label: 'Not in group' }
-    ];
-
-    politicalByGroupGrid.innerHTML = breakdownGroups.map(grp => {
-      const grpStudents = getStudentsForPoliticalGroup(grp.key);
-      const grpTotal = grpStudents.length;
-      const grpAffiliations = grpStudents.reduce((acc, student) => {
-        const aff = (student.politicalAffiliation || '').trim() || 'Not provided';
-        acc[aff] = (acc[aff] || 0) + 1;
-        return acc;
-      }, {});
-      const sortedAffs = Object.entries(grpAffiliations).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-
-      const listHtml = sortedAffs.length ? sortedAffs.map(([aff, cnt]) => {
-        const pct = grpTotal ? Math.round(cnt / grpTotal * 100) : 0;
-        return `
-          <div class="political-group-card-row">
-            <span title="${escapeHtml(aff)}">${escapeHtml(aff)}</span>
-            <b>${cnt} <small>(${pct}%)</small></b>
-          </div>
-        `;
-      }).join('') : '<span class="political-group-empty">No students</span>';
-
-      return `
-        <div class="political-group-card">
-          <div class="political-group-card-head">
-            <strong>${escapeHtml(grp.label)}</strong>
-            <span>${grpTotal} student${grpTotal === 1 ? '' : 's'}</span>
-          </div>
-          <div class="political-group-card-list">
-            ${listHtml}
-          </div>
-        </div>
-      `;
-    }).join('');
   }
 }
 

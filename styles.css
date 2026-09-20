@@ -977,74 +977,6 @@ legend { padding: 0; }
   color: var(--muted);
   font-weight: 600;
 }
-.political-breakdown-section {
-  margin-top: 28px;
-  padding-top: 22px;
-  border-top: 1px dashed var(--line);
-}
-.political-breakdown-section > h4 {
-  font: 700 16px "Space Grotesk", sans-serif;
-  margin: 0 0 16px;
-  color: var(--ink);
-}
-.political-by-group-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-.political-group-card {
-  background: var(--cream);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 16px;
-}
-.political-group-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--line);
-}
-.political-group-card-head strong {
-  font: 700 14px "Space Grotesk", sans-serif;
-  color: var(--ink);
-}
-.political-group-card-head span {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--orange-primary);
-  white-space: nowrap;
-}
-.political-group-card-list {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-}
-.political-group-card-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 11px;
-}
-.political-group-card-row span {
-  color: var(--ink);
-  font-weight: 500;
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.political-group-card-row b {
-  color: var(--orange-dark);
-  font-weight: 700;
-}
-.political-group-empty {
-  font-size: 11px;
-  color: var(--muted);
-  font-style: italic;
-}
-
 .card-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .btn-action {
   display: inline-flex;
@@ -2217,8 +2149,7 @@ html[data-theme="dark"] .popup-dialog,
 html[data-theme="dark"] .empty-state,
 html[data-theme="dark"] .student-filters,
 html[data-theme="dark"] .user-badge { background: var(--paper); border-color: var(--line); }
-html[data-theme="dark"] .class-stat,
-html[data-theme="dark"] .political-group-card { background: #170e0b; border-color: var(--line); }
+html[data-theme="dark"] .class-stat { background: #170e0b; border-color: var(--line); }
 html[data-theme="dark"] .class-stat:hover { background: #231510; border-color: var(--orange-primary); }
 html[data-theme="dark"] .stat-pill.pill-new {
   background: #3c2014;
