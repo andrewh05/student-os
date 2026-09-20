@@ -326,3 +326,42 @@ test('status breakdown (New vs Mu3id) per group and in-group aggregates accurate
   assert.equal(grpE2.filter(isMu3id).length, 0);
 });
 
+test('approve to group button renders correct state, title, and disabled logic', () => {
+  function getApproveButtonProps(student) {
+    const isApproved = !!student.inGroup;
+    const isLeft = !!student.leftGroup;
+    return {
+      className: `btn-approve-group-icon ${isApproved ? 'is-approved' : ''}`.trim(),
+      disabled: isLeft,
+      title: isLeft
+        ? 'This student left the group'
+        : (isApproved
+            ? `Approved in group class (Done)${student.assignedGroup ? ' - ' + student.assignedGroup : ''}`
+            : `Approve ${student.fullName || 'student'} to group class`),
+      iconType: isApproved ? 'check' : 'arrow'
+    };
+  }
+
+  // Not in group
+  const s1 = { fullName: 'Ali Ahmad', inGroup: false, leftGroup: false, assignedGroup: '' };
+  const p1 = getApproveButtonProps(s1);
+  assert.equal(p1.className, 'btn-approve-group-icon');
+  assert.equal(p1.disabled, false);
+  assert.equal(p1.title, 'Approve Ali Ahmad to group class');
+  assert.equal(p1.iconType, 'arrow');
+
+  // Approved in group
+  const s2 = { fullName: 'Sara Nour', inGroup: true, leftGroup: false, assignedGroup: 'Grp A' };
+  const p2 = getApproveButtonProps(s2);
+  assert.equal(p2.className, 'btn-approve-group-icon is-approved');
+  assert.equal(p2.disabled, false);
+  assert.equal(p2.title, 'Approved in group class (Done) - Grp A');
+  assert.equal(p2.iconType, 'check');
+
+  // Student left group
+  const s3 = { fullName: 'Omar Khalid', inGroup: false, leftGroup: true, assignedGroup: '' };
+  const p3 = getApproveButtonProps(s3);
+  assert.equal(p3.disabled, true);
+  assert.equal(p3.title, 'This student left the group');
+});
+

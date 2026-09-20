@@ -929,6 +929,23 @@ function renderStudents(query = '') {
                   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
                 </svg>
               </button>
+              <button type="button"
+                class="btn-approve-group-icon ${student.inGroup ? 'is-approved' : ''}"
+                onclick="toggleGroupMembership('${student.id}', ${!student.inGroup}, this)"
+                ${student.leftGroup ? 'disabled title="This student left the group"' : `title="${student.inGroup ? `Approved in group class (Done)${student.assignedGroup ? ' - ' + escapeHtml(student.assignedGroup) : ''}` : `Approve ${escapeHtml(fullName)} to group class`}"`}
+                aria-label="${student.leftGroup ? 'Student has left the group' : (student.inGroup ? 'Approved in group class' : `Approve ${escapeHtml(fullName)} to group class`)}"
+                aria-pressed="${student.inGroup ? 'true' : 'false'}">
+                ${student.inGroup ? `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12"/>
+                  </svg>
+                ` : `
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                `}
+              </button>
             </div>
             <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}</p>
           </div>
@@ -1400,6 +1417,34 @@ function setupClassStatClicks() {
       }
     });
   });
+
+  document.querySelectorAll('[data-group-filter]').forEach(el => {
+    el.addEventListener('click', () => {
+      const val = el.dataset.groupFilter;
+      if (!groupFilter) return;
+      groupFilter.value = (groupFilter.value === val) ? '' : val;
+      groupFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      scheduleRenderStudents(searchInput ? searchInput.value : '');
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-status-filter]').forEach(el => {
+    el.addEventListener('click', () => {
+      const val = el.dataset.statusFilter;
+      if (!statusFilter) return;
+      statusFilter.value = (statusFilter.value === val) ? '' : val;
+      statusFilter.dispatchEvent(new Event('change', { bubbles: true }));
+      scheduleRenderStudents(searchInput ? searchInput.value : '');
+      const recordsGrid = document.querySelector('#recordsGrid');
+      if (recordsGrid) {
+        recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  });
 }
 
 async function setStudentAssignedGroup(id, targetGroup, button) {
@@ -1480,16 +1525,23 @@ async function toggleGroupMembership(id, inGroup, button) {
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not update group membership');
 
-    const student = students.find(item => item.id === id);
+    const student = students.find(item => String(item.id) === String(id));
     if (student) {
       student.inGroup = inGroup;
       if (!inGroup) student.assignedGroup = '';
     }
+    if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+      const master = allStudentsMaster.find(item => String(item.id) === String(id));
+      if (master && master !== student) {
+        master.inGroup = inGroup;
+        if (!inGroup) master.assignedGroup = '';
+      }
+    }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');
     showToast(
-      inGroup ? 'Added to group' : 'Removed from group',
-      inGroup ? 'The student is now in the group.' : 'The student is no longer in the group.'
+      inGroup ? 'Approved in group class' : 'Removed from group',
+      inGroup ? 'The student is now approved and in the group class.' : 'The student is no longer in the group.'
     );
   } catch (err) {
     if (button) button.disabled = false;
@@ -1508,11 +1560,19 @@ async function markStudentLeftGroup(id, button) {
     const json = await parseApiResponse(response);
     if (!json.success) throw new Error(json.error || 'Could not mark the student as having left');
 
-    const student = students.find(item => item.id === id);
+    const student = students.find(item => String(item.id) === String(id));
     if (student) {
       student.inGroup = false;
       student.leftGroup = true;
       student.assignedGroup = '';
+    }
+    if (typeof allStudentsMaster !== 'undefined' && Array.isArray(allStudentsMaster)) {
+      const master = allStudentsMaster.find(item => String(item.id) === String(id));
+      if (master && master !== student) {
+        master.inGroup = false;
+        master.leftGroup = true;
+        master.assignedGroup = '';
+      }
     }
     updateStats();
     scheduleRenderStudents(searchInput ? searchInput.value : '');

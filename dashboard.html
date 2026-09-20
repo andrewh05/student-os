@@ -170,13 +170,13 @@
           <strong id="totalStudents">0</strong>
           <small>All student-os.com records</small>
         </article>
-        <article class="stat-card">
+        <article class="stat-card clickable-stat" data-status-filter="New" title="Click to filter New students">
           <div class="stat-icon coral">＋</div>
           <span>New students</span>
           <strong id="newStudents">0</strong>
           <small id="newPercentage">0% of total</small>
         </article>
-        <article class="stat-card">
+        <article class="stat-card clickable-stat" data-status-filter="Mu3id" title="Click to filter Mu3id students">
           <div class="stat-icon sand">↻</div>
           <span>Mu3id students</span>
           <strong id="returningStudents">0</strong>
@@ -189,9 +189,9 @@
           <small>Unique secondary schools</small>
         </article>
         <article class="stat-card group-stat-card combined-group-stat">
-          <div class="group-stat-half">
+          <div class="group-stat-half clickable-stat" data-group-filter="in" title="Click to filter approved students">
             <div class="stat-icon group">✓</div>
-            <span>Students in group</span>
+            <span>Approved in group</span>
             <strong id="groupStudents">0</strong>
             <small id="groupPercentage">0% of total</small>
             <div class="stat-status-tags" id="groupStatusBreakdown">
@@ -199,7 +199,7 @@
               <span class="stat-pill pill-mu3id"><b id="groupMu3idCount">0</b> Mu3id</span>
             </div>
           </div>
-          <div class="group-stat-half left-group-half">
+          <div class="group-stat-half left-group-half clickable-stat" data-group-filter="left" title="Click to filter students who left">
             <div class="stat-icon left-group-icon">↩</div>
             <span>Students who left</span>
             <strong id="leftGroupStudents">0</strong>
@@ -369,10 +369,10 @@
         <label><span>Major</span><select id="majorFilter"><option value="">All majors</option><option value="Mathematics">Mathematics</option><option value="Informatics">Informatics</option><option value="Statistics">Statistics</option><option value="Physics">Physics</option><option value="Chemistry">Chemistry</option><option value="Electronics">Electronics</option><option value="Biology">Biology</option><option value="Biochemistry">Biochemistry</option></select></label>
         <label><span>Campus</span><select id="campusFilter"><option value="">All campuses</option><option value="Fanar">Fanar</option><option value="Amshit">Amshit</option></select></label>
         <label><span>Language</span><select id="languageFilter"><option value="">All languages</option><option value="French">French</option><option value="English">English</option></select></label>
-        <label><span>Group</span><select id="groupFilter">
+        <label><span>Group / Approval</span><select id="groupFilter">
           <option value="">All students</option>
-          <option value="in">In group (Any)</option>
-          <option value="out">Not in group</option>
+          <option value="in">Approved / In group</option>
+          <option value="out">Not approved / Not in group</option>
           <option value="left">Left group</option>
           <option value="Grp A">Grp A</option>
           <option value="Grp B">Grp B</option>
