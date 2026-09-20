@@ -484,22 +484,33 @@ legend { padding: 0; }
 /* Dashboard Metrics & Insights */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 15px;
-  margin: 29px 0 15px;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+  margin: 28px 0 18px;
 }
 .stat-card {
   background: var(--paper);
   border: 1px solid #fed7aa;
   border-radius: 14px;
-  padding: 22px;
+  padding: 20px 22px;
   position: relative;
-  min-height: 165px;
+  min-height: 154px;
   box-shadow: 0 4px 16px rgba(234, 88, 12, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.stat-card.card-top {
+  grid-column: span 3;
+}
+.stat-card.card-bottom {
+  grid-column: span 4;
+  min-height: 170px;
 }
 .stat-card.featured {
   background: linear-gradient(145deg, #ea580c, #9a3412);
   color: #fff;
+  border-color: #ea580c;
 }
 .stat-card > span {
   display: block;
@@ -507,16 +518,28 @@ legend { padding: 0; }
   text-transform: uppercase;
   letter-spacing: .15em;
   font-weight: 800;
-  margin-bottom: 18px;
+  margin-bottom: 14px;
+  padding-right: 40px;
   color: #78350f;
+  line-height: 1.35;
 }
 .stat-card.featured > span { color: #ffedd5; }
 .stat-card strong {
-  font: 700 48px/1 "Space Grotesk";
+  font: 700 46px/1 "Space Grotesk";
   display: block;
+  letter-spacing: -0.02em;
 }
-.stat-card small { font-size: 10px; color: var(--muted); display: block; margin-top: 10px; }
+.stat-card small { font-size: 10.5px; color: var(--muted); display: block; margin-top: 8px; }
 .stat-card.featured small { color: #fed7aa; }
+
+.stat-card .stat-status-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(254, 215, 170, 0.6);
+}
 
 .stat-icon {
   position: absolute;
@@ -536,29 +559,10 @@ legend { padding: 0; }
 .stat-icon.mint { background: #dcfce7; color: #15803d; }
 .stat-icon.group { background: #dcfce7; color: #15803d; }
 .stat-icon.class-icon { background: #dcfce7; color: #15803d; }
-.group-stat-card { border-color: #bbf7d0; }
 .stat-icon.left-group-icon { background: #fee2e2; color: #b91c1c; }
-.combined-group-stat {
-  grid-column: span 2;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  padding: 0;
-  overflow: hidden;
-}
-.group-stat-half { position: relative; padding: 22px; min-width: 0; }
-.group-stat-half > span {
-  display: block;
-  padding-right: 42px;
-  margin-bottom: 18px;
-  color: #78350f;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: .15em;
-  text-transform: uppercase;
-}
-.group-stat-half strong { display: block; font: 700 48px/1 "Space Grotesk"; }
-.group-stat-half small { display: block; margin-top: 10px; color: var(--muted); font-size: 10px; }
-.left-group-half { border-left: 1px solid #fecaca; }
+.group-stat-card { border-color: #bbf7d0; }
+.link-stat-card { border-color: #bbf7d0; }
+.left-group-stat-card { border-color: #fecaca; }
 
 .clickable-stat {
   cursor: pointer;
@@ -569,15 +573,10 @@ legend { padding: 0; }
   transform: translateY(-2px);
   box-shadow: 0 6px 16px rgba(234, 88, 12, .12);
 }
-.group-stat-half.clickable-stat {
-  cursor: pointer;
-  transition: background 0.2s ease;
-}
-.group-stat-half.clickable-stat:hover {
-  background: #f0fdf4;
-}
-.left-group-half.clickable-stat:hover {
-  background: #fef2f2;
+.stat-card.clickable-stat.is-active-filter {
+  border-color: var(--orange-primary) !important;
+  box-shadow: 0 0 0 1.5px var(--orange-primary), 0 8px 20px rgba(234, 88, 12, .15) !important;
+  transform: translateY(-2px);
 }
 
 .insights-grid {
@@ -1492,8 +1491,10 @@ html[data-theme="dark"] .user-editor { background: var(--paper); }
   .header-right { gap: 10px; }
   .nav-links { gap: 3px; }
   .nav-link { padding: 8px 10px; }
-  main { padding: 30px 28px 80px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-card.card-top,
+  .stat-card.card-bottom { grid-column: span 1; }
+  .stat-card.card-bottom:last-child { grid-column: span 2; }
   .records-grid { grid-template-columns: repeat(2, 1fr); }
   .compact-hero { flex-direction: column; align-items: flex-start; gap: 20px; }
 }
@@ -1570,9 +1571,12 @@ html[data-theme="dark"] .user-editor { background: var(--paper); }
   .card-actions .btn-action { min-height: 36px; }
 }
 
-@media(max-width: 380px) {
+@media(max-width: 500px) {
   .brand > span:last-child { display: none; }
   .stats-grid { grid-template-columns: 1fr; }
+  .stat-card.card-top,
+  .stat-card.card-bottom,
+  .stat-card.card-bottom:last-child { grid-column: span 1; }
   .stat-card { min-height: 145px; }
   .insight-card { padding: 21px 18px; }
   .language-split { gap: 13px; }
@@ -1590,8 +1594,11 @@ html[data-theme="dark"] .user-editor { background: var(--paper); }
   .clear-filters { grid-column: auto; }
 }
 
-@media(min-width: 381px) and (max-width: 650px) {
+@media(min-width: 501px) and (max-width: 800px) {
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .stat-card.card-top,
+  .stat-card.card-bottom { grid-column: span 1; }
+  .stat-card.card-bottom:last-child { grid-column: span 2; }
   .student-details { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -2215,8 +2222,14 @@ html[data-theme="dark"] .user-badge { background: var(--paper); border-color: va
 html[data-theme="dark"] .class-stat { background: #170e0b; border-color: var(--line); }
 html[data-theme="dark"] .class-stat:hover { background: #231510; border-color: var(--orange-primary); }
 html[data-theme="dark"] .stat-card.clickable-stat:hover { border-color: var(--orange-primary); box-shadow: 0 6px 16px rgba(0, 0, 0, .35); }
-html[data-theme="dark"] .group-stat-half.clickable-stat:hover { background: #102617; }
-html[data-theme="dark"] .left-group-half.clickable-stat:hover { background: #271416; }
+html[data-theme="dark"] .stat-card.clickable-stat.is-active-filter {
+  border-color: var(--orange-primary) !important;
+  box-shadow: 0 0 0 1.5px var(--orange-primary), 0 8px 20px rgba(0, 0, 0, .45) !important;
+}
+html[data-theme="dark"] .stat-card.group-stat-card { border-color: #14532d; }
+html[data-theme="dark"] .stat-card.link-stat-card { border-color: #14532d; }
+html[data-theme="dark"] .stat-card.left-group-stat-card { border-color: #7f1d1d; }
+html[data-theme="dark"] .stat-card .stat-status-tags { border-top-color: var(--line); }
 html[data-theme="dark"] .stat-pill.pill-new {
   background: #3c2014;
   color: #fdba74;

@@ -853,6 +853,8 @@ function renderStudents(query = '') {
     emptyState.style.display = filtered.length ? 'none' : 'block';
   }
 
+  updateActiveStatCardStates();
+
   const isDeleg = isCurrentUserDeleg();
 
   recordsGrid.innerHTML = pageItems.map(student => {
@@ -1159,6 +1161,10 @@ function updateStats() {
   const groupNewCount = groupStudentsList.filter(isNew).length;
   const groupMu3idCount = groupStudentsList.filter(isMu3id).length;
 
+  const leftGroupStudentsList = students.filter(student => Boolean(student.leftGroup));
+  const leftGroupNewCount = leftGroupStudentsList.filter(isNew).length;
+  const leftGroupMu3idCount = leftGroupStudentsList.filter(isMu3id).length;
+
   setText('#totalStudents', total);
   setText('#newStudents', newCount);
   setText('#returningStudents', returningCount);
@@ -1177,6 +1183,8 @@ function updateStats() {
   setText('#groupMu3idCount', groupMu3idCount);
   setText('#leftGroupStudents', leftGroupCount);
   setText('#leftGroupPercentage', `${percent(leftGroupCount)}% of total`);
+  setText('#leftGroupNewCount', leftGroupNewCount);
+  setText('#leftGroupMu3idCount', leftGroupMu3idCount);
   setText('#newPercentage', `${percent(newCount)}% of total`);
   setText('#returningPercentage', `${percent(returningCount)}% of total`);
   setText('#fanarCount', fanar);
@@ -1476,6 +1484,26 @@ function setupClassStatClicks() {
         recordsGrid.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     });
+  });
+
+  updateActiveStatCardStates();
+}
+
+function updateActiveStatCardStates() {
+  const activeStatus = statusFilter ? statusFilter.value : '';
+  const activeLink = linkFilter ? linkFilter.value : '';
+  const activeGroup = groupFilter ? groupFilter.value : '';
+
+  document.querySelectorAll('[data-status-filter]').forEach(el => {
+    el.classList.toggle('is-active-filter', Boolean(activeStatus && el.dataset.statusFilter === activeStatus));
+  });
+  document.querySelectorAll('[data-link-filter], [data-class-filter]').forEach(el => {
+    const val = el.dataset.linkFilter || el.dataset.classFilter;
+    const isMatch = Boolean(activeLink && (val === activeLink || (activeLink === 'approved' && val === 'in') || (activeLink === 'in' && val === 'approved')));
+    el.classList.toggle('is-active-filter', isMatch);
+  });
+  document.querySelectorAll('[data-group-filter]').forEach(el => {
+    el.classList.toggle('is-active-filter', Boolean(activeGroup && el.dataset.groupFilter === activeGroup));
   });
 }
 

@@ -164,25 +164,41 @@
 
     <section class="records" id="recordsSection">
       <div class="stats-grid">
-        <article class="stat-card featured">
+        <article class="stat-card featured card-top">
           <div class="stat-icon">↗</div>
           <span>Total students</span>
           <strong id="totalStudents">0</strong>
           <small>All student-os.com records</small>
         </article>
-        <article class="stat-card clickable-stat" data-status-filter="New" title="Click to filter New students">
+        <article class="stat-card clickable-stat card-top" data-status-filter="New" title="Click to filter New students">
           <div class="stat-icon coral">＋</div>
           <span>New students</span>
           <strong id="newStudents">0</strong>
           <small id="newPercentage">0% of total</small>
         </article>
-        <article class="stat-card clickable-stat" data-status-filter="Mu3id" title="Click to filter Mu3id students">
+        <article class="stat-card clickable-stat card-top" data-status-filter="Mu3id" title="Click to filter Mu3id students">
           <div class="stat-icon sand">↻</div>
           <span>Mu3id students</span>
           <strong id="returningStudents">0</strong>
           <small id="returningPercentage">0% of total</small>
         </article>
-        <article class="stat-card clickable-stat" data-link-filter="approved" data-class-filter="approved" title="Click to filter students with link sent & approved">
+        <article class="stat-card card-top">
+          <div class="stat-icon mint">⌂</div>
+          <span>Schools</span>
+          <strong id="schoolCount">0</strong>
+          <small>Unique secondary schools</small>
+        </article>
+        <article class="stat-card group-stat-card clickable-stat card-bottom" data-group-filter="in" title="Click to filter students in group">
+          <div class="stat-icon group">✓</div>
+          <span>Students in group</span>
+          <strong id="groupStudents">0</strong>
+          <small id="groupPercentage">0% of total</small>
+          <div class="stat-status-tags" id="groupStatusBreakdown">
+            <span class="stat-pill pill-new"><b id="groupNewCount">0</b> New</span>
+            <span class="stat-pill pill-mu3id"><b id="groupMu3idCount">0</b> Mu3id</span>
+          </div>
+        </article>
+        <article class="stat-card link-stat-card clickable-stat card-bottom" data-link-filter="approved" data-class-filter="approved" title="Click to filter students with link sent & approved">
           <div class="stat-icon class-icon">✓</div>
           <span>Link sent &amp; approved</span>
           <strong id="linkApprovedStudents">0</strong>
@@ -192,28 +208,14 @@
             <span class="stat-pill pill-mu3id"><b id="linkApprovedMu3idCount">0</b> Mu3id</span>
           </div>
         </article>
-        <article class="stat-card">
-          <div class="stat-icon mint">⌂</div>
-          <span>Schools</span>
-          <strong id="schoolCount">0</strong>
-          <small>Unique secondary schools</small>
-        </article>
-        <article class="stat-card group-stat-card combined-group-stat">
-          <div class="group-stat-half clickable-stat" data-group-filter="in" title="Click to filter students in group">
-            <div class="stat-icon group">✓</div>
-            <span>Students in group</span>
-            <strong id="groupStudents">0</strong>
-            <small id="groupPercentage">0% of total</small>
-            <div class="stat-status-tags" id="groupStatusBreakdown">
-              <span class="stat-pill pill-new"><b id="groupNewCount">0</b> New</span>
-              <span class="stat-pill pill-mu3id"><b id="groupMu3idCount">0</b> Mu3id</span>
-            </div>
-          </div>
-          <div class="group-stat-half left-group-half clickable-stat" data-group-filter="left" title="Click to filter students who left">
-            <div class="stat-icon left-group-icon">↩</div>
-            <span>Students who left</span>
-            <strong id="leftGroupStudents">0</strong>
-            <small id="leftGroupPercentage">0% of total</small>
+        <article class="stat-card left-group-stat-card clickable-stat card-bottom" data-group-filter="left" title="Click to filter students who left">
+          <div class="stat-icon left-group-icon">↩</div>
+          <span>Students who left</span>
+          <strong id="leftGroupStudents">0</strong>
+          <small id="leftGroupPercentage">0% of total</small>
+          <div class="stat-status-tags" id="leftGroupStatusBreakdown">
+            <span class="stat-pill pill-new"><b id="leftGroupNewCount">0</b> New</span>
+            <span class="stat-pill pill-mu3id"><b id="leftGroupMu3idCount">0</b> Mu3id</span>
           </div>
         </article>
       </div>
