@@ -1126,12 +1126,21 @@ function updateStats() {
     if (el) el.textContent = value;
   };
 
+  const isNew = s => String(s.status || '').trim().toLowerCase() === 'new';
+  const isMu3id = s => String(s.status || '').trim().toLowerCase() === 'mu3id';
+
+  const groupStudentsList = students.filter(student => student.inGroup && !student.leftGroup);
+  const groupNewCount = groupStudentsList.filter(isNew).length;
+  const groupMu3idCount = groupStudentsList.filter(isMu3id).length;
+
   setText('#totalStudents', total);
   setText('#newStudents', newCount);
   setText('#returningStudents', returningCount);
   setText('#schoolCount', schools);
   setText('#groupStudents', groupCount);
   setText('#groupPercentage', `${percent(groupCount)}% of total`);
+  setText('#groupNewCount', groupNewCount);
+  setText('#groupMu3idCount', groupMu3idCount);
   setText('#leftGroupStudents', leftGroupCount);
   setText('#leftGroupPercentage', `${percent(leftGroupCount)}% of total`);
   setText('#newPercentage', `${percent(newCount)}% of total`);
@@ -1189,13 +1198,21 @@ function updateStats() {
 
   updateMajorFilterOptions(visibleMajors);
 
-  const grpA = students.filter(s => getStudentAssignedGroup(s) === 'Grp A').length;
-  const grpB = students.filter(s => getStudentAssignedGroup(s) === 'Grp B').length;
-  const grpAB = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B').length;
-  const grpCD = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D').length;
-  const grpE1 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E1').length;
-  const grpE2 = students.filter(s => getStudentAssignedGroup(s) === 'Grp E2').length;
-  const unassigned = students.filter(s => !getStudentAssignedGroup(s)).length;
+  const grpAStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp A');
+  const grpBStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp B');
+  const grpABStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B');
+  const grpCDStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
+  const grpE1Students = students.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
+  const grpE2Students = students.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
+  const unassignedStudents = students.filter(s => !getStudentAssignedGroup(s));
+
+  const grpA = grpAStudents.length;
+  const grpB = grpBStudents.length;
+  const grpAB = grpABStudents.length;
+  const grpCD = grpCDStudents.length;
+  const grpE1 = grpE1Students.length;
+  const grpE2 = grpE2Students.length;
+  const unassigned = unassignedStudents.length;
 
   setText('#grpACount', grpA);
   setText('#grpBCount', grpB);
@@ -1204,6 +1221,19 @@ function updateStats() {
   setText('#grpE1Count', grpE1);
   setText('#grpE2Count', grpE2);
   setText('#unassignedCount', unassigned);
+
+  setText('#grpANew', grpAStudents.filter(isNew).length);
+  setText('#grpAMu3id', grpAStudents.filter(isMu3id).length);
+  setText('#grpBNew', grpBStudents.filter(isNew).length);
+  setText('#grpBMu3id', grpBStudents.filter(isMu3id).length);
+  setText('#grpCDNew', grpCDStudents.filter(isNew).length);
+  setText('#grpCDMu3id', grpCDStudents.filter(isMu3id).length);
+  setText('#grpE1New', grpE1Students.filter(isNew).length);
+  setText('#grpE1Mu3id', grpE1Students.filter(isMu3id).length);
+  setText('#grpE2New', grpE2Students.filter(isNew).length);
+  setText('#grpE2Mu3id', grpE2Students.filter(isMu3id).length);
+  setText('#unassignedNew', unassignedStudents.filter(isNew).length);
+  setText('#unassignedMu3id', unassignedStudents.filter(isMu3id).length);
 
   setText('#grpAPercent', `${percent(grpA)}% of students`);
   setText('#grpBPercent', `${percent(grpB)}% of students`);

@@ -266,3 +266,63 @@ test('changing assigned group from Grp A to another group requires confirmation'
   assert.equal(shouldConfirmGroupChange({ assignedGroup: 'Grp E1' }, 'Grp E2'), true);
 });
 
+test('status breakdown (New vs Mu3id) per group and in-group aggregates accurately', () => {
+  const sampleStudents = [
+    { assignedGroup: 'Grp A', inGroup: true, leftGroup: false, status: 'New' },
+    { assignedGroup: 'Grp A', inGroup: true, leftGroup: false, status: 'Mu3id' },
+    { assignedGroup: 'Grp A', inGroup: true, leftGroup: false, status: 'New' },
+    { assignedGroup: 'Grp B', inGroup: true, leftGroup: false, status: 'Mu3id' },
+    { assignedGroup: 'Grp B', inGroup: true, leftGroup: false, status: 'Mu3id' },
+    { assignedGroup: 'Grp C,D', inGroup: true, leftGroup: false, status: 'New' },
+    { assignedGroup: 'Grp E1', inGroup: true, leftGroup: false, status: 'New' },
+    { assignedGroup: 'Grp E1', inGroup: true, leftGroup: false, status: 'Mu3id' },
+    { assignedGroup: 'Grp E2', inGroup: true, leftGroup: false, status: 'New' },
+    { assignedGroup: '', inGroup: false, leftGroup: false, status: 'New' },
+    { assignedGroup: '', inGroup: false, leftGroup: true, status: 'Mu3id' }
+  ];
+
+  function getStudentAssignedGroup(s) {
+    const norm = (s?.assignedGroup || '').trim().toLowerCase();
+    if (norm === 'grp a' || norm === 'a') return 'Grp A';
+    if (norm === 'grp b' || norm === 'b') return 'Grp B';
+    if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
+    if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
+    if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
+    if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+    return '';
+  }
+
+  const isNew = s => String(s.status || '').trim().toLowerCase() === 'new';
+  const isMu3id = s => String(s.status || '').trim().toLowerCase() === 'mu3id';
+
+  // Overall in-group breakdown
+  const inGroup = sampleStudents.filter(s => s.inGroup && !s.leftGroup);
+  assert.equal(inGroup.filter(isNew).length, 5);
+  assert.equal(inGroup.filter(isMu3id).length, 4);
+
+  // Grp A
+  const grpA = sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp A');
+  assert.equal(grpA.filter(isNew).length, 2);
+  assert.equal(grpA.filter(isMu3id).length, 1);
+
+  // Grp B
+  const grpB = sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp B');
+  assert.equal(grpB.filter(isNew).length, 0);
+  assert.equal(grpB.filter(isMu3id).length, 2);
+
+  // Grp C,D
+  const grpCD = sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
+  assert.equal(grpCD.filter(isNew).length, 1);
+  assert.equal(grpCD.filter(isMu3id).length, 0);
+
+  // Grp E1
+  const grpE1 = sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
+  assert.equal(grpE1.filter(isNew).length, 1);
+  assert.equal(grpE1.filter(isMu3id).length, 1);
+
+  // Grp E2
+  const grpE2 = sampleStudents.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
+  assert.equal(grpE2.filter(isNew).length, 1);
+  assert.equal(grpE2.filter(isMu3id).length, 0);
+});
+
