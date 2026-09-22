@@ -247,199 +247,6 @@
             </button>
           </div>
         </section>
-
-        <!-- Card 3: Send Email to All Students & Broadcast Center -->
-        <section class="form-card config-card broadcast-card" id="broadcastCard">
-          <div class="card-heading">
-            <div>
-              <span class="step">MASS STUDENT BROADCAST</span>
-              <h2>Send Email to All Students</h2>
-            </div>
-            <span class="config-status-badge" id="broadcastStatusBadge">Ready</span>
-          </div>
-          <p class="config-desc">
-            Dispatches personalized invitation emails containing each student's enrolled section and WhatsApp group link. Built-in anti-restriction safeguards pace outgoing delivery and reuse persistent connections to prevent Gmail / Outlook blocks.
-          </p>
-
-          <!-- Anti-Restriction Safeguards Banner -->
-          <div class="anti-restriction-callout">
-            <div class="callout-icon">🛡️</div>
-            <div class="callout-text">
-              <strong>Anti-Restriction Safe Sending Active</strong>
-              <span>Emails are sent sequentially using connection pooling and intelligent throttling. If your SMTP provider signals a burst limit (e.g., 421 or quota limit), dispatch pauses automatically to prevent account lockouts.</span>
-            </div>
-          </div>
-
-          <!-- Pre-flight Recipient Stats (Numbers) -->
-          <div class="section-label"><span>Live Recipient Overview</span></div>
-          <div class="broadcast-stats-grid">
-            <div class="bcast-stat-card">
-              <span class="bcast-stat-label">Total Students</span>
-              <strong class="bcast-stat-num" id="statTotalStudents">-</strong>
-              <small class="bcast-stat-sub" id="bcastSectionSub">MISPCE / CSVT</small>
-            </div>
-            <div class="bcast-stat-card">
-              <span class="bcast-stat-label">Valid Emails</span>
-              <strong class="bcast-stat-num is-success" id="statValidEmails">-</strong>
-              <small class="bcast-stat-sub">Ready to receive</small>
-            </div>
-            <div class="bcast-stat-card">
-              <span class="bcast-stat-label">Not Yet Invited</span>
-              <strong class="bcast-stat-num is-warning" id="bcastUninvited">-</strong>
-              <small class="bcast-stat-sub">Link not approved</small>
-            </div>
-            <div class="bcast-stat-card">
-              <span class="bcast-stat-label">Already Invited</span>
-              <strong class="bcast-stat-num is-info" id="bcastInvited">-</strong>
-              <small class="bcast-stat-sub">Link approved</small>
-            </div>
-          </div>
-
-          <!-- Audience & Pacing Configuration -->
-          <div class="section-label"><span>Broadcast Options &amp; Anti-Restriction Controls</span></div>
-          <div class="fields two-cols">
-            <label>
-              <span>Target Audience Filter *</span>
-              <select id="bcastAudienceSelect">
-                <option value="uninvited" selected>Uninvited Students Only (Recommended — Avoids duplicates &amp; restrictions)</option>
-                <option value="all">All Students With Email</option>
-                <option value="mispce">MISPCE Section Students Only</option>
-                <option value="csvt">CSVT Section Students Only</option>
-                <option value="amchit">Amchit Campus Students Only</option>
-                <option value="fanar">Fanar Campus Students Only</option>
-              </select>
-            </label>
-            <label>
-              <span>Anti-Restriction Throttle Speed *</span>
-              <select id="broadcastPaceSelect">
-                <option value="1500" selected>Safe: 1.5s delay (~40 emails/min — Recommended for Gmail)</option>
-                <option value="2500">Gentle: 2.5s delay (~24 emails/min — Maximum safety)</option>
-                <option value="1000">Standard: 1.0s delay (~60 emails/min)</option>
-                <option value="500">Fast: 0.5s delay (Dedicated SMTP relays like SendGrid)</option>
-              </select>
-            </label>
-          </div>
-
-          <div class="fields one-col">
-            <label>
-              <span>Announcement Message (Included in student emails)</span>
-              <textarea id="bcastCustomNote" rows="2" placeholder="Custom note to include in the invitation email (leave blank to use default from above)..."></textarea>
-            </label>
-          </div>
-
-          <!-- Main Broadcast Action Bar -->
-          <div class="broadcast-action-bar">
-            <div class="bcast-actions-left">
-              <button type="button" class="submit-btn btn-broadcast-main" id="btnSendAllStudents">
-                <span class="button-spinner" aria-hidden="true" style="display:none;"></span>
-                <span id="btnStartBroadcastIcon">🚀</span>
-                <span id="btnSendAllStudentsText">Send Email to All Students</span>
-              </button>
-              <button type="button" class="btn-secondary" id="btnPauseBroadcast" disabled title="Temporarily pause sending">
-                <span id="btnPauseBroadcastText">⏸ Pause</span>
-              </button>
-              <button type="button" class="btn-secondary" id="btnResumeBroadcast" style="display:none;" title="Resume sending">
-                <span>▶ Resume</span>
-              </button>
-              <button type="button" class="btn-secondary btn-danger-subtle" id="btnStopBroadcast" disabled title="Cancel the remaining broadcast">
-                <span>⏹ Stop</span>
-              </button>
-            </div>
-            <div class="bcast-actions-right">
-              <button type="button" class="btn-secondary btn-sm" id="btnRefreshBroadcastStats" title="Refresh recipient statistics">
-                🔄 Refresh Counts
-              </button>
-              <button type="button" class="btn-secondary btn-sm" id="btnExportCsv" title="Download delivery logs as CSV file">
-                📥 Export CSV
-              </button>
-              <button type="button" class="btn-secondary btn-sm" id="btnClearBroadcastLogs" title="Clear logs table">
-                🗑️ Clear Logs
-              </button>
-            </div>
-          </div>
-
-          <!-- Live Progress Section (Shown during / after broadcast) -->
-          <div class="broadcast-progress-panel" id="broadcastProgressPanel" style="display:none;">
-            <div class="progress-panel-header">
-              <div class="progress-title-wrap">
-                <strong id="bcastProgressHeadline">Sending Email Invitations...</strong>
-                <span class="progress-eta" id="bcastEtaText">Estimating time...</span>
-              </div>
-              <span class="progress-percent" id="bcastProgressPercent">0%</span>
-            </div>
-            <div class="progress-bar-track">
-              <div class="progress-bar-fill" id="bcastProgressBar" style="width: 0%;"></div>
-            </div>
-            <div class="progress-status-subline">
-              <span class="progress-current-action" id="bcastCurrentAction">Preparing delivery queue...</span>
-              <span class="progress-ratio" id="bcastProgressRatio">0 / 0</span>
-            </div>
-          </div>
-
-          <!-- Live Numbers Results Badges -->
-          <div class="section-label"><span>Delivery Results (Live Numbers)</span></div>
-          <div class="live-numbers-ribbon">
-            <div class="live-num-pill is-target">
-              <span class="pill-label">🎯 Target</span>
-              <strong class="pill-val" id="liveStatTarget">0</strong>
-            </div>
-            <div class="live-num-pill is-sent">
-              <span class="pill-label">🟢 Sent</span>
-              <strong class="pill-val" id="numSentStudents">0</strong>
-            </div>
-            <div class="live-num-pill is-failed">
-              <span class="pill-label">🔴 Failed</span>
-              <strong class="pill-val" id="numFailedStudents">0</strong>
-            </div>
-            <div class="live-num-pill is-skipped">
-              <span class="pill-label">🟡 Skipped</span>
-              <strong class="pill-val" id="liveStatSkipped">0</strong>
-            </div>
-            <div class="live-num-pill is-rate">
-              <span class="pill-label">📊 Success Rate</span>
-              <strong class="pill-val" id="numSuccessRate">100%</strong>
-            </div>
-          </div>
-
-          <!-- Student-by-Student Delivery Logs Table -->
-          <div class="section-label"><span>Student Delivery Logs</span></div>
-          <div class="logs-toolbar">
-            <div class="logs-filter-tabs" role="tablist">
-              <button type="button" class="log-tab is-active" data-filter="all">All (<span id="logFilterAllCount">0</span>)</button>
-              <button type="button" class="log-tab" data-filter="sent">Sent (<span id="logFilterSentCount">0</span>)</button>
-              <button type="button" class="log-tab" data-filter="failed">Failed (<span id="logFilterFailedCount">0</span>)</button>
-              <button type="button" class="log-tab" data-filter="skipped">Skipped (<span id="logFilterSkippedCount">0</span>)</button>
-            </div>
-            <div class="logs-search-wrap">
-              <input type="text" id="logSearchInput" placeholder="Filter logs by student name, email, group...">
-            </div>
-          </div>
-
-          <div class="broadcast-logs-table-wrap">
-            <table class="broadcast-logs-table" id="deliveryLogsTable">
-              <thead>
-                <tr>
-                  <th style="width: 44px;">#</th>
-                  <th style="width: 80px;">Time</th>
-                  <th>Student</th>
-                  <th>Email</th>
-                  <th>Major &amp; Section</th>
-                  <th>Group Assigned</th>
-                  <th style="width: 100px;">Status</th>
-                  <th>Details</th>
-                  <th style="width: 80px; text-align: right;">Action</th>
-                </tr>
-              </thead>
-              <tbody id="broadcastLogsBody">
-                <tr class="empty-log-row">
-                  <td colspan="9" style="text-align:center; padding: 28px; color: var(--muted);">
-                    No emails sent in this session yet. Click <strong>"Send Email to All Students"</strong> to begin.
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </section>
       </div>
 
       <!-- Right Column: Live Template Preview -->
@@ -463,6 +270,220 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Mass Student Broadcast & Delivery Logs Center (Full Width) -->
+    <div class="config-broadcast-wrap">
+      <!-- Card 3: Send Email to All Students & Broadcast Center -->
+      <section class="form-card config-card broadcast-card" id="broadcastCard">
+        <div class="card-heading">
+          <div>
+            <span class="step">MASS STUDENT BROADCAST</span>
+            <h2>Send Email to All Students</h2>
+          </div>
+          <span class="config-status-badge" id="broadcastStatusBadge">Ready</span>
+        </div>
+        <p class="config-desc">
+          Dispatches personalized invitation emails containing each student's enrolled section and WhatsApp group link. Built-in anti-restriction safeguards pace outgoing delivery and reuse persistent connections to prevent Gmail / Outlook blocks.
+        </p>
+
+        <!-- Anti-Restriction Safeguards Banner -->
+        <div class="anti-restriction-callout">
+          <div class="callout-icon">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <div class="callout-text">
+            <strong>Anti-Restriction Safe Sending Active</strong>
+            <span>Emails are sent sequentially using connection pooling and intelligent throttling. If your SMTP provider signals a burst limit (e.g., 421 or quota limit), dispatch pauses automatically to prevent account lockouts.</span>
+          </div>
+        </div>
+
+        <!-- Pre-flight Recipient Stats (Numbers) -->
+        <div class="section-label"><span>Live Recipient Overview</span></div>
+        <div class="broadcast-stats-grid">
+          <div class="bcast-stat-card">
+            <span class="bcast-stat-label">Total Students</span>
+            <strong class="bcast-stat-num" id="statTotalStudents">-</strong>
+            <small class="bcast-stat-sub" id="bcastSectionSub">MISPCE / CSVT</small>
+          </div>
+          <div class="bcast-stat-card">
+            <span class="bcast-stat-label">Valid Emails</span>
+            <strong class="bcast-stat-num is-success" id="statValidEmails">-</strong>
+            <small class="bcast-stat-sub">Ready to receive</small>
+          </div>
+          <div class="bcast-stat-card">
+            <span class="bcast-stat-label">Not Yet Invited</span>
+            <strong class="bcast-stat-num is-warning" id="bcastUninvited">-</strong>
+            <small class="bcast-stat-sub">Link not approved</small>
+          </div>
+          <div class="bcast-stat-card">
+            <span class="bcast-stat-label">Already Invited</span>
+            <strong class="bcast-stat-num is-info" id="bcastInvited">-</strong>
+            <small class="bcast-stat-sub">Link approved</small>
+          </div>
+        </div>
+
+        <!-- Audience & Pacing Configuration -->
+        <div class="section-label"><span>Broadcast Options &amp; Anti-Restriction Controls</span></div>
+        <div class="fields two-cols">
+          <label>
+            <span>Target Audience Filter *</span>
+            <select id="bcastAudienceSelect">
+              <option value="uninvited" selected>Uninvited Students Only (Recommended — Avoids duplicates &amp; restrictions)</option>
+              <option value="all">All Students With Email</option>
+              <option value="mispce">MISPCE Section Students Only</option>
+              <option value="csvt">CSVT Section Students Only</option>
+              <option value="amchit">Amchit Campus Students Only</option>
+              <option value="fanar">Fanar Campus Students Only</option>
+            </select>
+          </label>
+          <label>
+            <span>Anti-Restriction Throttle Speed *</span>
+            <select id="broadcastPaceSelect">
+              <option value="1500" selected>Safe: 1.5s delay (~40 emails/min — Recommended for Gmail)</option>
+              <option value="2500">Gentle: 2.5s delay (~24 emails/min — Maximum safety)</option>
+              <option value="1000">Standard: 1.0s delay (~60 emails/min)</option>
+              <option value="500">Fast: 0.5s delay (Dedicated SMTP relays like SendGrid)</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="fields one-col">
+          <label>
+            <span>Announcement Message (Included in student emails)</span>
+            <textarea id="bcastCustomNote" rows="3" placeholder="Custom note to include in the invitation email (leave blank to use default from above)..."></textarea>
+          </label>
+        </div>
+
+        <!-- Main Broadcast Action Bar -->
+        <div class="broadcast-action-bar">
+          <div class="bcast-actions-left">
+            <button type="button" class="submit-btn btn-broadcast-main" id="btnSendAllStudents">
+              <span class="button-spinner" aria-hidden="true" style="display:none;"></span>
+              <span id="btnStartBroadcastIcon">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+                  <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+                  <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+                  <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+                </svg>
+              </span>
+              <span id="btnSendAllStudentsText">Send Email to All Students</span>
+            </button>
+            <button type="button" class="btn-secondary btn-bcast-control" id="btnPauseBroadcast" disabled title="Temporarily pause sending">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+              <span id="btnPauseBroadcastText">Pause</span>
+            </button>
+            <button type="button" class="btn-secondary btn-bcast-control is-resume" id="btnResumeBroadcast" style="display:none;" title="Resume sending">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><polygon points="6,4 18,12 6,20"/></svg>
+              <span>Resume</span>
+            </button>
+            <button type="button" class="btn-secondary btn-bcast-control is-danger" id="btnStopBroadcast" disabled title="Cancel the remaining broadcast">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2"/></svg>
+              <span>Stop</span>
+            </button>
+          </div>
+          <div class="bcast-actions-right">
+            <button type="button" class="btn-secondary btn-sm" id="btnRefreshBroadcastStats" title="Refresh recipient statistics">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/><path d="M3 21v-5h5"/></svg>
+              Refresh Counts
+            </button>
+            <button type="button" class="btn-secondary btn-sm" id="btnExportCsv" title="Download delivery logs as CSV file">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Export CSV
+            </button>
+            <button type="button" class="btn-secondary btn-sm btn-danger-subtle" id="btnClearBroadcastLogs" title="Clear logs table">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Clear Logs
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Progress Section (Shown during / after broadcast) -->
+        <div class="broadcast-progress-panel" id="broadcastProgressPanel" style="display:none;">
+          <div class="progress-panel-header">
+            <div class="progress-title-wrap">
+              <strong id="bcastProgressHeadline">Sending Email Invitations...</strong>
+              <span class="progress-eta" id="bcastEtaText">Estimating time...</span>
+            </div>
+            <span class="progress-percent" id="bcastProgressPercent">0%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="bcastProgressBar" style="width: 0%;"></div>
+          </div>
+          <div class="progress-status-subline">
+            <span class="progress-current-action" id="bcastCurrentAction">Preparing delivery queue...</span>
+            <span class="progress-ratio" id="bcastProgressRatio">0 / 0</span>
+          </div>
+        </div>
+
+        <!-- Live Numbers Results Badges -->
+        <div class="section-label"><span>Delivery Results (Live Numbers)</span></div>
+        <div class="live-numbers-ribbon">
+          <div class="live-num-pill is-target">
+            <span class="pill-label">🎯 Target</span>
+            <strong class="pill-val" id="liveStatTarget">0</strong>
+          </div>
+          <div class="live-num-pill is-sent">
+            <span class="pill-label">🟢 Sent</span>
+            <strong class="pill-val" id="numSentStudents">0</strong>
+          </div>
+          <div class="live-num-pill is-failed">
+            <span class="pill-label">🔴 Failed</span>
+            <strong class="pill-val" id="numFailedStudents">0</strong>
+          </div>
+          <div class="live-num-pill is-skipped">
+            <span class="pill-label">🟡 Skipped</span>
+            <strong class="pill-val" id="liveStatSkipped">0</strong>
+          </div>
+          <div class="live-num-pill is-rate">
+            <span class="pill-label">📊 Success Rate</span>
+            <strong class="pill-val" id="numSuccessRate">100%</strong>
+          </div>
+        </div>
+
+        <!-- Student-by-Student Delivery Logs Table -->
+        <div class="section-label"><span>Student Delivery Logs</span></div>
+        <div class="logs-toolbar">
+          <div class="logs-filter-tabs" role="tablist">
+            <button type="button" class="log-tab is-active" data-filter="all">All (<span id="logFilterAllCount">0</span>)</button>
+            <button type="button" class="log-tab" data-filter="sent">Sent (<span id="logFilterSentCount">0</span>)</button>
+            <button type="button" class="log-tab" data-filter="failed">Failed (<span id="logFilterFailedCount">0</span>)</button>
+            <button type="button" class="log-tab" data-filter="skipped">Skipped (<span id="logFilterSkippedCount">0</span>)</button>
+          </div>
+          <div class="logs-search-wrap">
+            <input type="text" id="logSearchInput" placeholder="Filter logs by student name, email, group...">
+          </div>
+        </div>
+
+        <div class="broadcast-logs-table-wrap">
+          <table class="broadcast-logs-table" id="deliveryLogsTable">
+            <thead>
+              <tr>
+                <th style="width: 44px;">#</th>
+                <th style="width: 80px;">Time</th>
+                <th>Student</th>
+                <th>Email</th>
+                <th>Major &amp; Section</th>
+                <th>Group Assigned</th>
+                <th style="width: 100px;">Status</th>
+                <th>Details</th>
+                <th style="width: 80px; text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody id="broadcastLogsBody">
+              <tr class="empty-log-row">
+                <td colspan="9" style="text-align:center; padding: 28px; color: var(--muted);">
+                  No emails sent in this session yet. Click <strong>"Send Email to All Students"</strong> to begin.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   </main>
 
