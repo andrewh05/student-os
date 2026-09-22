@@ -9,37 +9,37 @@
   const PROVIDER_PRESETS = {
   gmail: {
     host: 'smtp.gmail.com',
-    port: 587,
-    secure: false,
-    help: 'For Gmail, generate a 16-character App Password at: myaccount.google.com/apppasswords (do not use your regular account password).'
+    port: 465,
+    secure: true,
+    help: 'For Gmail, use Port 465 (SSL/TLS) and enter your 16-character App Password (generated at: myaccount.google.com/apppasswords).'
   },
   outlook: {
     host: 'smtp-mail.outlook.com',
     port: 587,
     secure: false,
-    help: 'For Microsoft 365 or Outlook, use your full email address and Microsoft App Password.'
+    help: 'For Microsoft 365 or Outlook, use your full email address and Microsoft App Password. (Note: Port 465 SSL/TLS is recommended on Cloudflare Workers).'
   },
   sendgrid: {
     host: 'smtp.sendgrid.net',
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     user: 'apikey',
-    help: 'For SendGrid, use "apikey" as username and your SendGrid API key as password.'
+    help: 'For SendGrid, use Port 465 (SSL/TLS), username "apikey", and your SendGrid API key as password.'
   },
   mailgun: {
     host: 'smtp.mailgun.org',
-    port: 587,
-    secure: false,
-    help: 'For Mailgun, enter your domain SMTP credentials.'
+    port: 465,
+    secure: true,
+    help: 'For Mailgun, use Port 465 (SSL/TLS) and enter your domain SMTP credentials.'
   },
   ethereal: {
     host: '',
-    port: 587,
-    secure: false,
+    port: 465,
+    secure: true,
     help: 'Development test mode: Generates instant clickable preview links with zero external setup needed.'
   },
   custom: {
-    help: 'Enter your custom outgoing SMTP server host, port, and authentication credentials.'
+    help: 'Enter your custom outgoing SMTP server host, port, and credentials. (Tip: For Cloudflare Workers, use Port 465 with SSL/TLS).'
   }
 };
 
@@ -81,8 +81,8 @@ async function loadConfiguration() {
     const pwHelpEl = document.querySelector('#pwHelpText');
 
     if (hostEl) hostEl.value = s.smtpHost || '';
-    if (portEl) portEl.value = s.smtpPort || 587;
-    if (secureEl) secureEl.value = s.smtpSecure ? 'true' : 'false';
+    if (portEl) portEl.value = s.smtpPort || 465;
+    if (secureEl) secureEl.value = (s.smtpSecure !== undefined ? s.smtpSecure : (s.smtpPort === 465 || !s.smtpPort)) ? 'true' : 'false';
     if (userEl) userEl.value = s.smtpUser || '';
     if (passEl) passEl.value = '';
     if (fromEl) fromEl.value = s.emailFrom || '"ULFS2 Student Affairs" <noreply@student-os.com>';
@@ -293,6 +293,13 @@ async function handleSendTestEmail() {
     feedback.textContent = `Testing SMTP connection and sending to ${testEmail}…`;
   }
 
+  const host = document.querySelector('#cfgSmtpHost')?.value?.trim() || '';
+  const port = parseInt(document.querySelector('#cfgSmtpPort')?.value || '465', 10);
+  const secure = document.querySelector('#cfgSmtpSecure')?.value === 'true';
+  const user = document.querySelector('#cfgSmtpUser')?.value?.trim() || '';
+  const pass = document.querySelector('#cfgSmtpPass')?.value || '';
+  const from = document.querySelector('#cfgEmailFrom')?.value?.trim() || '';
+
   try {
     const res = await fetch(`${API_BASE}/email/test-connection`, {
       method: 'POST',
@@ -300,7 +307,15 @@ async function handleSendTestEmail() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getAuthToken()}`
       },
-      body: JSON.stringify({ testEmail })
+      body: JSON.stringify({
+        testEmail,
+        smtpHost: host,
+        smtpPort: port,
+        smtpSecure: secure,
+        smtpUser: user,
+        smtpPass: pass,
+        emailFrom: from
+      })
     });
 
     const data = await res.json();
@@ -318,6 +333,21 @@ async function handleSendTestEmail() {
     if (feedback) {
       feedback.className = 'test-result-feedback is-error';
       feedback.innerHTML = `<strong>✗ Connection Failed:</strong> ${escapeHtml(err.message)}`;
+      if (/TLS|handshake|587/i.test(err.message)) {
+        feedback.innerHTML += `<div style="margin-top:10px;"><button type="button" id="btnAutoFixTls" class="btn-primary" style="padding:6px 14px;font-size:12px;cursor:pointer;">⚡ Switch to Port 465 (SSL/TLS) &amp; Retry</button></div>`;
+        setTimeout(() => {
+          const autoFixBtn = document.querySelector('#btnAutoFixTls');
+          if (autoFixBtn) {
+            autoFixBtn.onclick = () => {
+              const portEl = document.querySelector('#cfgSmtpPort');
+              const secEl = document.querySelector('#cfgSmtpSecure');
+              if (portEl) portEl.value = '465';
+              if (secEl) secEl.value = 'true';
+              handleSendTestEmail();
+            };
+          }
+        }, 50);
+      }
     }
   } finally {
     if (btn) btn.disabled = false;
@@ -332,6 +362,24 @@ function initEmailConfigPage() {
 
   const testBtn = document.querySelector('#btnSendTestEmail');
   if (testBtn) testBtn.addEventListener('click', handleSendTestEmail);
+
+  // Auto-sync Port and Security dropdowns
+  const portInput = document.querySelector('#cfgSmtpPort');
+  const secureSelect = document.querySelector('#cfgSmtpSecure');
+  if (portInput && secureSelect) {
+    portInput.addEventListener('input', () => {
+      const p = parseInt(portInput.value, 10);
+      if (p === 465) secureSelect.value = 'true';
+      else if (p === 587) secureSelect.value = 'false';
+    });
+    secureSelect.addEventListener('change', () => {
+      if (secureSelect.value === 'true' && portInput.value === '587') {
+        portInput.value = '465';
+      } else if (secureSelect.value === 'false' && portInput.value === '465') {
+        portInput.value = '587';
+      }
+    });
+  }
 
   // Toggle password visibility
   const togglePwBtn = document.querySelector('#togglePwBtn');

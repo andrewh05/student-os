@@ -1845,14 +1845,27 @@ app.post('/api/email/test-connection', async (req, res) => {
     return res.status(403).json({ success: false, error: 'Access restricted to administrators' });
   }
 
-  const { testEmail } = req.body || {};
+  const { testEmail, smtpHost, smtpPort, smtpSecure, smtpUser, smtpPass, emailFrom } = req.body || {};
   if (!testEmail || !testEmail.includes('@')) {
     return res.status(400).json({ success: false, error: 'Please specify a valid test recipient email address' });
   }
 
+  let overrideConfig = null;
+  if (smtpHost && smtpUser) {
+    const portNum = smtpPort ? parseInt(smtpPort, 10) : 465;
+    overrideConfig = {
+      host: smtpHost.trim(),
+      port: portNum,
+      secure: smtpSecure !== undefined ? Boolean(smtpSecure) : (portNum === 465),
+      user: smtpUser.trim(),
+      pass: smtpPass || '',
+      from: emailFrom || ''
+    };
+  }
+
   try {
     const senderName = session.fullName || 'ULFS2 Administrator';
-    const result = await sendTestEmail({ to: testEmail.trim(), senderName });
+    const result = await sendTestEmail({ to: testEmail.trim(), senderName, overrideConfig });
     return res.json({
       success: true,
       message: `Test email dispatched to ${testEmail}. Check your inbox!`,
@@ -1860,9 +1873,13 @@ app.post('/api/email/test-connection', async (req, res) => {
     });
   } catch (err) {
     console.error('Error sending test email:', err.message);
+    let userFriendlyError = err.message || 'Error communicating with outgoing email server';
+    if (/TLS Handshake Failed/i.test(userFriendlyError)) {
+      userFriendlyError = 'TLS Handshake Failed: Port 587 (STARTTLS) is not supported by Cloudflare Workers. Please change Port to 465 and Security to SSL/TLS (465) in the form above and click Send Test Email.';
+    }
     return res.status(500).json({
       success: false,
-      error: err.message,
+      error: userFriendlyError,
       code: err.code || 'EMAIL_SEND_FAILED'
     });
   }

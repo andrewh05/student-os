@@ -478,10 +478,11 @@ function loadSavedSettings() {
 function getSmtpConfig() {
   const saved = loadSavedSettings() || {};
   const host = saved.smtpHost !== undefined ? saved.smtpHost : (process.env.SMTP_HOST || '');
-  const port = saved.smtpPort ? parseInt(saved.smtpPort, 10) : parseInt(process.env.SMTP_PORT || '587', 10);
+  const port = saved.smtpPort ? parseInt(saved.smtpPort, 10) : parseInt(process.env.SMTP_PORT || '465', 10);
   const user = saved.smtpUser !== undefined ? saved.smtpUser : (process.env.SMTP_USER || process.env.SMTP_USERNAME || '');
   const pass = saved.smtpPass !== undefined ? saved.smtpPass : (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '');
-  const secure = saved.smtpSecure !== undefined ? saved.smtpSecure : (process.env.SMTP_SECURE === 'true' || port === 465);
+  const isPort465 = port === 465;
+  const secure = isPort465 ? true : (saved.smtpSecure !== undefined ? Boolean(saved.smtpSecure) : (process.env.SMTP_SECURE === 'true'));
   const from = saved.emailFrom || process.env.EMAIL_FROM || process.env.SMTP_FROM || 'ULFS2 Student Affairs <noreply@student-os.com>';
 
   const isConfigured = Boolean(host && user);
@@ -515,7 +516,7 @@ function saveEmailSettings(settings) {
 
   const payload = {
     smtpHost: settings.smtpHost !== undefined ? settings.smtpHost : (current.smtpHost || process.env.SMTP_HOST || ''),
-    smtpPort: settings.smtpPort !== undefined ? Number(settings.smtpPort) : (current.smtpPort || Number(process.env.SMTP_PORT || '587')),
+    smtpPort: settings.smtpPort !== undefined ? Number(settings.smtpPort) : (current.smtpPort || Number(process.env.SMTP_PORT || '465')),
     smtpSecure: settings.smtpSecure !== undefined ? Boolean(settings.smtpSecure) : (current.smtpSecure !== undefined ? current.smtpSecure : (process.env.SMTP_SECURE === 'true')),
     smtpUser: settings.smtpUser !== undefined ? settings.smtpUser : (current.smtpUser || process.env.SMTP_USER || ''),
     smtpPass: storedPass || '',
@@ -576,7 +577,7 @@ function saveEmailSettings(settings) {
 function getEffectiveSettings() {
   const saved = loadSavedSettings() || {};
   const host = saved.smtpHost !== undefined ? saved.smtpHost : (process.env.SMTP_HOST || '');
-  const port = saved.smtpPort ? parseInt(saved.smtpPort, 10) : parseInt(process.env.SMTP_PORT || '587', 10);
+  const port = saved.smtpPort ? parseInt(saved.smtpPort, 10) : parseInt(process.env.SMTP_PORT || '465', 10);
   const secure = saved.smtpSecure !== undefined ? saved.smtpSecure : (process.env.SMTP_SECURE === 'true' || port === 465);
   const user = saved.smtpUser !== undefined ? saved.smtpUser : (process.env.SMTP_USER || process.env.SMTP_USERNAME || '');
   const pass = saved.smtpPass !== undefined ? saved.smtpPass : (process.env.SMTP_PASS || process.env.SMTP_PASSWORD || '');
@@ -607,8 +608,17 @@ function getEffectiveSettings() {
   };
 }
 
-async function getTransporter() {
-  const config = getSmtpConfig();
+async function getTransporter(overrideConfig = null) {
+  const baseConfig = getSmtpConfig();
+  const config = overrideConfig ? {
+    host: overrideConfig.host || baseConfig.host,
+    port: overrideConfig.port ? parseInt(overrideConfig.port, 10) : baseConfig.port,
+    user: overrideConfig.user || baseConfig.user,
+    pass: overrideConfig.pass || baseConfig.pass,
+    secure: (overrideConfig.secure !== undefined ? Boolean(overrideConfig.secure) : (overrideConfig.port === 465 || baseConfig.secure)),
+    from: overrideConfig.from || baseConfig.from,
+    isConfigured: Boolean((overrideConfig.host || baseConfig.host) && (overrideConfig.user || baseConfig.user))
+  } : baseConfig;
 
   // Hermetic mock transporter for automated test runner
   if (process.env.NODE_ENV === 'test') {
@@ -624,18 +634,33 @@ async function getTransporter() {
   }
 
   if (config.isConfigured) {
-    if (!cachedTransporter || cachedTransporter._configHost !== config.host || cachedTransporter._configUser !== config.user) {
-      cachedTransporter = nodemailer.createTransport({
-        host: config.host,
-        port: config.port,
-        secure: config.secure,
-        auth: {
-          user: config.user,
-          pass: config.pass
-        }
-      });
+    const portNum = Number(config.port) || 465;
+    const isDirectTls = portNum === 465 || Boolean(config.secure);
+
+    const transportOpts = {
+      host: config.host,
+      port: portNum,
+      secure: isDirectTls,
+      auth: {
+        user: config.user,
+        pass: config.pass
+      },
+      tls: {
+        rejectUnauthorized: false
+      }
+    };
+
+    if (overrideConfig) {
+      const customTransporter = nodemailer.createTransport(transportOpts);
+      return { transporter: customTransporter, config, isReal: true };
+    }
+
+    if (!cachedTransporter || cachedTransporter._configHost !== config.host || cachedTransporter._configUser !== config.user || cachedTransporter._configPort !== portNum || cachedTransporter._configSecure !== isDirectTls) {
+      cachedTransporter = nodemailer.createTransport(transportOpts);
       cachedTransporter._configHost = config.host;
       cachedTransporter._configUser = config.user;
+      cachedTransporter._configPort = portNum;
+      cachedTransporter._configSecure = isDirectTls;
       cachedTransporter._isRealSmtp = true;
     }
     return { transporter: cachedTransporter, config, isReal: true };
@@ -724,7 +749,7 @@ async function sendInviteEmail({
 /**
  * Send a test email to verify SMTP configuration
  */
-async function sendTestEmail({ to, senderName = 'ULFS2 Administrator' }) {
+async function sendTestEmail({ to, senderName = 'ULFS2 Administrator', overrideConfig = null }) {
   if (!to || !to.includes('@')) {
     throw new Error('Please enter a valid recipient email address for testing.');
   }
@@ -750,7 +775,7 @@ async function sendTestEmail({ to, senderName = 'ULFS2 Administrator' }) {
     senderName
   });
 
-  const { transporter, config, isReal, isEthereal, isSimulated, isMock } = await getTransporter();
+  const { transporter, config, isReal, isEthereal, isSimulated, isMock } = await getTransporter(overrideConfig);
 
   const mailOptions = {
     from: config.from,

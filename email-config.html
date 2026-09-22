@@ -110,13 +110,13 @@
               <div class="fields two-cols" style="gap: 12px;">
                 <label>
                   <span>Port *</span>
-                  <input type="number" id="cfgSmtpPort" required value="587" placeholder="587">
+                  <input type="number" id="cfgSmtpPort" required value="465" placeholder="465">
                 </label>
                 <label>
                   <span>Security (TLS/SSL)</span>
                   <select id="cfgSmtpSecure">
-                    <option value="false" selected>STARTTLS (587)</option>
-                    <option value="true">SSL / TLS (465)</option>
+                    <option value="true" selected>SSL / TLS (465) — Recommended</option>
+                    <option value="false">STARTTLS (587)</option>
                   </select>
                 </label>
               </div>
