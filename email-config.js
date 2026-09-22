@@ -113,6 +113,7 @@ async function loadConfiguration() {
     const linkCD = document.querySelector('#linkGrpCD');
     const linkE1 = document.querySelector('#linkGrpE1');
     const linkE2 = document.querySelector('#linkGrpE2');
+    const linkAmchit = document.querySelector('#linkAmchit');
     const noteEl = document.querySelector('#cfgDefaultNote');
 
     if (linkGen) linkGen.value = gl.general || '';
@@ -121,6 +122,7 @@ async function loadConfiguration() {
     if (linkCD) linkCD.value = gl['Grp C,D'] || '';
     if (linkE1) linkE1.value = gl['Grp E1'] || '';
     if (linkE2) linkE2.value = gl['Grp E2'] || '';
+    if (linkAmchit) linkAmchit.value = gl['Amchit'] || '';
     if (noteEl) noteEl.value = s.defaultCustomNote || '';
 
     // Update status badge
@@ -217,7 +219,8 @@ async function handleSaveSettings() {
     'Grp B': document.querySelector('#linkGrpB')?.value?.trim() || '',
     'Grp C,D': document.querySelector('#linkGrpCD')?.value?.trim() || '',
     'Grp E1': document.querySelector('#linkGrpE1')?.value?.trim() || '',
-    'Grp E2': document.querySelector('#linkGrpE2')?.value?.trim() || ''
+    'Grp E2': document.querySelector('#linkGrpE2')?.value?.trim() || '',
+    'Amchit': document.querySelector('#linkAmchit')?.value?.trim() || ''
   };
 
   const defaultCustomNote = document.querySelector('#cfgDefaultNote')?.value?.trim() || '';
@@ -489,6 +492,7 @@ function initEmailConfigPage() {
     '#linkGrpCD',
     '#linkGrpE1',
     '#linkGrpE2',
+    '#linkAmchit',
     '#cfgDefaultNote'
   ];
   previewInputs.forEach(sel => {

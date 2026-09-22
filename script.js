@@ -93,6 +93,8 @@ function getStudentAssignedGroup(student) {
   if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
   if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
   if (norm === 'amchit' || norm === 'amshit' || norm === 'grp amchit' || norm === 'grp amshit') return 'Amchit';
+  const campus = (student?.campus || '').trim().toLowerCase();
+  if ((campus.includes('amchit') || campus.includes('amshit')) && student?.inGroup && !student?.leftGroup) return 'Amchit';
   return '';
 }
 let systemUsers = [];
@@ -813,7 +815,9 @@ function renderStudents(query = '') {
       `${student.firstName || ''} ${student.fatherName || ''} ${student.familyName || ''}`,
       `${student.familyName || ''} ${student.firstName || ''}`
     ];
-    const fullSearchText = [...nameCombinations, ...Object.values(student)]
+    const isAmchitStudent = (student.campus || '').toLowerCase().includes('am') || (student.assignedGroup || '').toLowerCase().includes('am');
+    const campusAliases = isAmchitStudent ? 'amchit amshit' : '';
+    const fullSearchText = [...nameCombinations, ...Object.values(student), campusAliases]
       .map(v => String(v || '').toLowerCase())
       .join(' ');
     const matchesFormattedText = tokens.every(token => fullSearchText.includes(token));
@@ -825,7 +829,10 @@ function renderStudents(query = '') {
     const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
-    const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
+    const targetCampus = (campusFilter?.value || '').trim().toLowerCase();
+    const studentCampus = (student.campus || '').trim().toLowerCase();
+    const matchesCampus = !targetCampus ||
+      (targetCampus.includes('am') ? studentCampus.includes('am') : studentCampus === targetCampus);
     const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
     const assignedGroup = getStudentAssignedGroup(student);
     const matchesGroup = !groupFilter?.value
@@ -858,6 +865,34 @@ function renderStudents(query = '') {
 
   if (emptyState) {
     emptyState.style.display = filtered.length ? 'none' : 'block';
+    const filtering = needle || statusFilter?.value || linkFilter?.value || majorFilter?.value || campusFilter?.value || languageFilter?.value || groupFilter?.value;
+    const emptyDesc = emptyState.querySelector('p');
+    const emptyBtn = emptyState.querySelector('.btn-primary');
+    if (emptyDesc && filtering) {
+      const activeFilterNames = [
+        needle ? `search "${needle}"` : '',
+        statusFilter?.value ? `status "${statusFilter.value}"` : '',
+        campusFilter?.value ? `campus "${campusFilter.value}"` : '',
+        groupFilter?.value ? `group "${groupFilter.value}"` : '',
+        majorFilter?.value ? `major "${majorFilter.value}"` : '',
+        linkFilter?.value ? `group link "${linkFilter.value}"` : ''
+      ].filter(Boolean).join(', ');
+      emptyDesc.textContent = `No students match the current filters (${activeFilterNames}).`;
+      if (emptyBtn) {
+        emptyBtn.textContent = '✕ Reset All Filters';
+        emptyBtn.onclick = (e) => {
+          e.preventDefault();
+          if (clearFilters) clearFilters.click();
+        };
+      }
+    } else if (emptyDesc) {
+      emptyDesc.textContent = 'No student records match your filter or the database is currently empty.';
+      if (emptyBtn) {
+        emptyBtn.textContent = '+ Add First Student';
+        emptyBtn.onclick = null;
+        emptyBtn.href = 'form.html';
+      }
+    }
   }
 
   updateActiveStatCardStates();
@@ -2925,13 +2960,18 @@ function getFilteredStudentsList() {
       `${student.firstName || ''} ${student.familyName || ''}`,
       `${student.firstName || ''} ${student.fatherName || ''} ${student.familyName || ''}`
     ];
-    const fullSearchText = [...nameCombinations, ...Object.values(student)].map(v => String(v || '').toLowerCase()).join(' ');
+    const isAmchitStudent = (student.campus || '').toLowerCase().includes('am') || (student.assignedGroup || '').toLowerCase().includes('am');
+    const campusAliases = isAmchitStudent ? 'amchit amshit' : '';
+    const fullSearchText = [...nameCombinations, ...Object.values(student), campusAliases].map(v => String(v || '').toLowerCase()).join(' ');
     const matchesSearch = !tokens.length || tokens.every(token => fullSearchText.includes(token));
     const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
     const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
     const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
     const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
-    const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
+    const targetCampus = (campusFilter?.value || '').trim().toLowerCase();
+    const studentCampus = (student.campus || '').trim().toLowerCase();
+    const matchesCampus = !targetCampus ||
+      (targetCampus.includes('am') ? studentCampus.includes('am') : studentCampus === targetCampus);
     const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
     const assignedGroup = getStudentAssignedGroup(student);
     const matchesGroup = !groupFilter?.value
@@ -3367,4 +3407,3 @@ document.addEventListener('DOMContentLoaded', () => {
   // Periodically re-verify DB connection status
   setInterval(checkDbConnection, 15000);
 });
-

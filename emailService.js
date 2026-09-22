@@ -569,7 +569,8 @@ async function saveEmailSettings(settings) {
       'Grp B': '',
       'Grp C,D': '',
       'Grp E1': '',
-      'Grp E2': ''
+      'Grp E2': '',
+      'Amchit': ''
     }),
     defaultCustomNote: settings.defaultCustomNote !== undefined ? settings.defaultCustomNote : (current.defaultCustomNote || '')
   };
@@ -655,7 +656,8 @@ function getEffectiveSettings() {
     'Grp B': '',
     'Grp C,D': '',
     'Grp E1': '',
-    'Grp E2': ''
+    'Grp E2': '',
+    'Amchit': ''
   };
 
   const defaultCustomNote = saved.defaultCustomNote || '';

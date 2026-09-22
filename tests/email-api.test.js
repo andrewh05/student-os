@@ -249,7 +249,8 @@ test('POST /api/email/settings updates configuration and restricts delegates', a
       emailFrom: '"ULFS2 Office" <office@student-os.com>',
       groupLinks: {
         general: 'https://chat.whatsapp.com/GENERAL_INVITE',
-        'Grp A': 'https://chat.whatsapp.com/GRP_A_INVITE'
+        'Grp A': 'https://chat.whatsapp.com/GRP_A_INVITE',
+        Amchit: 'https://chat.whatsapp.com/AMCHIT_INVITE'
       },
       defaultCustomNote: 'Welcome to semester 1!'
     })
@@ -261,6 +262,7 @@ test('POST /api/email/settings updates configuration and restricts delegates', a
   assert.equal(data.settings.smtpHost, 'smtp.mailgun.org');
   assert.equal(data.settings.groupLinks.general, 'https://chat.whatsapp.com/GENERAL_INVITE');
   assert.equal(data.settings.groupLinks['Grp A'], 'https://chat.whatsapp.com/GRP_A_INVITE');
+  assert.equal(data.settings.groupLinks.Amchit, 'https://chat.whatsapp.com/AMCHIT_INVITE');
   assert.equal(data.settings.defaultCustomNote, 'Welcome to semester 1!');
   assert.equal(data.settings.smtpPassSet, true);
   assert.equal(data.settings.smtpPass, '');

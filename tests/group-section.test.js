@@ -493,5 +493,33 @@ test('student campus Amchit renders single Amchit group button regardless of lan
   assert.equal(btnsFanarEn[1].isActive, true);
 });
 
+test('campus search and filter normalize Amchit and Amshit interchangeably', () => {
+  const students = [
+    { id: 1, firstName: 'Joe', familyName: 'Jamal', campus: 'Amshit', major: 'Informatics' },
+    { id: 2, firstName: 'Carla', familyName: 'Khoury', campus: 'Fanar', major: 'Informatics' }
+  ];
 
+  function matchesCampusFilter(student, filterVal) {
+    const targetCampus = (filterVal || '').trim().toLowerCase();
+    const studentCampus = (student.campus || '').trim().toLowerCase();
+    return !targetCampus || (targetCampus.includes('am') ? studentCampus.includes('am') : studentCampus === targetCampus);
+  }
 
+  function matchesStudentSearch(student, query) {
+    const tokens = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const isAmchit = (student.campus || '').toLowerCase().includes('am');
+    const aliases = isAmchit ? 'amchit amshit' : '';
+    const fullText = [student.firstName, student.familyName, student.campus, student.major, aliases].join(' ').toLowerCase();
+    return tokens.every(token => fullText.includes(token));
+  }
+
+  assert.equal(matchesCampusFilter(students[0], 'Amchit'), true);
+  assert.equal(matchesCampusFilter(students[1], 'Amchit'), false);
+  assert.equal(matchesCampusFilter(students[0], 'Amshit'), true);
+  assert.equal(matchesCampusFilter(students[1], 'Amshit'), false);
+
+  assert.equal(matchesStudentSearch(students[0], 'amchit'), true);
+  assert.equal(matchesStudentSearch(students[1], 'amchit'), false);
+  assert.equal(matchesStudentSearch(students[0], 'amshit'), true);
+  assert.equal(matchesStudentSearch(students[1], 'amshit'), false);
+});
