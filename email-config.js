@@ -1,12 +1,12 @@
 // Email & Group Links Configuration Page Controller
+(() => {
+  const API_BASE = window.API_BASE || (window.location.protocol === 'file:' ? 'http://localhost:3000/api' : '/api');
 
-const API_BASE = window.API_BASE || (window.location.protocol === 'file:' ? 'http://localhost:3000/api' : '/api');
+  function getAuthToken() {
+    return localStorage.getItem('hub_token') || '';
+  }
 
-function getAuthToken() {
-  return localStorage.getItem('hub_token') || '';
-}
-
-const PROVIDER_PRESETS = {
+  const PROVIDER_PRESETS = {
   gmail: {
     host: 'smtp.gmail.com',
     port: 587,
@@ -422,8 +422,16 @@ function initEmailConfigPage() {
   loadConfiguration();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  if (document.body.dataset.page === 'email-config') {
-    initEmailConfigPage();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      if (document.body.dataset.page === 'email-config') {
+        initEmailConfigPage();
+      }
+    });
+  } else {
+    if (document.body.dataset.page === 'email-config') {
+      initEmailConfigPage();
+    }
   }
-});
+})();
+
