@@ -81,7 +81,7 @@ Hello ${fullName},
 
 You are officially invited to join your academic class group for ${major} (${section} - ${assignedGroup}) at Lebanese University, Faculty of Sciences II.
 
-To join your cohort group, please click the link below:
+To join your group, please click the link below:
 ${effectiveJoinUrl}
 
 --- Academic Track Details ---
@@ -366,7 +366,7 @@ student-os.com
         <td class="content-body">
           <div class="greeting">Hello ${escapeHtml(fullName)},</div>
           <p class="welcome-text">
-            Welcome to the academic term! To make sure you never miss critical lecture schedules, classroom assignments, exam announcements, and course resources, please join your official student cohort group.
+            Welcome to ULFS2! To make sure you never miss critical lecture schedules, classroom assignments, exam announcements, and course resources, please join your official student group.
           </p>
 
           <!-- ACADEMIC PROFILE SUMMARY -->

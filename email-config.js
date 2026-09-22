@@ -172,7 +172,7 @@ function updateConfigLivePreview() {
       student: sampleStudent,
       groupName: 'ULFS2 Informatics (MISPCE) — Grp A',
       joinUrl: linkA?.value?.trim() || linkGen?.value?.trim() || 'https://chat.whatsapp.com/SAMPLE_INVITE',
-      customMessage: noteEl?.value?.trim() || 'Please join your class cohort group before the academic term starts.',
+      customMessage: noteEl?.value?.trim() || 'Please join your class group for ULFS2.',
       senderName: fromEl?.value?.split('<')[0]?.replace(/"/g, '').trim() || 'ULFS2 Student Affairs'
     };
 
