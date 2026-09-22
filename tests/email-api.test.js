@@ -1,5 +1,8 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const projectRoot = path.resolve(__dirname, '..');
 process.env.DATA_ENCRYPTION_KEY = Buffer.alloc(32, 5).toString('base64');
 process.env.NODE_ENV = 'test';
 
@@ -376,5 +379,24 @@ test('GET and DELETE /api/email/logs manage dispatch logs with admin authorizati
   assert.equal(resDel.status, 200);
   const delData = await resDel.json();
   assert.equal(delData.success, true);
+});
+
+test('unhandled /api routes return JSON 404 instead of HTML <!DOCTYPE', async () => {
+  const res = await fetch(`${baseUrl}/api/nonexistent-route-check`);
+  assert.equal(res.status, 404);
+  const contentType = res.headers.get('content-type') || '';
+  assert.ok(contentType.includes('application/json'), `Expected application/json, got ${contentType}`);
+  const data = await res.json();
+  assert.equal(data.success, false);
+  assert.match(data.error, /API endpoint not found/i);
+});
+
+test('frontend scripts (email-config.js and script.js) avoid unsafe raw res.json() calls', () => {
+  for (const file of ['email-config.js', 'script.js']) {
+    const code = fs.readFileSync(path.join(projectRoot, file), 'utf8');
+    // Ensure no raw res.json() or response.json() calls exist
+    const rawMatches = code.match(/\b(?:res|response)\.json\s*\(/g);
+    assert.equal(rawMatches, null, `Found raw response.json() call in ${file}`);
+  }
 });
 

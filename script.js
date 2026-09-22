@@ -41,19 +41,64 @@ function setupThemeToggle() {
 }
 
 async function parseApiResponse(response) {
-  const body = await response.text();
-  let data;
+  if (!response) {
+    return { success: false, error: 'No response received from server' };
+  }
+  let body = '';
+  try {
+    body = await response.text();
+  } catch (readErr) {
+    return { success: false, error: 'Failed to read response body: ' + readErr.message, status: response.status || 0 };
+  }
+
+  let data = null;
   try {
     data = body ? JSON.parse(body) : {};
   } catch {
-    const detail = body.trim().slice(0, 160) || `HTTP ${response.status}`;
-    throw new Error(`API returned ${response.status}: ${detail}`);
+    if (response.status === 401 || response.status === 403) {
+      data = {
+        success: false,
+        error: 'Session expired or invalid. Please sign in again.',
+        unauthenticated: true,
+        status: response.status
+      };
+    } else if (response.status === 404) {
+      data = {
+        success: false,
+        error: 'API endpoint not found (HTTP 404).',
+        status: 404
+      };
+    } else if (response.status >= 500) {
+      data = {
+        success: false,
+        error: `Server or network error (HTTP ${response.status}). Please try again shortly.`,
+        status: response.status
+      };
+    } else {
+      data = {
+        success: false,
+        error: `Server returned non-JSON response (HTTP ${response.status})`,
+        status: response.status
+      };
+    }
   }
-  if (!response.ok && !data.error) {
-    data.error = `Request failed with HTTP ${response.status}`;
+
+  if (!data || typeof data !== 'object') {
+    data = { success: response.ok, data };
   }
+
+  if (!response.ok) {
+    if (!data.error) {
+      data.error = data.message || `Request failed with HTTP ${response.status}`;
+    }
+    if (response.status === 401 || response.status === 403) {
+      data.unauthenticated = true;
+    }
+  }
+
   return data;
 }
+window.parseApiResponse = parseApiResponse;
 
 const form = document.querySelector('#studentForm');
 const loginForm = document.querySelector('#loginForm');
@@ -2946,8 +2991,8 @@ async function checkEmailServiceStatus() {
     const res = await fetch(`${API_BASE}/email/status`, {
       headers: { 'Authorization': `Bearer ${getAuthToken()}` }
     });
-    const data = await res.json();
-    if (data.configured) {
+    const data = await parseApiResponse(res);
+    if (data && data.configured) {
       banner.className = 'mailer-status-banner is-active';
       textEl.textContent = `Ready: Real email delivery active via ${data.host || 'SMTP'}`;
     } else {
@@ -3085,8 +3130,8 @@ function updateEmailTemplatePreview() {
         },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (data.success && data.html) {
+      const data = await parseApiResponse(res);
+      if (data && data.success && data.html) {
         frame.srcdoc = data.html;
         updateEmailMailtoFallback(data.subject, data.text);
       }

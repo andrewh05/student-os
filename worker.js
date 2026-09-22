@@ -13,9 +13,30 @@ function applyRuntimeEnvironment(env) {
 }
 
 export default {
-  fetch(request, env, ctx) {
-    applyRuntimeEnvironment(env);
-    return httpHandler.fetch(request, env, ctx);
+  async fetch(request, env, ctx) {
+    try {
+      applyRuntimeEnvironment(env);
+      return await httpHandler.fetch(request, env, ctx);
+    } catch (err) {
+      console.error('Worker unhandled fetch error:', err);
+      const url = new URL(request.url);
+      if (url.pathname.startsWith('/api')) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: `Worker execution error: ${err.message || 'Internal server error'}`
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json; charset=utf-8',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+      return new Response(`<!DOCTYPE html><html><body><h1>Service Error</h1><p>${err.message}</p></body></html>`, {
+        status: 500,
+        headers: { 'Content-Type': 'text/html; charset=utf-8' }
+      });
+    }
   },
   async scheduled(controller, env, ctx) {
     applyRuntimeEnvironment(env);

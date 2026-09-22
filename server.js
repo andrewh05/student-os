@@ -2324,6 +2324,24 @@ app.delete('/api/students/:id', requireAdmin, async (req, res) => {
   }
 });
 
+// Ensure any unhandled /api route returns JSON 404 instead of HTML
+app.all(/^\/api(\/.*)?$/, (req, res) => {
+  return res.status(404).json({
+    success: false,
+    error: `API endpoint not found: ${req.method} ${req.path}`
+  });
+});
+
+// Global API error handler ensuring JSON responses
+app.use('/api', (err, req, res, next) => {
+  console.error('Unhandled API error:', err);
+  const status = typeof err.status === 'number' ? err.status : 500;
+  return res.status(status).json({
+    success: false,
+    error: err.message || 'Internal server error'
+  });
+});
+
 // HTML page routing helpers
 const servePage = page => (req, res) => {
   res.set('Cache-Control', 'no-cache, must-revalidate');

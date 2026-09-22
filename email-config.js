@@ -6,6 +6,64 @@
     return localStorage.getItem('hub_token') || '';
   }
 
+  async function parseSafeJson(response) {
+    if (!response) return { success: false, error: 'No response received from server' };
+    let body = '';
+    try {
+      body = await response.text();
+    } catch (readErr) {
+      return { success: false, error: 'Failed to read response body: ' + readErr.message, status: response.status || 0 };
+    }
+
+    let data = null;
+    try {
+      data = body ? JSON.parse(body) : {};
+    } catch {
+      if (response.status === 401 || response.status === 403) {
+        return {
+          success: false,
+          error: 'Session expired or invalid. Please sign in again.',
+          unauthenticated: true,
+          status: response.status
+        };
+      }
+      if (response.status === 404) {
+        return {
+          success: false,
+          error: 'API endpoint not found (HTTP 404).',
+          status: 404
+        };
+      }
+      if (response.status >= 500) {
+        return {
+          success: false,
+          error: `Server or network error (HTTP ${response.status}). Please try again shortly.`,
+          status: response.status
+        };
+      }
+      return {
+        success: false,
+        error: `Server returned non-JSON response (HTTP ${response.status})`,
+        status: response.status
+      };
+    }
+
+    if (!data || typeof data !== 'object') {
+      data = { success: response.ok, data };
+    }
+
+    if (!response.ok) {
+      if (!data.error) {
+        data.error = data.message || `Request failed with HTTP ${response.status}`;
+      }
+      if (response.status === 401 || response.status === 403) {
+        data.unauthenticated = true;
+      }
+    }
+
+    return data;
+  }
+
   const PROVIDER_PRESETS = {
   gmail: {
     host: 'smtp.gmail.com',
@@ -60,13 +118,20 @@ async function loadConfiguration() {
       headers: { Authorization: `Bearer ${token}` }
     });
 
+    const data = await parseSafeJson(res);
+
+    if (res.status === 401 || data.unauthenticated) {
+      showToast('Session Expired', 'Please sign in again to access email settings.');
+      setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      return;
+    }
+
     if (res.status === 403) {
       showToast('Access Restricted', 'Email configuration is only accessible to administrators.');
       setTimeout(() => { window.location.href = 'dashboard.html'; }, 1200);
       return;
     }
 
-    const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Could not load configuration');
 
     const s = data.settings || {};
@@ -189,8 +254,8 @@ function updateConfigLivePreview() {
         },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
-      if (data.success && data.html) {
+      const data = await parseSafeJson(res);
+      if (data && data.success && data.html) {
         frame.srcdoc = data.html;
       }
     } catch (e) {
@@ -254,8 +319,15 @@ async function handleSaveSettings() {
       })
     });
 
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Failed to save settings');
+    const data = await parseSafeJson(res);
+    if (!data.success) {
+      if (data.unauthenticated) {
+        showToast('Session Expired', 'Please sign in again.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+        return;
+      }
+      throw new Error(data.error || 'Failed to save settings');
+    }
 
     // Also update local storage so the dashboard modal gets updated immediately
     try {
@@ -340,8 +412,15 @@ async function handleSendTestEmail() {
     });
     clearTimeout(timeoutId);
 
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error || 'Test email failed');
+    const data = await parseSafeJson(res);
+    if (!data.success) {
+      if (data.unauthenticated) {
+        showToast('Session Expired', 'Please sign in again.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+        return;
+      }
+      throw new Error(data.error || 'Test email failed');
+    }
 
     if (feedback) {
       feedback.className = 'test-result-feedback is-success';
@@ -547,9 +626,14 @@ async function loadBroadcastRecipients() {
     const res = await fetch(`${API_BASE}/email/recipients`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.success) return;
+    const data = await parseSafeJson(res);
+    if (!data.success) {
+      if (data.unauthenticated) {
+        showToast('Session Expired', 'Please sign in again.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+      }
+      return;
+    }
 
     broadcastState.recipientsData = data;
     renderBroadcastStats(data.counts);
@@ -621,8 +705,7 @@ async function loadDeliveryLogs() {
     const res = await fetch(`${API_BASE}/email/logs?limit=500`, {
       headers: { Authorization: `Bearer ${token}` }
     });
-    if (!res.ok) return;
-    const data = await res.json();
+    const data = await parseSafeJson(res);
     if (!data.success) return;
 
     broadcastState.logs = data.logs || [];
@@ -761,7 +844,7 @@ async function handleRetrySingleStudent(studentId, btn) {
       })
     });
 
-    const data = await res.json();
+    const data = await parseSafeJson(res);
     if (data.success && data.sentCount > 0) {
       showToast('Email Sent', 'Invitation dispatched successfully on retry.');
       await loadDeliveryLogs();
@@ -926,8 +1009,15 @@ async function handleSendEmailToAllStudents() {
         })
       });
 
-      const data = await res.json();
+      const data = await parseSafeJson(res);
       const sendResult = data.results?.[0];
+
+      if (data.unauthenticated) {
+        broadcastState.isRunning = false;
+        showToast('Session Expired', 'Your session expired. Please sign in again.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1200);
+        break;
+      }
 
       if (data.success && data.sentCount === 1) {
         broadcastState.sessionStats.sent++;
@@ -1068,10 +1158,20 @@ async function handleClearLogs() {
   if (!token) return;
 
   try {
-    await fetch(`${API_BASE}/email/logs`, {
+    const res = await fetch(`${API_BASE}/email/logs`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${token}` }
     });
+    const data = await parseSafeJson(res);
+    if (!data.success) {
+      if (data.unauthenticated) {
+        showToast('Session Expired', 'Please sign in again.');
+        setTimeout(() => { window.location.href = 'login.html'; }, 1000);
+        return;
+      }
+      showToast('Error', data.error || 'Could not clear delivery logs.');
+      return;
+    }
     broadcastState.logs = [];
     broadcastState.sessionStats = { target: 0, sent: 0, failed: 0, skipped: 0 };
     updateLiveNumberPills();
