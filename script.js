@@ -2,6 +2,12 @@ const APP_VERSION = '2.4.0';
 const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:3000/api'
   : '/api';
+window.API_BASE = API_BASE;
+
+function getAuthToken() {
+  return localStorage.getItem('hub_token') || '';
+}
+window.getAuthToken = getAuthToken;
 
 // Shared light/dark appearance
 const savedTheme = localStorage.getItem('student_os_theme');

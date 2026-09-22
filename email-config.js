@@ -1,5 +1,11 @@
 // Email & Group Links Configuration Page Controller
 
+const API_BASE = window.API_BASE || (window.location.protocol === 'file:' ? 'http://localhost:3000/api' : '/api');
+
+function getAuthToken() {
+  return localStorage.getItem('hub_token') || '';
+}
+
 const PROVIDER_PRESETS = {
   gmail: {
     host: 'smtp.gmail.com',
