@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=2.6">
+  <link rel="stylesheet" href="styles.css?v=3.0">
 </head>
 <body data-page="email-config">
   <div class="grain"></div>
@@ -61,7 +61,7 @@
         <p>Configure your SMTP server to send beautiful invitation emails to students, manage WhatsApp group links for every section, and test mail delivery.</p>
       </div>
       <div class="hero-actions">
-        <a href="#broadcastCard" class="btn-primary" style="background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%);">
+        <a href="#broadcastCard" class="btn-primary">
           🚀 Send Email to All Students
         </a>
         <a href="dashboard.html" class="btn-secondary">
@@ -69,6 +69,13 @@
         </a>
       </div>
     </section>
+
+    <nav class="email-config-nav" aria-label="Email configuration sections">
+      <a href="#smtpConfigCard"><span>01</span> Delivery server</a>
+      <a href="#groupLinksCard"><span>02</span> Group links</a>
+      <a href="#emailPreview"><span>03</span> Email preview</a>
+      <a href="#broadcastCard"><span>04</span> Mass broadcast</a>
+    </nav>
 
     <!-- Main Settings Form Grid -->
     <div class="config-page-grid">
@@ -164,8 +171,8 @@
             </div>
 
             <!-- Card 1 Direct Save Action -->
-            <div style="display:flex; justify-content:flex-end; gap:12px; margin-top:18px;">
-              <button type="button" class="submit-btn" id="btnSaveSmtpOnly" style="padding:10px 24px; font-size:14px;">
+            <div class="config-inline-actions">
+              <button type="button" class="submit-btn" id="btnSaveSmtpOnly">
                 <span class="button-spinner" aria-hidden="true" style="display:none;"></span>
                 <span id="btnSaveSmtpText">💾 Save SMTP Credentials</span>
               </button>
@@ -250,7 +257,7 @@
       </div>
 
       <!-- Right Column: Live Template Preview -->
-      <div class="config-preview-col">
+      <div class="config-preview-col" id="emailPreview">
         <div class="preview-sticky-card">
           <div class="preview-card-header">
             <div>
