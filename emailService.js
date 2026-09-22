@@ -43,6 +43,17 @@ function escapeHtml(str) {
 }
 
 /**
+ * Validate recipient email address to prevent bounces and SMTP restrictions
+ */
+function isValidEmail(email) {
+  if (!email || typeof email !== 'string') return false;
+  const trimmed = email.trim();
+  if (trimmed.length < 5 || trimmed.length > 254) return false;
+  const regex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  return regex.test(trimmed);
+}
+
+/**
  * Format academic section for display
  */
 function formatSection(sec) {
@@ -451,7 +462,140 @@ const baseDirectory = typeof __dirname !== 'undefined'
   : (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : null);
 
 const CONFIG_FILE = baseDirectory ? path.join(baseDirectory, 'email_settings.json') : null;
+const LOGS_FILE = baseDirectory ? path.join(baseDirectory, 'email_logs.json') : null;
 let inMemorySettings = null;
+let inMemoryLogs = null;
+
+function loadEmailLogs() {
+  if (inMemoryLogs) return inMemoryLogs;
+  inMemoryLogs = [];
+  if (process.env.NODE_ENV === 'test') return inMemoryLogs;
+  try {
+    if (LOGS_FILE && fs && typeof fs.existsSync === 'function' && fs.existsSync(LOGS_FILE)) {
+      const raw = fs.readFileSync(LOGS_FILE, 'utf8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data)) {
+        inMemoryLogs = data;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not read email_logs.json:', err.message);
+  }
+  return inMemoryLogs;
+}
+
+function saveEmailLogsToDisk() {
+  if (process.env.NODE_ENV === 'test') return;
+  if (!LOGS_FILE || !fs || typeof fs.writeFileSync !== 'function') return;
+  try {
+    const logsToSave = (inMemoryLogs || []).slice(0, 1000);
+    fs.writeFileSync(LOGS_FILE, JSON.stringify(logsToSave, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Could not write email_logs.json:', err.message);
+  }
+}
+
+function recordEmailLog(entry) {
+  loadEmailLogs();
+  const logItem = {
+    id: entry.id || `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    timestamp: entry.timestamp || new Date().toISOString(),
+    studentId: entry.studentId || null,
+    studentName: entry.studentName || 'Student',
+    email: entry.email || '',
+    major: entry.major || '',
+    section: entry.section || '',
+    assignedGroup: entry.assignedGroup || '',
+    campus: entry.campus || '',
+    groupKey: entry.groupKey || '',
+    joinUrl: entry.joinUrl || '',
+    status: entry.status || 'sent',
+    messageId: entry.messageId || null,
+    previewUrl: entry.previewUrl || null,
+    error: entry.error || null,
+    isSimulated: Boolean(entry.isSimulated),
+    isRateLimit: Boolean(entry.isRateLimit),
+    broadcastId: entry.broadcastId || null
+  };
+
+  inMemoryLogs.unshift(logItem);
+  if (inMemoryLogs.length > 2000) {
+    inMemoryLogs = inMemoryLogs.slice(0, 2000);
+  }
+  saveEmailLogsToDisk();
+  return logItem;
+}
+
+function getEmailLogs({ limit = 200, offset = 0, status, search, broadcastId } = {}) {
+  loadEmailLogs();
+  let list = inMemoryLogs || [];
+
+  if (status && status !== 'all') {
+    list = list.filter(item => item.status === status);
+  }
+
+  if (broadcastId) {
+    list = list.filter(item => item.broadcastId === broadcastId);
+  }
+
+  if (search) {
+    const q = String(search).trim().toLowerCase();
+    list = list.filter(item =>
+      (item.studentName && item.studentName.toLowerCase().includes(q)) ||
+      (item.email && item.email.toLowerCase().includes(q)) ||
+      (item.major && item.major.toLowerCase().includes(q)) ||
+      (item.assignedGroup && item.assignedGroup.toLowerCase().includes(q)) ||
+      (item.groupKey && item.groupKey.toLowerCase().includes(q)) ||
+      (item.error && item.error.toLowerCase().includes(q))
+    );
+  }
+
+  const total = list.length;
+  const paginated = list.slice(offset, offset + limit);
+
+  const allLogs = inMemoryLogs || [];
+  const totalSent = allLogs.filter(l => l.status === 'sent').length;
+  const totalFailed = allLogs.filter(l => l.status === 'failed').length;
+  const totalSkipped = allLogs.filter(l => l.status === 'skipped').length;
+  const lastBroadcast = allLogs[0]?.timestamp || null;
+
+  return {
+    logs: paginated,
+    total,
+    stats: {
+      totalSent,
+      totalFailed,
+      totalSkipped,
+      totalLogged: allLogs.length,
+      lastBroadcastAt: lastBroadcast
+    }
+  };
+}
+
+function clearEmailLogs() {
+  inMemoryLogs = [];
+  saveEmailLogsToDisk();
+  return { success: true };
+}
+
+function getEmailLogStats() {
+  loadEmailLogs();
+  const allLogs = inMemoryLogs || [];
+  const totalSent = allLogs.filter(l => l.status === 'sent').length;
+  const totalFailed = allLogs.filter(l => l.status === 'failed').length;
+  const totalSkipped = allLogs.filter(l => l.status === 'skipped').length;
+  const total = allLogs.length;
+  const successRate = total > 0 ? Math.round((totalSent / total) * 100) : 0;
+  return {
+    total,
+    sent: totalSent,
+    failed: totalFailed,
+    skipped: totalSkipped,
+    successRate
+  };
+}
+
+const addEmailLog = recordEmailLog;
 
 let dbModule = null;
 function getSupabaseClient() {
@@ -710,7 +854,13 @@ async function getTransporter(overrideConfig = null) {
       cleanPass = cleanPass.replace(/\s+/g, '');
     }
 
+    const isCloudflare = Boolean(process.env.CLOUDFLARE || process.env.CF_PAGES || !process.versions?.node);
     const transportOpts = {
+      pool: !isCloudflare,
+      maxConnections: 1,
+      maxMessages: 100,
+      rateDelta: 1000,
+      rateLimit: 1,
       host: config.host,
       port: portNum,
       secure: isDirectTls,
@@ -718,9 +868,9 @@ async function getTransporter(overrideConfig = null) {
         user: config.user.trim(),
         pass: cleanPass
       },
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 15000,
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
       dnsTimeout: 5000
     };
 
@@ -768,6 +918,31 @@ async function getTransporter(overrideConfig = null) {
   }
 }
 
+function isSmtpRateLimitError(err) {
+  if (!err) return false;
+  const msg = String(err.message || '').toLowerCase();
+  const response = String(err.response || '').toLowerCase();
+  const code = String(err.code || err.responseCode || '');
+  return (
+    code === '421' ||
+    code === '450' ||
+    code === '451' ||
+    code === '452' ||
+    (code === '550' && (msg.includes('quota') || msg.includes('limit') || response.includes('quota'))) ||
+    msg.includes('rate limit') ||
+    msg.includes('too many') ||
+    msg.includes('quota exceeded') ||
+    msg.includes('user sending quota') ||
+    msg.includes('burst') ||
+    msg.includes('throttl') ||
+    msg.includes('try again later') ||
+    msg.includes('temporary failure') ||
+    response.includes('rate limit') ||
+    response.includes('too many') ||
+    response.includes('quota exceeded')
+  );
+}
+
 /**
  * Send an invitation email to a single student
  */
@@ -793,25 +968,97 @@ async function sendInviteEmail({
 
   const { transporter, config, isReal, isEthereal, isSimulated, isMock } = await getTransporter();
 
+  const recipientEmail = String(to).trim();
+  if (!recipientEmail || !isValidEmail(recipientEmail)) {
+    throw new Error(`Invalid recipient email address: "${to}"`);
+  }
+
+  const senderDomain = (config.from.match(/@([a-zA-Z0-9.-]+)/) || [])[1] || 'student-os.com';
+  const cleanId = student?.id ? String(student.id).replace(/[^a-zA-Z0-9_-]/g, '') : Date.now();
+  const messageId = `<invite-${cleanId}-${Date.now()}@${senderDomain}>`;
+
   const mailOptions = {
     from: config.from,
-    to,
+    to: recipientEmail,
     subject,
     text,
-    html
+    html,
+    messageId,
+    date: new Date(),
+    headers: {
+      'X-Mailer': 'StudentOS-Mailer/2.4 (ULFS2 Academic Platform)',
+      'Precedence': 'bulk',
+      'Auto-Submitted': 'auto-generated',
+      'X-Auto-Response-Suppress': 'All, OOF, AutoReply',
+      'List-Unsubscribe': `<mailto:${config.user || 'noreply@student-os.com'}?subject=unsubscribe>`,
+      'List-Id': `"ULFS2 Class Communications" <notifications.${senderDomain}>`
+    }
   };
 
-  const info = await transporter.sendMail(mailOptions);
-  let previewUrl = null;
+  let info;
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts++;
+    try {
+      info = await transporter.sendMail(mailOptions);
+      break;
+    } catch (err) {
+      const isRateLimit = isSmtpRateLimitError(err);
+      if (isRateLimit) {
+        err.isRateLimit = true;
+        err.friendlyMessage = 'Your email provider has temporarily throttled sending. Safe pacing is recommended to avoid restriction.';
+        if (attempts < 2 && process.env.NODE_ENV !== 'test') {
+          console.warn(`[emailService] SMTP rate limit response detected: "${err.message}". Backing off 3000ms before retry 1/1...`);
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          continue;
+        }
+      }
+      recordEmailLog({
+        studentId: student?.id || null,
+        studentName: [student?.firstName, student?.familyName].filter(Boolean).join(' ') || 'Student',
+        email: recipientEmail,
+        major: student?.major || '',
+        section: student?.section || '',
+        assignedGroup: student?.assignedGroup || '',
+        campus: student?.campus || '',
+        groupKey: groupName || student?.assignedGroup || 'General',
+        joinUrl,
+        status: 'failed',
+        error: err.message,
+        isRateLimit,
+        isSimulated: Boolean(isSimulated || isMock),
+        timestamp: new Date().toISOString()
+      });
+      throw err;
+    }
+  }
 
+  let previewUrl = null;
   if (isEthereal && nodemailer.getTestMessageUrl) {
     previewUrl = nodemailer.getTestMessageUrl(info);
   }
 
+  recordEmailLog({
+    studentId: student?.id || null,
+    studentName: [student?.firstName, student?.familyName].filter(Boolean).join(' ') || 'Student',
+    email: recipientEmail,
+    major: student?.major || '',
+    section: student?.section || '',
+    assignedGroup: student?.assignedGroup || '',
+    campus: student?.campus || '',
+    groupKey: groupName || student?.assignedGroup || 'General',
+    joinUrl,
+    status: 'sent',
+    messageId: info?.messageId || messageId,
+    previewUrl,
+    isSimulated: Boolean(isSimulated || isMock),
+    timestamp: new Date().toISOString()
+  });
+
   return {
     success: true,
-    messageId: info.messageId,
-    recipient: to,
+    messageId: info?.messageId || messageId,
+    recipient: recipientEmail,
     subject,
     previewUrl,
     isRealSmtp: Boolean(isReal),
@@ -900,5 +1147,13 @@ module.exports = {
   saveEmailSettings,
   getEffectiveSettings,
   syncEmailSettingsFromDb,
-  escapeHtml
+  escapeHtml,
+  isValidEmail,
+  isSmtpRateLimitError,
+  recordEmailLog,
+  addEmailLog,
+  getEmailLogs,
+  clearEmailLogs,
+  loadEmailLogs,
+  getEmailLogStats
 };

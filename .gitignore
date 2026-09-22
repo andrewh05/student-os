@@ -8,3 +8,4 @@ public/
 .wrangler/
 .dev.vars*
 email_settings.json
+email_logs.json

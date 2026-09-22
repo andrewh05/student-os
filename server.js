@@ -6,7 +6,20 @@ const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, v
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl } = require('./backup');
-const { renderEmailTemplate, sendInviteEmail, getMailerStatus, saveEmailSettings, getEffectiveSettings, sendTestEmail, syncEmailSettingsFromDb } = require('./emailService');
+const {
+  renderEmailTemplate,
+  sendInviteEmail,
+  getMailerStatus,
+  saveEmailSettings,
+  getEffectiveSettings,
+  sendTestEmail,
+  syncEmailSettingsFromDb,
+  recordEmailLog,
+  getEmailLogs,
+  clearEmailLogs,
+  isSmtpRateLimitError,
+  isValidEmail
+} = require('./emailService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -1948,7 +1961,17 @@ app.post('/api/email/send', async (req, res) => {
   const callerRole = (session.role || 'deleg').toLowerCase();
   const callerSection = (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
 
-  const { studentId, studentIds, groupName, joinUrl, customMessage, markApproved = true, automatic = false } = req.body || {};
+  const {
+    studentId,
+    studentIds,
+    groupName,
+    joinUrl,
+    customMessage,
+    markApproved = true,
+    automatic = false,
+    delayMs = 0,
+    broadcastId = null
+  } = req.body || {};
   const ids = Array.isArray(studentIds) ? studentIds.filter(Boolean) : (studentId ? [studentId] : []);
 
   if (!ids.length) {
@@ -1970,11 +1993,20 @@ app.post('/api/email/send', async (req, res) => {
   const results = [];
   let sentCount = 0;
 
-  for (const id of ids) {
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[i];
+    let student = null;
     try {
-      const student = await findStudentById(id);
+      student = await findStudentById(id);
       if (!student) {
         results.push({ id, success: false, error: 'Student record not found' });
+        recordEmailLog({
+          studentId: id,
+          studentName: 'Unknown Student',
+          status: 'failed',
+          error: 'Student record not found',
+          broadcastId
+        });
         continue;
       }
 
@@ -1982,13 +2014,32 @@ app.post('/api/email/send', async (req, res) => {
         const studentSection = student.section || inferSectionFromMajor(student.major);
         if (studentSection !== callerSection) {
           results.push({ id, name: `${student.firstName} ${student.familyName}`, success: false, error: 'Student is outside your academic section' });
+          recordEmailLog({
+            studentId: id,
+            studentName: `${student.firstName} ${student.familyName}`.trim(),
+            status: 'failed',
+            error: 'Student is outside your academic section',
+            broadcastId
+          });
           continue;
         }
       }
 
       const email = student.email ? String(student.email).trim() : '';
-      if (!email || !email.includes('@')) {
+      if (!email || !isValidEmail(email)) {
         results.push({ id, name: `${student.firstName} ${student.familyName}`, success: false, error: 'Student does not have a valid email address' });
+        recordEmailLog({
+          studentId: id,
+          studentName: `${student.firstName} ${student.familyName}`.trim(),
+          email: '',
+          major: student.major || '',
+          section: student.section || '',
+          assignedGroup: student.assignedGroup || '',
+          campus: student.campus || '',
+          status: 'skipped',
+          error: 'Student does not have a valid email address',
+          broadcastId
+        });
         continue;
       }
 
@@ -2004,6 +2055,18 @@ app.post('/api/email/send', async (req, res) => {
           name: `${student.firstName} ${student.familyName}`,
           success: false,
           error: `No invitation link is configured for ${automaticGroupKey === 'general' ? 'the general group' : automaticGroupKey}`
+        });
+        recordEmailLog({
+          studentId: id,
+          studentName: `${student.firstName} ${student.familyName}`.trim(),
+          email,
+          major: student.major || '',
+          section: student.section || '',
+          assignedGroup,
+          campus: student.campus || '',
+          status: 'failed',
+          error: `No invitation link is configured for ${automaticGroupKey === 'general' ? 'the general group' : automaticGroupKey}`,
+          broadcastId
         });
         continue;
       }
@@ -2040,9 +2103,50 @@ app.post('/api/email/send', async (req, res) => {
         previewUrl: sendResult.previewUrl,
         isSimulated: sendResult.isSimulated
       });
+
+      recordEmailLog({
+        studentId: id,
+        studentName: `${student.firstName} ${student.familyName}`.trim(),
+        email,
+        major: student.major || '',
+        section: student.section || '',
+        assignedGroup,
+        campus: student.campus || '',
+        groupKey: automaticGroupKey,
+        joinUrl: effectiveJoinUrl,
+        status: 'sent',
+        messageId: sendResult.messageId,
+        previewUrl: sendResult.previewUrl,
+        isSimulated: sendResult.isSimulated,
+        broadcastId
+      });
     } catch (err) {
+      const isRateLimit = isSmtpRateLimitError(err);
       console.error(`Error sending email to student ${id}:`, err.message);
-      results.push({ id, success: false, error: err.message });
+      results.push({ id, success: false, error: err.message, isRateLimit });
+
+      recordEmailLog({
+        studentId: id,
+        studentName: student ? `${student.firstName} ${student.familyName}`.trim() : 'Student',
+        email: student?.email || '',
+        major: student?.major || '',
+        section: student?.section || '',
+        assignedGroup: student?.assignedGroup || '',
+        campus: student?.campus || '',
+        status: 'failed',
+        error: err.message,
+        isRateLimit,
+        broadcastId
+      });
+
+      if (isRateLimit && ids.length > 1) {
+        console.warn(`Halting batch email send at student ${id} due to provider rate limit`);
+        break;
+      }
+    }
+
+    if (ids.length > 1 && delayMs > 0 && i < ids.length - 1) {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
     }
   }
 
@@ -2060,6 +2164,143 @@ app.post('/api/email/send', async (req, res) => {
       ? `Invitation email sent successfully to ${results[0]?.name || 'student'}.`
       : `${sentCount} of ${ids.length} invitation email${sentCount === 1 ? '' : 's'} sent successfully.`
   });
+});
+
+// GET eligible email recipients and count breakdown (Admin/Superadmin only)
+app.get('/api/email/recipients', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const callerRole = (session.role || 'deleg').toLowerCase();
+  if (callerRole !== 'admin' && callerRole !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Only administrators can inspect mass email recipients' });
+  }
+
+  try {
+    let studentList = [];
+    if (supabase) {
+      const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+      if (error) throw error;
+      studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
+    } else {
+      const { rows } = await pool.query(`
+        SELECT note, kazaa, id, first_name AS "firstName", father_name AS "fatherName", family_name AS "familyName",
+               origin, address, school, major, political_affiliation AS "politicalAffiliation",
+               status, language, campus, phone, email, in_group AS "inGroup", left_group AS "leftGroup", created_at AS "createdAt"
+        FROM students ORDER BY created_at DESC;
+      `);
+      studentList = rows.map(mapStudent);
+    }
+
+    const total = studentList.length;
+    let withEmail = 0;
+    let withoutEmail = 0;
+    let uninvited = 0;
+    let invited = 0;
+    const bySection = { mispce: 0, csvt: 0, other: 0 };
+    const byCampus = { fanar: 0, amchit: 0, other: 0 };
+
+    const recipients = studentList.map(s => {
+      const email = s.email ? String(s.email).trim() : '';
+      const hasValidEmail = Boolean(email && email.includes('@'));
+      const isInvited = Boolean(s.linkApproved || s.inClass);
+      const sec = (s.section || inferSectionFromMajor(s.major) || 'other').toLowerCase();
+      const camp = (s.campus || '').toLowerCase();
+
+      if (hasValidEmail) withEmail++; else withoutEmail++;
+      if (isInvited) invited++; else uninvited++;
+
+      if (sec === 'mispce') bySection.mispce++;
+      else if (sec === 'csvt') bySection.csvt++;
+      else bySection.other++;
+
+      if (camp.includes('am')) byCampus.amchit++;
+      else if (camp.includes('fan')) byCampus.fanar++;
+      else byCampus.other++;
+
+      return {
+        id: s.id,
+        firstName: s.firstName || '',
+        fatherName: s.fatherName || '',
+        familyName: s.familyName || '',
+        fullName: [s.firstName, s.fatherName, s.familyName].filter(Boolean).join(' ') || 'Student',
+        email: hasValidEmail ? email : '',
+        major: s.major || '',
+        section: sec,
+        assignedGroup: s.assignedGroup || '',
+        campus: s.campus || '',
+        status: s.status || '',
+        linkApproved: isInvited,
+        inClass: isInvited,
+        inGroup: Boolean(s.inGroup),
+        hasValidEmail
+      };
+    });
+
+    return res.json({
+      success: true,
+      counts: {
+        total,
+        withEmail,
+        withoutEmail,
+        uninvited,
+        invited,
+        bySection,
+        byCampus
+      },
+      recipients
+    });
+  } catch (err) {
+    console.error('Error fetching email recipients:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// GET email broadcast and delivery logs (Admin/Superadmin only)
+app.get('/api/email/logs', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const callerRole = (session.role || 'deleg').toLowerCase();
+  if (callerRole !== 'admin' && callerRole !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Only administrators can view email delivery logs' });
+  }
+
+  const { limit, offset, status, search, broadcastId } = req.query;
+  const parsedLimit = limit ? Math.min(parseInt(limit, 10) || 200, 1000) : 200;
+  const parsedOffset = offset ? Math.max(parseInt(offset, 10) || 0, 0) : 0;
+
+  const result = getEmailLogs({
+    limit: parsedLimit,
+    offset: parsedOffset,
+    status: status ? String(status) : null,
+    search: search ? String(search) : null,
+    broadcastId: broadcastId ? String(broadcastId) : null
+  });
+
+  return res.json({
+    success: true,
+    logs: result.logs,
+    total: result.total,
+    stats: result.stats
+  });
+});
+
+// DELETE clear email delivery logs (Admin/Superadmin only)
+app.delete('/api/email/logs', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const callerRole = (session.role || 'deleg').toLowerCase();
+  if (callerRole !== 'admin' && callerRole !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Only administrators can clear email delivery logs' });
+  }
+
+  clearEmailLogs();
+  return res.json({ success: true, message: 'Email delivery logs cleared successfully' });
 });
 
 // DELETE student

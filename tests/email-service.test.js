@@ -89,3 +89,62 @@ test('getMailerStatus accurately reports configuration status', () => {
   assert.ok(typeof status.testMode === 'boolean');
   assert.ok(status.from);
 });
+
+test('isValidEmail accurately validates email addresses', () => {
+  const { isValidEmail } = require('../emailService');
+  assert.equal(isValidEmail('student@example.com'), true);
+  assert.equal(isValidEmail('carla.khoury@gmail.com'), true);
+  assert.equal(isValidEmail('nour_haddad+test@sub.domain.edu'), true);
+
+  assert.equal(isValidEmail(''), false);
+  assert.equal(isValidEmail('not-an-email'), false);
+  assert.equal(isValidEmail('user@'), false);
+  assert.equal(isValidEmail('@example.com'), false);
+  assert.equal(isValidEmail('user@domain'), false);
+  assert.equal(isValidEmail(null), false);
+  assert.equal(isValidEmail(undefined), false);
+});
+
+test('sendInviteEmail rejects invalid emails and logs delivery accurately', async () => {
+  const { sendInviteEmail, isValidEmail, getEmailLogs, getEmailLogStats, clearEmailLogs } = require('../emailService');
+  clearEmailLogs();
+
+  // Rejects invalid email
+  await assert.rejects(
+    async () => {
+      await sendInviteEmail({
+        to: 'invalid-email',
+        student: { firstName: 'Bad', familyName: 'Email' }
+      });
+    },
+    /Invalid recipient email address/
+  );
+
+  // Successfully sends and records into logs
+  const result = await sendInviteEmail({
+    to: 'valid.student@example.com',
+    student: {
+      id: 'student-log-test-01',
+      firstName: 'Rami',
+      familyName: 'Sarkis',
+      major: 'Informatics',
+      section: 'mispce',
+      assignedGroup: 'Grp A'
+    },
+    joinUrl: 'https://chat.whatsapp.com/TEST_LOG'
+  });
+
+  assert.equal(result.success, true);
+
+  const logsResult = getEmailLogs({ limit: 10 });
+  assert.ok(logsResult.total >= 1);
+  const sentLog = logsResult.logs.find(l => l.email === 'valid.student@example.com');
+  assert.ok(sentLog);
+  assert.equal(sentLog.status, 'sent');
+  assert.equal(sentLog.studentName, 'Rami Sarkis');
+
+  const stats = getEmailLogStats();
+  assert.ok(stats.sent >= 1);
+  assert.ok(stats.total >= 1);
+});
+

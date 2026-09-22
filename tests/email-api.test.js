@@ -330,3 +330,51 @@ test('POST /api/email/test-connection verifies SMTP and rejects invalid inputs o
   assert.equal(data.recipient, 'admin.verify@student-os.com');
   assert.ok(data.messageId);
 });
+
+test('GET /api/email/recipients enforces admin authorization and returns recipient counts', async () => {
+  // 403 for delegate
+  const resDeleg = await fetch(`${baseUrl}/api/email/recipients`, {
+    headers: { Authorization: `Bearer ${delegToken}` }
+  });
+  assert.equal(resDeleg.status, 403);
+
+  // 200 for admin
+  const resAdmin = await fetch(`${baseUrl}/api/email/recipients`, {
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  assert.equal(resAdmin.status, 200);
+  const data = await resAdmin.json();
+  assert.equal(data.success, true);
+  assert.ok(data.counts);
+  assert.ok('total' in data.counts);
+  assert.ok('withEmail' in data.counts);
+  assert.ok(Array.isArray(data.recipients));
+});
+
+test('GET and DELETE /api/email/logs manage dispatch logs with admin authorization', async () => {
+  // 403 for delegate
+  const resDeleg = await fetch(`${baseUrl}/api/email/logs`, {
+    headers: { Authorization: `Bearer ${delegToken}` }
+  });
+  assert.equal(resDeleg.status, 403);
+
+  // 200 for admin
+  const resAdmin = await fetch(`${baseUrl}/api/email/logs`, {
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  assert.equal(resAdmin.status, 200);
+  const data = await resAdmin.json();
+  assert.equal(data.success, true);
+  assert.ok(Array.isArray(data.logs));
+  assert.ok(data.stats);
+
+  // DELETE logs
+  const resDel = await fetch(`${baseUrl}/api/email/logs`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${adminToken}` }
+  });
+  assert.equal(resDel.status, 200);
+  const delData = await resDel.json();
+  assert.equal(delData.success, true);
+});
+

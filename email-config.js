@@ -124,8 +124,10 @@ async function loadConfiguration() {
     if (linkE2) linkE2.value = gl['Grp E2'] || '';
     if (linkAmchit) linkAmchit.value = gl['Amchit'] || '';
     if (noteEl) noteEl.value = s.defaultCustomNote || '';
-
-    // Update status badge
+    const bcastNoteEl = document.querySelector('#bcastCustomNote');
+    if (bcastNoteEl && !bcastNoteEl.value && s.defaultCustomNote) {
+      bcastNoteEl.value = s.defaultCustomNote;
+    }
     if (badge) {
       if (s.configured) {
         badge.className = 'config-status-badge is-connected';
@@ -499,8 +501,667 @@ function initEmailConfigPage() {
     const el = document.querySelector(sel);
     if (el) el.addEventListener('input', updateConfigLivePreview);
   });
-
   loadConfiguration();
+  initBroadcastSection();
+}
+
+/* ==========================================================================
+   Mass Broadcast & Delivery Logs Controller
+   ========================================================================== */
+
+let broadcastState = {
+  isRunning: false,
+  isPaused: false,
+  abortRequested: false,
+  recipientsData: { counts: {}, recipients: [] },
+  activeFilter: 'all',
+  searchQuery: '',
+  logs: [],
+  sessionStats: {
+    target: 0,
+    sent: 0,
+    failed: 0,
+    skipped: 0
+  }
+};
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function formatLogTimestamp(isoStr) {
+  if (!isoStr) return '';
+  try {
+    const d = new Date(isoStr);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  } catch {
+    return isoStr;
+  }
+}
+
+async function loadBroadcastRecipients() {
+  const token = getAuthToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/email/recipients`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+
+    broadcastState.recipientsData = data;
+    renderBroadcastStats(data.counts);
+    updateBroadcastButtonLabel();
+  } catch (err) {
+    console.warn('Could not fetch broadcast recipients:', err.message);
+  }
+}
+
+function renderBroadcastStats(counts = {}) {
+  const totalEl = document.querySelector('#statTotalStudents') || document.querySelector('#bcastTotalStudents');
+  const validEl = document.querySelector('#statValidEmails') || document.querySelector('#bcastValidEmail');
+  const uninvitedEl = document.querySelector('#bcastUninvited');
+  const invitedEl = document.querySelector('#bcastInvited');
+  const sectionSub = document.querySelector('#bcastSectionSub');
+
+  if (totalEl) totalEl.textContent = counts.total ?? 0;
+  if (validEl) validEl.textContent = counts.withEmail ?? 0;
+  if (uninvitedEl) uninvitedEl.textContent = counts.uninvited ?? 0;
+  if (invitedEl) invitedEl.textContent = counts.invited ?? 0;
+
+  if (sectionSub && counts.bySection) {
+    sectionSub.textContent = `MISPCE: ${counts.bySection.mispce || 0} • CSVT: ${counts.bySection.csvt || 0}`;
+  }
+}
+
+function getFilteredTargetRecipients() {
+  const audience = document.querySelector('#bcastAudienceSelect')?.value || 'uninvited';
+  const all = broadcastState.recipientsData.recipients || [];
+
+  return all.filter(student => {
+    const sec = (student.section || '').toLowerCase();
+    const camp = (student.campus || '').toLowerCase();
+    const isInvited = Boolean(student.linkApproved || student.inClass);
+
+    switch (audience) {
+      case 'uninvited':
+        return !isInvited;
+      case 'all':
+        return true;
+      case 'mispce':
+        return sec === 'mispce';
+      case 'csvt':
+        return sec === 'csvt';
+      case 'amchit':
+        return camp.includes('am');
+      case 'fanar':
+        return camp.includes('fan') || (!camp.includes('am') && camp !== '');
+      default:
+        return true;
+    }
+  });
+}
+
+function updateBroadcastButtonLabel() {
+  const btnText = document.querySelector('#btnSendAllStudentsText') || document.querySelector('#btnStartBroadcastText');
+  if (!btnText || broadcastState.isRunning) return;
+
+  const targets = getFilteredTargetRecipients();
+  const validCount = targets.filter(s => s.hasValidEmail).length;
+  btnText.textContent = `Send Email to ${validCount} Student${validCount === 1 ? '' : 's'}`;
+}
+
+async function loadDeliveryLogs() {
+  const token = getAuthToken();
+  if (!token) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/email/logs?limit=500`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.success) return;
+
+    broadcastState.logs = data.logs || [];
+    renderDeliveryLogs();
+    updateLogTabBadges();
+  } catch (err) {
+    console.warn('Could not load email delivery logs:', err.message);
+  }
+}
+
+function updateLiveNumberPills() {
+  const targetEl = document.querySelector('#liveStatTarget');
+  const sentEl = document.querySelector('#numSentStudents') || document.querySelector('#liveStatSent');
+  const failedEl = document.querySelector('#numFailedStudents') || document.querySelector('#liveStatFailed');
+  const skippedEl = document.querySelector('#liveStatSkipped');
+  const rateEl = document.querySelector('#numSuccessRate');
+
+  if (targetEl) targetEl.textContent = broadcastState.sessionStats.target;
+  if (sentEl) sentEl.textContent = broadcastState.sessionStats.sent;
+  if (failedEl) failedEl.textContent = broadcastState.sessionStats.failed;
+  if (skippedEl) skippedEl.textContent = broadcastState.sessionStats.skipped;
+
+  if (rateEl) {
+    const attempted = broadcastState.sessionStats.sent + broadcastState.sessionStats.failed;
+    if (attempted === 0) {
+      rateEl.textContent = '100%';
+    } else {
+      const rate = Math.round((broadcastState.sessionStats.sent / attempted) * 100);
+      rateEl.textContent = `${rate}%`;
+    }
+  }
+}
+
+function updateLogTabBadges() {
+  const allLogs = broadcastState.logs || [];
+  const sentCount = allLogs.filter(l => l.status === 'sent').length;
+  const failedCount = allLogs.filter(l => l.status === 'failed').length;
+  const skippedCount = allLogs.filter(l => l.status === 'skipped').length;
+
+  const tabAll = document.querySelector('#logFilterAllCount');
+  const tabSent = document.querySelector('#logFilterSentCount');
+  const tabFailed = document.querySelector('#logFilterFailedCount');
+  const tabSkipped = document.querySelector('#logFilterSkippedCount');
+
+  if (tabAll) tabAll.textContent = allLogs.length;
+  if (tabSent) tabSent.textContent = sentCount;
+  if (tabFailed) tabFailed.textContent = failedCount;
+  if (tabSkipped) tabSkipped.textContent = skippedCount;
+}
+
+function renderDeliveryLogs() {
+  const tbody = document.querySelector('#deliveryLogsTable tbody') || document.querySelector('#broadcastLogsBody');
+  if (!tbody) return;
+
+  let list = broadcastState.logs || [];
+
+  if (broadcastState.activeFilter !== 'all') {
+    list = list.filter(item => item.status === broadcastState.activeFilter);
+  }
+
+  if (broadcastState.searchQuery) {
+    const q = broadcastState.searchQuery.toLowerCase();
+    list = list.filter(item =>
+      (item.studentName && item.studentName.toLowerCase().includes(q)) ||
+      (item.email && item.email.toLowerCase().includes(q)) ||
+      (item.major && item.major.toLowerCase().includes(q)) ||
+      (item.assignedGroup && item.assignedGroup.toLowerCase().includes(q)) ||
+      (item.error && item.error.toLowerCase().includes(q))
+    );
+  }
+
+  if (list.length === 0) {
+    tbody.innerHTML = `
+      <tr class="empty-log-row">
+        <td colspan="9" style="text-align:center; padding: 28px; color: var(--muted);">
+          ${broadcastState.logs.length === 0 ? 'No delivery logs yet. Click <strong>"Send Email to All Students"</strong> to begin.' : 'No logs match your active filter.'}
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = list.map((item, idx) => {
+    const statusClass = item.status === 'sent' ? 'is-sent' : (item.status === 'failed' ? 'is-failed' : 'is-skipped');
+    const statusIcon = item.status === 'sent' ? '✓ Sent' : (item.status === 'failed' ? '✗ Failed' : '⊘ Skipped');
+    const timeStr = formatLogTimestamp(item.timestamp);
+    const details = item.status === 'sent'
+      ? (item.previewUrl ? `<a href="${item.previewUrl}" target="_blank" rel="noopener noreferrer" style="color:#2563eb;text-decoration:underline;">View Preview →</a>` : (item.isSimulated ? 'Simulated delivery (test mode)' : 'Delivered via SMTP'))
+      : escapeHtml(item.error || 'Unknown error');
+
+    const retryBtn = item.status === 'failed' && item.studentId
+      ? `<button type="button" class="btn-retry-log" data-student-id="${escapeHtml(item.studentId)}" title="Retry sending email to this student">Retry</button>`
+      : '';
+
+    return `
+      <tr>
+        <td style="color: var(--muted); font-size: 11px;">${idx + 1}</td>
+        <td style="color: var(--muted); font-size: 11px; white-space: nowrap;">${timeStr}</td>
+        <td><strong>${escapeHtml(item.studentName || 'Student')}</strong></td>
+        <td><span style="font-family: monospace; font-size: 11px;">${escapeHtml(item.email || '—')}</span></td>
+        <td>${escapeHtml((item.major || '—') + (item.section ? ` (${item.section.toUpperCase()})` : ''))}</td>
+        <td><span style="color: var(--orange-primary); font-weight: 600;">${escapeHtml(item.assignedGroup || item.groupKey || 'General')}</span></td>
+        <td><span class="log-status-pill ${statusClass}">${statusIcon}</span></td>
+        <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(details)}">${details}</td>
+        <td style="text-align: right;">${retryBtn}</td>
+      </tr>
+    `;
+  }).join('');
+
+  tbody.querySelectorAll('.btn-retry-log').forEach(btn => {
+    btn.addEventListener('click', () => handleRetrySingleStudent(btn.dataset.studentId, btn));
+  });
+}
+
+async function handleRetrySingleStudent(studentId, btn) {
+  if (!studentId) return;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Retrying…';
+  }
+
+  const customNote = document.querySelector('#bcastCustomNote')?.value?.trim() || '';
+
+  try {
+    const res = await fetch(`${API_BASE}/email/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify({
+        studentId,
+        automatic: true,
+        markApproved: true,
+        customMessage: customNote
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.sentCount > 0) {
+      showToast('Email Sent', 'Invitation dispatched successfully on retry.');
+      await loadDeliveryLogs();
+      await loadBroadcastRecipients();
+    } else {
+      throw new Error(data.results?.[0]?.error || data.error || 'Retry failed');
+    }
+  } catch (err) {
+    showToast('Retry Failed', err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Retry';
+    }
+  }
+}
+
+async function handleSendEmailToAllStudents() {
+  if (broadcastState.isRunning) return;
+
+  const targetStudents = getFilteredTargetRecipients();
+  if (!targetStudents.length) {
+    showPopup({
+      title: 'No Matching Students',
+      message: 'No students found matching your selected audience filter.',
+      danger: false
+    });
+    return;
+  }
+
+  const studentsWithEmail = targetStudents.filter(s => s.hasValidEmail);
+  const studentsWithoutEmail = targetStudents.filter(s => !s.hasValidEmail);
+
+  if (!studentsWithEmail.length) {
+    showPopup({
+      title: 'No Valid Email Addresses',
+      message: 'All matching students are missing an email address. Please update student records with valid emails first.',
+      danger: false
+    });
+    return;
+  }
+
+  const paceSelect = document.querySelector('#broadcastPaceSelect') || document.querySelector('#bcastDelaySelect');
+  const delayMs = parseInt(paceSelect?.value || '1500', 10);
+  const estimatedSeconds = Math.ceil((studentsWithEmail.length * delayMs) / 1000);
+  const estMinutes = Math.ceil(estimatedSeconds / 60);
+
+  const confirmMsg = `Send official group invitation emails to ${studentsWithEmail.length} students?\n\n` +
+    `• Anti-restriction pacing: ${delayMs / 1000}s delay between emails (~${estMinutes} minute${estMinutes === 1 ? '' : 's'} total).\n` +
+    `• Missing emails (skipped): ${studentsWithoutEmail.length}\n` +
+    `• Group links: Automatically assigned per student major and section.\n\n` +
+    `You can pause or stop the broadcast at any time.`;
+
+  if (!window.confirm(confirmMsg)) return;
+
+  broadcastState.isRunning = true;
+  broadcastState.isPaused = false;
+  broadcastState.abortRequested = false;
+  broadcastState.sessionStats = {
+    target: targetStudents.length,
+    sent: 0,
+    failed: 0,
+    skipped: 0
+  };
+
+  updateLiveNumberPills();
+
+  const startBtn = document.querySelector('#btnSendAllStudents') || document.querySelector('#btnStartBroadcast');
+  const pauseBtn = document.querySelector('#btnPauseBroadcast');
+  const resumeBtn = document.querySelector('#btnResumeBroadcast');
+  const stopBtn = document.querySelector('#btnStopBroadcast');
+  const pauseBtnText = document.querySelector('#btnPauseBroadcastText');
+  const progressPanel = document.querySelector('#broadcastProgressPanel');
+  const progressBar = document.querySelector('#bcastProgressBar');
+  const progressPercent = document.querySelector('#bcastProgressPercent');
+  const progressRatio = document.querySelector('#bcastProgressRatio');
+  const progressAction = document.querySelector('#bcastCurrentAction');
+  const progressHeadline = document.querySelector('#bcastProgressHeadline');
+  const etaText = document.querySelector('#bcastEtaText');
+  const statusBadge = document.querySelector('#broadcastStatusBadge');
+
+  if (startBtn) startBtn.disabled = true;
+  if (pauseBtn) {
+    pauseBtn.disabled = false;
+    pauseBtn.style.display = 'inline-flex';
+    if (pauseBtnText) pauseBtnText.textContent = '⏸ Pause';
+  }
+  if (resumeBtn) {
+    resumeBtn.disabled = false;
+    resumeBtn.style.display = 'none';
+  }
+  if (stopBtn) stopBtn.disabled = false;
+  if (progressPanel) progressPanel.style.display = 'block';
+  if (statusBadge) {
+    statusBadge.className = 'config-status-badge is-test';
+    statusBadge.textContent = 'Broadcasting…';
+  }
+
+  const broadcastId = `bcast-${Date.now()}`;
+  const customNote = document.querySelector('#bcastCustomNote')?.value?.trim() || '';
+  const startTime = Date.now();
+
+  for (const s of studentsWithoutEmail) {
+    broadcastState.sessionStats.skipped++;
+    broadcastState.logs.unshift({
+      id: `log-${Date.now()}-${s.id}`,
+      timestamp: new Date().toISOString(),
+      studentId: s.id,
+      studentName: s.fullName,
+      email: '',
+      major: s.major,
+      section: s.section,
+      assignedGroup: s.assignedGroup,
+      status: 'skipped',
+      error: 'Missing email address'
+    });
+  }
+  updateLiveNumberPills();
+
+  for (let i = 0; i < studentsWithEmail.length; i++) {
+    if (broadcastState.abortRequested) {
+      if (progressAction) progressAction.textContent = 'Broadcast cancelled by administrator.';
+      break;
+    }
+
+    while (broadcastState.isPaused && !broadcastState.abortRequested) {
+      if (progressAction) progressAction.textContent = 'Broadcast paused. Click Resume to continue.';
+      if (statusBadge) statusBadge.textContent = 'Paused';
+      await sleep(300);
+    }
+
+    if (broadcastState.abortRequested) break;
+    if (statusBadge) statusBadge.textContent = 'Broadcasting…';
+
+    const student = studentsWithEmail[i];
+    const currentProgress = Math.round(((i + 1) / studentsWithEmail.length) * 100);
+
+    const elapsedSec = (Date.now() - startTime) / 1000;
+    const remainingStudents = studentsWithEmail.length - (i + 1);
+    const avgSecPerStudent = elapsedSec / (i + 1);
+    const remainingSec = Math.round(remainingStudents * Math.max(avgSecPerStudent, delayMs / 1000));
+    const etaMin = Math.ceil(remainingSec / 60);
+
+    if (progressBar) progressBar.style.width = `${currentProgress}%`;
+    if (progressPercent) progressPercent.textContent = `${currentProgress}%`;
+    if (progressRatio) progressRatio.textContent = `${i + 1} / ${studentsWithEmail.length}`;
+    if (progressAction) progressAction.textContent = `Sending to ${student.fullName} (${student.email})…`;
+    if (etaText) etaText.textContent = remainingStudents > 0 ? `ETA: ~${etaMin} min` : 'Finishing…';
+
+    try {
+      const res = await fetch(`${API_BASE}/email/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify({
+          studentId: student.id,
+          automatic: true,
+          markApproved: true,
+          customMessage: customNote,
+          broadcastId
+        })
+      });
+
+      const data = await res.json();
+      const sendResult = data.results?.[0];
+
+      if (data.success && data.sentCount === 1) {
+        broadcastState.sessionStats.sent++;
+        broadcastState.logs.unshift({
+          id: `log-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          studentId: student.id,
+          studentName: student.fullName,
+          email: student.email,
+          major: student.major,
+          section: student.section,
+          assignedGroup: student.assignedGroup,
+          groupKey: sendResult?.groupKey,
+          status: 'sent',
+          previewUrl: sendResult?.previewUrl,
+          isSimulated: sendResult?.isSimulated
+        });
+      } else {
+        const isRateLimit = Boolean(sendResult?.isRateLimit || /rate limit|quota|421/i.test(data.error || sendResult?.error));
+        broadcastState.sessionStats.failed++;
+        broadcastState.logs.unshift({
+          id: `log-${Date.now()}`,
+          timestamp: new Date().toISOString(),
+          studentId: student.id,
+          studentName: student.fullName,
+          email: student.email,
+          major: student.major,
+          section: student.section,
+          assignedGroup: student.assignedGroup,
+          status: 'failed',
+          error: sendResult?.error || data.error || 'Sending failed',
+          isRateLimit
+        });
+
+        if (isRateLimit) {
+          handlePauseBroadcast();
+          showPopup({
+            title: '⚠️ Provider Rate Throttling Detected',
+            message: 'Your email server signaled a temporary sending limit (e.g. Gmail 421 or burst quota). To prevent restrictions or account suspension, the broadcast has been safely paused.\n\nPlease wait 30–60 seconds, then click "Resume" to continue safely.',
+            danger: true
+          });
+        }
+      }
+    } catch (netErr) {
+      broadcastState.sessionStats.failed++;
+      broadcastState.logs.unshift({
+        id: `log-${Date.now()}`,
+        timestamp: new Date().toISOString(),
+        studentId: student.id,
+        studentName: student.fullName,
+        email: student.email,
+        status: 'failed',
+        error: netErr.message
+      });
+    }
+
+    updateLiveNumberPills();
+    renderDeliveryLogs();
+    updateLogTabBadges();
+
+    if (i < studentsWithEmail.length - 1 && delayMs > 0 && !broadcastState.abortRequested) {
+      await sleep(delayMs);
+    }
+  }
+
+  broadcastState.isRunning = false;
+  broadcastState.isPaused = false;
+  if (startBtn) startBtn.disabled = false;
+  if (pauseBtn) {
+    pauseBtn.disabled = true;
+    pauseBtn.style.display = 'inline-flex';
+  }
+  if (resumeBtn) {
+    resumeBtn.disabled = true;
+    resumeBtn.style.display = 'none';
+  }
+  if (stopBtn) stopBtn.disabled = true;
+
+  if (progressHeadline) progressHeadline.textContent = broadcastState.abortRequested ? 'Broadcast Stopped' : 'Broadcast Completed!';
+  if (progressAction) progressAction.textContent = broadcastState.abortRequested
+    ? `Stopped after sending ${broadcastState.sessionStats.sent} emails.`
+    : `Completed: ${broadcastState.sessionStats.sent} sent, ${broadcastState.sessionStats.failed} failed, ${broadcastState.sessionStats.skipped} skipped.`;
+  if (statusBadge) {
+    statusBadge.className = 'config-status-badge is-connected';
+    statusBadge.textContent = 'Finished';
+  }
+
+  showToast(
+    'Broadcast Complete',
+    `Sent: ${broadcastState.sessionStats.sent}, Failed: ${broadcastState.sessionStats.failed}, Skipped: ${broadcastState.sessionStats.skipped}`
+  );
+
+  await loadBroadcastRecipients();
+  await loadDeliveryLogs();
+}
+
+const handleStartBroadcast = handleSendEmailToAllStudents;
+
+function handlePauseBroadcast() {
+  if (!broadcastState.isRunning) return;
+  broadcastState.isPaused = true;
+  const pauseBtn = document.querySelector('#btnPauseBroadcast');
+  const resumeBtn = document.querySelector('#btnResumeBroadcast');
+  const pauseBtnText = document.querySelector('#btnPauseBroadcastText');
+  if (pauseBtn) pauseBtn.style.display = 'none';
+  if (resumeBtn) resumeBtn.style.display = 'inline-flex';
+  if (pauseBtnText) pauseBtnText.textContent = '⏸ Pause';
+}
+
+function handleResumeBroadcast() {
+  if (!broadcastState.isRunning) return;
+  broadcastState.isPaused = false;
+  const pauseBtn = document.querySelector('#btnPauseBroadcast');
+  const resumeBtn = document.querySelector('#btnResumeBroadcast');
+  if (pauseBtn) pauseBtn.style.display = 'inline-flex';
+  if (resumeBtn) resumeBtn.style.display = 'none';
+}
+
+function handlePauseResumeBroadcast() {
+  if (broadcastState.isPaused) {
+    handleResumeBroadcast();
+  } else {
+    handlePauseBroadcast();
+  }
+}
+
+function handleStopBroadcast() {
+  if (!broadcastState.isRunning) return;
+  if (window.confirm('Are you sure you want to stop the ongoing broadcast? Any emails sent so far will remain delivered.')) {
+    broadcastState.abortRequested = true;
+    broadcastState.isPaused = false;
+  }
+}
+
+async function handleClearLogs() {
+  if (!window.confirm('Clear all delivery logs from this page and database?')) return;
+  const token = getAuthToken();
+  if (!token) return;
+
+  try {
+    await fetch(`${API_BASE}/email/logs`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    broadcastState.logs = [];
+    broadcastState.sessionStats = { target: 0, sent: 0, failed: 0, skipped: 0 };
+    updateLiveNumberPills();
+    renderDeliveryLogs();
+    updateLogTabBadges();
+    showToast('Logs Cleared', 'Email delivery log history has been cleared.');
+  } catch (e) {
+    console.warn('Could not clear logs:', e);
+  }
+}
+
+function exportLogsToCsv() {
+  const logs = broadcastState.logs || [];
+  if (!logs.length) {
+    showToast('No Logs', 'No delivery logs available to export.');
+    return;
+  }
+
+  const headers = ['#', 'Timestamp', 'Student Name', 'Email', 'Major', 'Section', 'Assigned Group', 'Status', 'Details'];
+  const rows = logs.map((l, i) => [
+    i + 1,
+    `"${l.timestamp || ''}"`,
+    `"${(l.studentName || '').replace(/"/g, '""')}"`,
+    `"${(l.email || '').replace(/"/g, '""')}"`,
+    `"${(l.major || '').replace(/"/g, '""')}"`,
+    `"${(l.section || '').replace(/"/g, '""')}"`,
+    `"${(l.assignedGroup || l.groupKey || '').replace(/"/g, '""')}"`,
+    `"${l.status || ''}"`,
+    `"${(l.error || (l.status === 'sent' ? 'Delivered' : '')).replace(/"/g, '""')}"`
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `ulfs2_email_broadcast_logs_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+const handleExportLogsCsv = exportLogsToCsv;
+
+function initBroadcastSection() {
+  const startBtn = document.querySelector('#btnSendAllStudents') || document.querySelector('#btnStartBroadcast');
+  if (startBtn) startBtn.addEventListener('click', handleSendEmailToAllStudents);
+
+  const pauseBtn = document.querySelector('#btnPauseBroadcast');
+  if (pauseBtn) pauseBtn.addEventListener('click', handlePauseBroadcast);
+
+  const resumeBtn = document.querySelector('#btnResumeBroadcast');
+  if (resumeBtn) resumeBtn.addEventListener('click', handleResumeBroadcast);
+
+  const stopBtn = document.querySelector('#btnStopBroadcast');
+  if (stopBtn) stopBtn.addEventListener('click', handleStopBroadcast);
+
+  const refreshBtn = document.querySelector('#btnRefreshBroadcastStats');
+  if (refreshBtn) refreshBtn.addEventListener('click', async () => {
+    await loadBroadcastRecipients();
+    showToast('Refreshed', 'Recipient counts updated.');
+  });
+
+  const clearBtn = document.querySelector('#btnClearBroadcastLogs');
+  if (clearBtn) clearBtn.addEventListener('click', handleClearLogs);
+
+  const exportBtn = document.querySelector('#btnExportCsv') || document.querySelector('#btnExportBroadcastLogs');
+  if (exportBtn) exportBtn.addEventListener('click', exportLogsToCsv);
+
+  const audienceSelect = document.querySelector('#bcastAudienceSelect');
+  if (audienceSelect) audienceSelect.addEventListener('change', updateBroadcastButtonLabel);
+
+  document.querySelectorAll('.log-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.log-tab').forEach(t => t.classList.remove('is-active'));
+      tab.classList.add('is-active');
+      broadcastState.activeFilter = tab.dataset.filter || 'all';
+      renderDeliveryLogs();
+    });
+  });
+
+  const searchInput = document.querySelector('#logSearchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      broadcastState.searchQuery = (searchInput.value || '').trim();
+      renderDeliveryLogs();
+    });
+  }
+
+  loadBroadcastRecipients();
+  loadDeliveryLogs();
 }
 
   if (document.readyState === 'loading') {
