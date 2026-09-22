@@ -300,9 +300,13 @@ async function handleSendTestEmail() {
   const pass = document.querySelector('#cfgSmtpPass')?.value || '';
   const from = document.querySelector('#cfgEmailFrom')?.value?.trim() || '';
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 25000);
+
   try {
     const res = await fetch(`${API_BASE}/email/test-connection`, {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${getAuthToken()}`
@@ -317,6 +321,7 @@ async function handleSendTestEmail() {
         emailFrom: from
       })
     });
+    clearTimeout(timeoutId);
 
     const data = await res.json();
     if (!data.success) throw new Error(data.error || 'Test email failed');
@@ -330,10 +335,19 @@ async function handleSendTestEmail() {
     }
     showToast('Test Email Sent', data.message);
   } catch (err) {
+    clearTimeout(timeoutId);
+    const isTimeout = err.name === 'AbortError' || /timeout/i.test(err.message);
+    const errMsg = isTimeout ? 'Request timed out after 25 seconds. Outgoing connection took too long.' : err.message;
     if (feedback) {
       feedback.className = 'test-result-feedback is-error';
-      feedback.innerHTML = `<strong>✗ Connection Failed:</strong> ${escapeHtml(err.message)}`;
-      if (/TLS|handshake|587/i.test(err.message)) {
+      feedback.innerHTML = `<strong>✗ Connection Failed:</strong> ${escapeHtml(errMsg)}`;
+      if (/BadCredentials|535|Username and Password not accepted/i.test(errMsg)) {
+        feedback.innerHTML += `<div style="margin-top:8px;font-size:12px;line-height:1.5;color:#b91c1c;">
+          <strong>Gmail Authentication Tip:</strong> Google requires a 16-character <em>App Password</em> instead of your regular Google password.<br>
+          1. Go to <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" style="text-decoration:underline;color:#1d4ed8;font-weight:600;">Google App Passwords</a>.<br>
+          2. Generate a new App Password named "StudentOS", copy the 16 characters, paste it into the <strong>SMTP Password</strong> field above, and click Send Test Email again.
+        </div>`;
+      } else if (/TLS|handshake|587/i.test(errMsg)) {
         feedback.innerHTML += `<div style="margin-top:10px;"><button type="button" id="btnAutoFixTls" class="btn-primary" style="padding:6px 14px;font-size:12px;cursor:pointer;">⚡ Switch to Port 465 (SSL/TLS) &amp; Retry</button></div>`;
         setTimeout(() => {
           const autoFixBtn = document.querySelector('#btnAutoFixTls');

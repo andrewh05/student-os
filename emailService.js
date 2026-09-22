@@ -1,6 +1,32 @@
 const nodemailer = require('nodemailer');
 const fs = require('fs');
 const path = require('path');
+
+// In Cloudflare Workers, resolving hostnames to raw IP addresses causes outbound TCP connections
+// to fail with "proxy request failed, cannot connect to the specified address" (ESOCKET) because
+// Cloudflare's outbound proxy requires connecting by domain hostname (e.g., smtp.gmail.com), not IP.
+try {
+  const nodemailerShared = require('nodemailer/lib/shared');
+  if (nodemailerShared && typeof nodemailerShared.resolveHostname === 'function') {
+    const originalResolve = nodemailerShared.resolveHostname;
+    nodemailerShared.resolveHostname = function (options, callback) {
+      if (options && options.host && typeof options.host === 'string') {
+        const host = options.host.trim();
+        const servername = options.servername || host;
+        return callback(null, {
+          host,
+          servername,
+          _addresses: [host],
+          cached: false
+        });
+      }
+      return originalResolve.apply(this, arguments);
+    };
+  }
+} catch (patchErr) {
+  console.warn('Could not patch nodemailer shared.resolveHostname:', patchErr.message);
+}
+
 let cryptoHelpers = null;
 try {
   cryptoHelpers = require('./crypto');
@@ -637,14 +663,23 @@ async function getTransporter(overrideConfig = null) {
     const portNum = Number(config.port) || 465;
     const isDirectTls = portNum === 465 || Boolean(config.secure);
 
+    let cleanPass = config.pass || '';
+    if ((config.host.includes('gmail') || config.host.includes('google')) && cleanPass) {
+      cleanPass = cleanPass.replace(/\s+/g, '');
+    }
+
     const transportOpts = {
       host: config.host,
       port: portNum,
       secure: isDirectTls,
       auth: {
-        user: config.user,
-        pass: config.pass
-      }
+        user: config.user.trim(),
+        pass: cleanPass
+      },
+      connectionTimeout: 10000,
+      greetingTimeout: 10000,
+      socketTimeout: 15000,
+      dnsTimeout: 5000
     };
 
     if (overrideConfig) {
