@@ -4543,6 +4543,8 @@ html[data-theme="dark"] .config-preview-frame-wrap {
 
 .broadcast-card {
   width: 100%;
+  max-width: none;
+  margin: 0;
   padding: 32px 36px;
   background: var(--paper);
   border: 1px solid #fed7aa;
