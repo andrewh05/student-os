@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#ea580c">
+  <title>Email & Group Configuration | student-os.com</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=2.4">
+</head>
+<body data-page="email-config">
+  <div class="grain"></div>
+  <header class="topbar">
+    <a href="dashboard.html" class="brand" aria-label="student-os.com home">
+      <span class="brand-mark orange-mark">S</span>
+      <span>student-os<br><b>.com</b></span>
+    </a>
+
+    <div class="header-center">
+      <div class="db-pill" id="dbStatusPill" title="student-os.com system status">
+        <span class="db-dot"></span>
+        <span id="dbStatusText">Checking system...</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <nav class="nav-links">
+        <a href="kazaa.html" class="nav-link">Students by Kazaa</a>
+        <a href="dashboard.html" class="nav-link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a href="form.html" class="nav-link btn-nav">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          Add Student
+        </a>
+        <a href="users.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 11a4 4 0 0 1 5 4v2"/></svg>Users</a>
+        <a href="backup.html" class="nav-link">Backups</a>
+        <a href="email-config.html" class="nav-link active">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+          Email Settings
+        </a>
+      </nav>
+      <div class="user-badge" id="userBadge">
+        <span class="user-name" id="userNameDisplay">Admin</span>
+        <button type="button" class="btn-logout" id="logoutBtn" title="Sign Out">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero compact-hero">
+      <div class="hero-content">
+        <div class="eyebrow"><span></span> Official Student Communications</div>
+        <h1>Email &amp; Group <em>Configuration</em></h1>
+        <p>Configure your SMTP server to send beautiful invitation emails to students, manage WhatsApp group links for every section, and test mail delivery.</p>
+      </div>
+      <div class="hero-actions">
+        <a href="dashboard.html" class="btn-secondary">
+          ← Back to Dashboard
+        </a>
+      </div>
+    </section>
+
+    <!-- Main Settings Form Grid -->
+    <div class="config-page-grid">
+      <!-- Left Column: Settings Cards -->
+      <div class="config-form-col">
+        <!-- Card 1: SMTP Mailer Server -->
+        <section class="form-card config-card" id="smtpConfigCard">
+          <div class="card-heading">
+            <div>
+              <span class="step">DELIVERY SERVER</span>
+              <h2>SMTP Server Settings</h2>
+            </div>
+            <span class="config-status-badge" id="smtpStatusBadge">Checking…</span>
+          </div>
+          <p class="config-desc">
+            Credentials to connect to your outgoing email provider. Passwords are encrypted at rest with AES-256-GCM.
+          </p>
+
+          <form id="smtpSettingsForm" novalidate>
+            <!-- Provider Preset Dropdown -->
+            <div class="section-label"><span>Provider Quick Setup</span></div>
+            <div class="fields one-col">
+              <label>
+                <span>Select Service Provider</span>
+                <select id="providerPresetSelect">
+                  <option value="custom">Custom SMTP Server</option>
+                  <option value="gmail" selected>Google / Gmail (App Password)</option>
+                  <option value="outlook">Microsoft 365 / Outlook</option>
+                  <option value="sendgrid">SendGrid</option>
+                  <option value="mailgun">Mailgun</option>
+                  <option value="ethereal">Development / Ethereal Test Account</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="section-label"><span>Server Credentials</span></div>
+            <div class="fields two-cols">
+              <label>
+                <span>SMTP Host *</span>
+                <input type="text" id="cfgSmtpHost" required placeholder="e.g. smtp.gmail.com">
+              </label>
+              <div class="fields two-cols" style="gap: 12px;">
+                <label>
+                  <span>Port *</span>
+                  <input type="number" id="cfgSmtpPort" required value="587" placeholder="587">
+                </label>
+                <label>
+                  <span>Security (TLS/SSL)</span>
+                  <select id="cfgSmtpSecure">
+                    <option value="false" selected>STARTTLS (587)</option>
+                    <option value="true">SSL / TLS (465)</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div class="fields two-cols">
+              <label>
+                <span>Username / Email *</span>
+                <input type="text" id="cfgSmtpUser" required placeholder="e.g. university.deleg@gmail.com" autocomplete="username">
+              </label>
+              <label>
+                <span>Password / App Password</span>
+                <div class="password-input-wrap">
+                  <input type="password" id="cfgSmtpPass" placeholder="••••••••" autocomplete="new-password">
+                  <button type="button" class="btn-toggle-pw" id="togglePwBtn" title="Show or hide password">👁</button>
+                </div>
+                <small class="field-subtext" id="pwHelpText">Leave blank to keep your current saved password.</small>
+              </label>
+            </div>
+
+            <div class="fields one-col">
+              <label>
+                <span>Sender Display Name &amp; Email (From) *</span>
+                <input type="text" id="cfgEmailFrom" required placeholder='"ULFS2 Student Affairs" <noreply@student-os.com>'>
+              </label>
+            </div>
+
+            <!-- Test Connection Section -->
+            <div class="config-test-box">
+              <div class="test-box-header">
+                <strong>Verify Delivery Setup</strong>
+                <small>Send a test message to ensure credentials and outgoing ports are working.</small>
+              </div>
+              <div class="test-input-row">
+                <input type="email" id="cfgTestEmail" placeholder="Enter your email to receive test message...">
+                <button type="button" class="btn-secondary" id="btnSendTestEmail">
+                  <span class="button-spinner" aria-hidden="true" style="display:none;"></span>
+                  <span id="btnSendTestText">Send Test Email</span>
+                </button>
+              </div>
+              <div id="testResultFeedback" class="test-result-feedback" style="display:none;"></div>
+            </div>
+          </form>
+        </section>
+
+        <!-- Card 2: Official Group Links -->
+        <section class="form-card config-card" id="groupLinksCard">
+          <div class="card-heading">
+            <div>
+              <span class="step">ACADEMIC COHORTS</span>
+              <h2>Class Group Links</h2>
+            </div>
+          </div>
+          <p class="config-desc">
+            Default WhatsApp or community invite links embedded into student emails according to their major and section.
+          </p>
+
+          <form id="groupLinksForm" novalidate>
+            <div class="section-label"><span>General Fallback Link</span></div>
+            <div class="fields one-col">
+              <label>
+                <span>General Student Group Link (WhatsApp / URL)</span>
+                <input type="url" id="linkGeneral" placeholder="https://chat.whatsapp.com/...">
+              </label>
+            </div>
+
+            <div class="section-label"><span>Section MISPCE (French Track)</span></div>
+            <div class="fields three-cols">
+              <label>
+                <span>Grp A Link</span>
+                <input type="url" id="linkGrpA" placeholder="https://chat.whatsapp.com/...">
+              </label>
+              <label>
+                <span>Grp B Link</span>
+                <input type="url" id="linkGrpB" placeholder="https://chat.whatsapp.com/...">
+              </label>
+              <label>
+                <span>Grp C,D Link</span>
+                <input type="url" id="linkGrpCD" placeholder="https://chat.whatsapp.com/...">
+              </label>
+            </div>
+
+            <div class="section-label"><span>Section CSVT &amp; English Track</span></div>
+            <div class="fields two-cols">
+              <label>
+                <span>Grp E1 Link</span>
+                <input type="url" id="linkGrpE1" placeholder="https://chat.whatsapp.com/...">
+              </label>
+              <label>
+                <span>Grp E2 Link</span>
+                <input type="url" id="linkGrpE2" placeholder="https://chat.whatsapp.com/...">
+              </label>
+            </div>
+
+            <div class="section-label"><span>Default Delegation Announcement</span></div>
+            <div class="fields one-col">
+              <label>
+                <span>Custom Note Included in Emails (Optional)</span>
+                <textarea id="cfgDefaultNote" rows="3" placeholder="e.g. Please join before Monday for timetable distribution and classroom allocation."></textarea>
+              </label>
+            </div>
+          </form>
+
+          <div class="form-actions config-actions">
+            <button type="button" class="cancel-btn" id="btnResetSettings">Reset to Defaults</button>
+            <button type="button" class="submit-btn" id="btnSaveConfig">
+              <span class="button-spinner" aria-hidden="true" style="display:none;"></span>
+              <span id="btnSaveConfigText">Save All Settings</span>
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Live Template Preview -->
+      <div class="config-preview-col">
+        <div class="preview-sticky-card">
+          <div class="preview-card-header">
+            <div>
+              <span class="step">REAL-TIME PREVIEW</span>
+              <h3>Email Template Preview</h3>
+            </div>
+            <div class="device-segmented" role="tablist">
+              <button type="button" class="device-tab is-active" id="cfgPreviewDesktop">Desktop</button>
+              <button type="button" class="device-tab" id="cfgPreviewMobile">Mobile</button>
+            </div>
+          </div>
+          <p class="preview-helper-text">
+            Below is the actual responsive email rendered with your configured sender and group links.
+          </p>
+          <div class="config-preview-frame-wrap" id="cfgPreviewFrameWrap">
+            <iframe id="cfgLivePreviewFrame" title="Live Email Template Preview"></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status"><span>✓</span><p><b id="toastTitle">Saved</b><small id="toastMsg">Configuration updated successfully.</small></p></div>
+
+  <script src="script.js?v=2.4"></script>
+  <script src="email-config.js?v=2.4"></script>
+</body>
+</html>

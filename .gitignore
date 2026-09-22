@@ -7,3 +7,4 @@ npm-debug.log*
 public/
 .wrangler/
 .dev.vars*
+email_settings.json

@@ -155,8 +155,8 @@ function applyUserRoleUI(user) {
   if (isDeleg) {
     document.body.classList.add('role-deleg');
 
-    // Hide restricted nav links (Kazaa, Users, Backups)
-    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"]').forEach(el => {
+    // Hide restricted nav links (Kazaa, Users, Backups, Email Settings)
+    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"], .topbar .nav-links a[href*="email-config"]').forEach(el => {
       el.style.display = 'none';
     });
 
@@ -171,8 +171,8 @@ function applyUserRoleUI(user) {
     const politicalStatsCard = document.querySelector('.political-stats-card');
     if (politicalStatsCard) politicalStatsCard.style.display = 'none';
 
-    // Deleg is restricted from: users, kazaa, kazaa-export, backup, and form.html in EDIT mode
-    const restrictedPages = ['users', 'kazaa', 'kazaa-export', 'backup'];
+    // Deleg is restricted from: users, kazaa, kazaa-export, backup, email-config, and form.html in EDIT mode
+    const restrictedPages = ['users', 'kazaa', 'kazaa-export', 'backup', 'email-config'];
     if (restrictedPages.includes(currentPage)) {
       window.location.replace('dashboard.html');
       return false;
@@ -185,7 +185,7 @@ function applyUserRoleUI(user) {
     document.body.classList.remove('role-deleg');
 
     // Restore restricted nav links
-    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"]').forEach(el => {
+    document.querySelectorAll('.topbar .nav-links a[href*="kazaa"], .topbar .nav-links a[href*="users"], .topbar .nav-links a[href*="backup"], .topbar .nav-links a[href*="email-config"]').forEach(el => {
       el.style.display = '';
     });
 
@@ -952,6 +952,16 @@ function renderStudents(query = '') {
                   </svg>
                 `}
               </button>
+              <button type="button"
+                class="btn-email-invite-icon"
+                onclick="openEmailModalForStudent('${student.id}')"
+                title="Send invitation email to ${escapeHtml(fullName)} to join class group"
+                aria-label="Send invitation email to ${escapeHtml(fullName)} to join class group">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect width="20" height="16" x="2" y="4" rx="2"/>
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                </svg>
+              </button>
             </div>
             <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}</p>
           </div>
@@ -975,7 +985,20 @@ function renderStudents(query = '') {
               ` : ''}
             </div>
           </div>
-          <div class="detail"><small>Email</small><span title="${escapeHtml(student.email)}">${escapeHtml(student.email)}</span></div>
+          <div class="detail">
+            <small>Email</small>
+            <div class="email-row">
+              ${student.email ? `<span title="${escapeHtml(student.email)}" class="email-text">${escapeHtml(student.email)}</span>` : '<span>N/A</span>'}
+              ${student.email ? `
+                <button type="button" class="btn-contact-quick btn-email-quick" onclick="openEmailModalForStudent('${student.id}')" title="Send invitation email to ${escapeHtml(fullName)}" aria-label="Send invitation email to ${escapeHtml(fullName)}">
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect width="20" height="16" x="2" y="4" rx="2"/>
+                    <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                  </svg>
+                </button>
+              ` : ''}
+            </div>
+          </div>
           <div class="detail"><small>Origin</small><span>${escapeHtml(student.origin || 'N/A')}</span></div>
           ${!isDeleg ? `
           <div class="detail political-detail">
@@ -999,6 +1022,16 @@ function renderStudents(query = '') {
             <button type="button" class="btn-action left-group"
               onclick="markStudentLeftGroup('${student.id}', this)">Left group</button>
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
+          <button type="button"
+            class="btn-action email-invite-card-btn"
+            onclick="openEmailModalForStudent('${student.id}')"
+            title="Send official email invitation to join group">
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect width="20" height="16" x="2" y="4" rx="2"/>
+              <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+            </svg>
+            Send Invite
+          </button>
           ${groupButtonsHtml}
           ${!isDeleg ? `
           <div class="record-edit-actions">
@@ -2804,6 +2837,507 @@ function setupVCardExportUI() {
   }
 }
 
+/* ==========================================================================
+   Email Group Invitation System (Frontend Controller)
+   ========================================================================== */
+
+let emailModalState = {
+  mode: 'single', // 'single' | 'bulk'
+  studentId: null,
+  student: null,
+  scope: 'not_in_group', // 'not_in_group' | 'filtered' | 'all'
+  previewDebounceTimer: null,
+  isSending: false
+};
+
+const EMAIL_STORAGE_LAST_LINK = 'ulfs2_email_last_link';
+const EMAIL_STORAGE_PRESETS = 'ulfs2_email_preset_links';
+const EMAIL_STORAGE_CUSTOM_NOTE = 'ulfs2_email_last_note';
+
+function getStoredGroupPresets() {
+  try {
+    return JSON.parse(localStorage.getItem(EMAIL_STORAGE_PRESETS) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function saveGroupPreset(key, url) {
+  if (!url) return;
+  try {
+    const presets = getStoredGroupPresets();
+    if (key) presets[key] = url;
+    localStorage.setItem(EMAIL_STORAGE_PRESETS, JSON.stringify(presets));
+    localStorage.setItem(EMAIL_STORAGE_LAST_LINK, url);
+  } catch {}
+}
+
+function getBestGroupUrl(groupKey) {
+  const presets = getStoredGroupPresets();
+  if (groupKey && presets[groupKey]) return presets[groupKey];
+  return localStorage.getItem(EMAIL_STORAGE_LAST_LINK) || '';
+}
+
+function getRecipientPool() {
+  if (Array.isArray(allStudentsMaster) && allStudentsMaster.length) {
+    return allStudentsMaster;
+  }
+  return Array.isArray(students) ? students : [];
+}
+
+async function checkEmailServiceStatus() {
+  const banner = document.querySelector('#emailMailerStatusBanner');
+  const textEl = document.querySelector('#emailMailerStatusText');
+  if (!banner || !textEl) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/email/status`, {
+      headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+    });
+    const data = await res.json();
+    if (data.configured) {
+      banner.className = 'mailer-status-banner is-active';
+      textEl.textContent = `Ready: Real email delivery active via ${data.host || 'SMTP'}`;
+    } else {
+      banner.className = 'mailer-status-banner is-test';
+      textEl.textContent = 'Development/Test Mode: Emails will be simulated with instant preview links (Configure SMTP in .env for production).';
+    }
+  } catch {
+    banner.className = 'mailer-status-banner';
+    textEl.textContent = 'Mail service ready (standard invitation mode)';
+  }
+}
+
+function getFilteredStudentsList() {
+  const needle = (searchInput?.value || '').trim().toLowerCase();
+  const tokens = needle ? needle.split(/\s+/).filter(Boolean) : [];
+  const pool = getRecipientPool();
+
+  return pool.filter(student => {
+    const nameCombinations = [
+      `${student.firstName || ''} ${student.familyName || ''}`,
+      `${student.firstName || ''} ${student.fatherName || ''} ${student.familyName || ''}`
+    ];
+    const fullSearchText = [...nameCombinations, ...Object.values(student)].map(v => String(v || '').toLowerCase()).join(' ');
+    const matchesSearch = !tokens.length || tokens.every(token => fullSearchText.includes(token));
+    const matchesStatus = !statusFilter?.value || String(student.status || '').trim().toLowerCase() === statusFilter.value.trim().toLowerCase();
+    const isApproved = Boolean(student.linkApproved !== undefined ? student.linkApproved : student.inClass);
+    const matchesLink = !linkFilter?.value || (linkFilter.value === 'approved' || linkFilter.value === 'in' ? isApproved : !isApproved);
+    const matchesMajor = !majorFilter?.value || student.major === majorFilter.value;
+    const matchesCampus = !campusFilter?.value || student.campus === campusFilter.value;
+    const matchesLanguage = !languageFilter?.value || student.language === languageFilter.value;
+    const assignedGroup = getStudentAssignedGroup(student);
+    const matchesGroup = !groupFilter?.value
+      || (groupFilter.value === 'in' ? (student.inGroup && !student.leftGroup)
+        : groupFilter.value === 'out' ? (!student.inGroup && !student.leftGroup)
+        : groupFilter.value === 'left' ? Boolean(student.leftGroup)
+        : groupFilter.value === 'unassigned' ? (!assignedGroup && !student.leftGroup)
+        : groupFilter.value === assignedGroup);
+    return matchesSearch && matchesStatus && matchesLink && matchesMajor && matchesCampus && matchesLanguage && matchesGroup;
+  });
+}
+
+function updateEmailRecipientDisplay() {
+  const singleBox = document.querySelector('#emailSingleRecipientBox');
+  const bulkBox = document.querySelector('#emailBulkScopeBox');
+  const switchBtn = document.querySelector('#emailSwitchScopeBtn');
+  const mailtoBtn = document.querySelector('#emailMailtoBtn');
+
+  const pool = getRecipientPool();
+  const notInGroupCount = pool.filter(s => !s.inGroup && !s.leftGroup && s.email).length;
+  const filteredCount = getFilteredStudentsList().filter(s => s.email).length;
+  const allCount = pool.filter(s => s.email).length;
+
+  const countNotInEl = document.querySelector('#emailScopeNotInGroupCount');
+  const countFilteredEl = document.querySelector('#emailScopeFilteredCount');
+  const countAllEl = document.querySelector('#emailScopeAllCount');
+  if (countNotInEl) countNotInEl.textContent = `${notInGroupCount} students with email`;
+  if (countFilteredEl) countFilteredEl.textContent = `${filteredCount} students with email`;
+  if (countAllEl) countAllEl.textContent = `${allCount} students with email`;
+
+  if (emailModalState.mode === 'single' && emailModalState.student) {
+    if (singleBox) singleBox.style.display = 'flex';
+    if (bulkBox) bulkBox.style.display = 'none';
+    if (switchBtn) switchBtn.style.display = 'inline-block';
+    if (switchBtn) switchBtn.textContent = 'Switch to bulk send';
+    if (mailtoBtn) mailtoBtn.style.display = 'inline-flex';
+
+    const s = emailModalState.student;
+    const fullName = `${s.firstName || ''} ${s.fatherName || ''} ${s.familyName || ''}`.trim() || 'Student';
+    const initials = `${s.firstName?.[0] || ''}${s.familyName?.[0] || ''}`.toUpperCase() || 'ST';
+    const avatar = document.querySelector('#emailRecipientAvatar');
+    const nameEl = document.querySelector('#emailRecipientName');
+    const emailEl = document.querySelector('#emailRecipientEmail');
+    const metaEl = document.querySelector('#emailRecipientMeta');
+
+    if (avatar) avatar.textContent = initials;
+    if (nameEl) nameEl.textContent = fullName;
+    if (emailEl) emailEl.textContent = s.email || 'No email provided';
+    if (metaEl) metaEl.textContent = `${s.major || ''} • ${(s.section || inferSectionFromMajor(s.major) || 'MISPCE').toUpperCase()} • ${getStudentAssignedGroup(s) || 'General Group'}`;
+  } else {
+    if (singleBox) singleBox.style.display = 'none';
+    if (bulkBox) bulkBox.style.display = 'flex';
+    if (switchBtn) switchBtn.style.display = 'none';
+    if (mailtoBtn) mailtoBtn.style.display = 'none';
+  }
+}
+
+function updateEmailTemplatePreview() {
+  clearTimeout(emailModalState.previewDebounceTimer);
+  emailModalState.previewDebounceTimer = setTimeout(async () => {
+    const frame = document.querySelector('#emailPreviewFrame');
+    if (!frame) return;
+
+    const groupNameInput = document.querySelector('#emailGroupNameInput');
+    const joinUrlInput = document.querySelector('#emailJoinUrlInput');
+    const customNoteInput = document.querySelector('#emailCustomNoteInput');
+
+    let sampleStudent = emailModalState.student;
+    if (!sampleStudent) {
+      const pool = getRecipientPool();
+      if (emailModalState.scope === 'filtered') {
+        sampleStudent = getFilteredStudentsList().find(s => s.email) || pool[0];
+      } else {
+        sampleStudent = pool.find(s => !s.inGroup && !s.leftGroup && s.email) || pool[0];
+      }
+    }
+
+    const payload = {
+      student: sampleStudent || {
+        firstName: 'Carla',
+        fatherName: 'Joseph',
+        familyName: 'Khoury',
+        major: 'Informatics',
+        section: 'mispce',
+        assignedGroup: 'Grp A',
+        campus: 'Fanar',
+        status: 'New',
+        email: 'carla.khoury@example.com'
+      },
+      groupName: groupNameInput?.value.trim() || '',
+      joinUrl: joinUrlInput?.value.trim() || 'https://chat.whatsapp.com/',
+      customMessage: customNoteInput?.value.trim() || ''
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/email/preview`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getAuthToken()}`
+        },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (data.success && data.html) {
+        frame.srcdoc = data.html;
+        updateEmailMailtoFallback(data.subject, data.text);
+      }
+    } catch (e) {
+      console.warn('Could not fetch email preview:', e);
+    }
+  }, 120);
+}
+
+function updateEmailMailtoFallback(subject, textBody) {
+  const mailtoBtn = document.querySelector('#emailMailtoBtn');
+  if (!mailtoBtn) return;
+  const student = emailModalState.student;
+  if (!student || !student.email) {
+    mailtoBtn.style.display = 'none';
+    return;
+  }
+  const mailtoUrl = `mailto:${encodeURIComponent(student.email)}?subject=${encodeURIComponent(subject || 'Class Group Invitation')}&body=${encodeURIComponent(textBody || '')}`;
+  mailtoBtn.href = mailtoUrl;
+}
+
+function openEmailModalForStudent(studentId) {
+  const pool = getRecipientPool();
+  const student = pool.find(s => String(s.id) === String(studentId));
+  if (!student) {
+    showToast('Student not found', 'Could not locate the requested student record.');
+    return;
+  }
+
+  if (!student.email || !String(student.email).trim().includes('@')) {
+    showPopup({
+      title: 'Email Address Missing',
+      message: `${student.firstName} ${student.familyName} does not have an email address recorded. Please add an email address in "Edit Record" first before sending an invitation.`,
+      danger: false
+    });
+    return;
+  }
+
+  emailModalState.mode = 'single';
+  emailModalState.studentId = student.id;
+  emailModalState.student = student;
+
+  const modal = document.querySelector('#emailInviteModal');
+  if (!modal) return;
+
+  const assigned = getStudentAssignedGroup(student);
+  const sec = (student.section || inferSectionFromMajor(student.major) || 'MISPCE').toUpperCase();
+  const suggestedTitle = `ULFS2 ${student.major || ''} (${sec}) — ${assigned || 'Class Group'}`;
+
+  const groupNameInput = document.querySelector('#emailGroupNameInput');
+  const joinUrlInput = document.querySelector('#emailJoinUrlInput');
+  const customNoteInput = document.querySelector('#emailCustomNoteInput');
+
+  if (groupNameInput) groupNameInput.value = suggestedTitle;
+  if (joinUrlInput) joinUrlInput.value = getBestGroupUrl(assigned) || '';
+  if (customNoteInput) customNoteInput.value = localStorage.getItem(EMAIL_STORAGE_CUSTOM_NOTE) || '';
+
+  // Update chip highlights
+  document.querySelectorAll('.group-preset-chip').forEach(chip => {
+    chip.classList.toggle('is-active', chip.dataset.preset === assigned);
+  });
+
+  updateEmailRecipientDisplay();
+  checkEmailServiceStatus();
+  updateEmailTemplatePreview();
+
+  modal.showModal();
+}
+
+function openGroupEmailModal() {
+  emailModalState.mode = 'bulk';
+  emailModalState.studentId = null;
+  emailModalState.student = null;
+  emailModalState.scope = 'not_in_group';
+
+  const modal = document.querySelector('#emailInviteModal');
+  if (!modal) return;
+
+  const groupNameInput = document.querySelector('#emailGroupNameInput');
+  const joinUrlInput = document.querySelector('#emailJoinUrlInput');
+  const customNoteInput = document.querySelector('#emailCustomNoteInput');
+
+  if (groupNameInput) groupNameInput.value = 'ULFS2 Official Class Group';
+  if (joinUrlInput) joinUrlInput.value = getBestGroupUrl('General') || '';
+  if (customNoteInput) customNoteInput.value = localStorage.getItem(EMAIL_STORAGE_CUSTOM_NOTE) || '';
+
+  const scopeRadio = document.querySelector('input[name="emailScopeOption"][value="not_in_group"]');
+  if (scopeRadio) scopeRadio.checked = true;
+
+  updateEmailRecipientDisplay();
+  checkEmailServiceStatus();
+  updateEmailTemplatePreview();
+
+  modal.showModal();
+}
+
+async function executeSendGroupEmail() {
+  if (emailModalState.isSending) return;
+
+  const joinUrlInput = document.querySelector('#emailJoinUrlInput');
+  const groupNameInput = document.querySelector('#emailGroupNameInput');
+  const customNoteInput = document.querySelector('#emailCustomNoteInput');
+  const markApprovedCheck = document.querySelector('#emailMarkApprovedCheck');
+  const confirmBtn = document.querySelector('#confirmSendEmailBtn');
+  const btnText = document.querySelector('#confirmSendEmailBtnText');
+  const modal = document.querySelector('#emailInviteModal');
+
+  const joinUrl = (joinUrlInput?.value || '').trim();
+  if (!joinUrl) {
+    joinUrlInput?.focus();
+    showToast('Missing Invitation Link', 'Please enter a group invitation link (e.g. WhatsApp group link).');
+    return;
+  }
+
+  // Save link to storage for future reuse
+  const assigned = emailModalState.student ? getStudentAssignedGroup(emailModalState.student) : null;
+  saveGroupPreset(assigned || 'General', joinUrl);
+  if (customNoteInput?.value) {
+    try { localStorage.setItem(EMAIL_STORAGE_CUSTOM_NOTE, customNoteInput.value.trim()); } catch {}
+  }
+
+  // Resolve target student IDs
+  let targetIds = [];
+  const pool = getRecipientPool();
+
+  if (emailModalState.mode === 'single' && emailModalState.studentId) {
+    targetIds = [emailModalState.studentId];
+  } else {
+    const scope = document.querySelector('input[name="emailScopeOption"]:checked')?.value || 'not_in_group';
+    if (scope === 'not_in_group') {
+      targetIds = pool.filter(s => !s.inGroup && !s.leftGroup && s.email).map(s => s.id);
+    } else if (scope === 'filtered') {
+      targetIds = getFilteredStudentsList().filter(s => s.email).map(s => s.id);
+    } else {
+      targetIds = pool.filter(s => s.email).map(s => s.id);
+    }
+  }
+
+  if (!targetIds.length) {
+    showToast('No Recipients', 'No students with valid email addresses match the selected criteria.');
+    return;
+  }
+
+  if (targetIds.length > 1) {
+    const confirmed = window.confirm(`Are you sure you want to send the group invitation email to ${targetIds.length} students?`);
+    if (!confirmed) return;
+  }
+
+  // Set sending state
+  emailModalState.isSending = true;
+  if (confirmBtn) confirmBtn.disabled = true;
+  if (btnText) btnText.textContent = targetIds.length > 1 ? `Sending (${targetIds.length})...` : 'Sending...';
+
+  try {
+    const res = await fetch(`${API_BASE}/email/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify({
+        studentIds: targetIds,
+        groupName: groupNameInput?.value.trim() || '',
+        joinUrl,
+        customMessage: customNoteInput?.value.trim() || '',
+        markApproved: markApprovedCheck ? markApprovedCheck.checked : true
+      })
+    });
+
+    const data = await parseApiResponse(res);
+    if (!data.success && data.sentCount === 0) {
+      throw new Error(data.error || 'Failed to send invitation emails');
+    }
+
+    // Update link approval in local memory if markApproved was checked
+    if (markApprovedCheck?.checked) {
+      targetIds.forEach(id => {
+        const student = students.find(s => String(s.id) === String(id));
+        if (student) {
+          student.linkApproved = true;
+          student.inClass = true;
+        }
+        if (Array.isArray(allStudentsMaster)) {
+          const master = allStudentsMaster.find(s => String(s.id) === String(id));
+          if (master) {
+            master.linkApproved = true;
+            master.inClass = true;
+          }
+        }
+      });
+      updateStats();
+      scheduleRenderStudents(searchInput ? searchInput.value : '');
+    }
+
+    if (modal) modal.close();
+
+    const toastTitle = data.simulated ? 'Invitation Email Prepared (Test Mode)' : 'Email Sent Successfully';
+    let toastDesc = data.message || `Successfully sent ${data.sentCount} invitation email(s).`;
+    if (data.previewUrl) {
+      toastDesc += ` Click to view preview on Ethereal.`;
+    }
+    showToast(toastTitle, toastDesc);
+
+    if (data.previewUrl) {
+      setTimeout(() => {
+        if (window.confirm(`Email sent in test mode. Would you like to view the rendered invitation in your browser?\n\n${data.previewUrl}`)) {
+          window.open(data.previewUrl, '_blank');
+        }
+      }, 400);
+    }
+  } catch (err) {
+    showPopup({
+      title: 'Email Delivery Error',
+      message: err.message || 'Could not deliver group invitation emails.',
+      danger: true
+    });
+  } finally {
+    emailModalState.isSending = false;
+    if (confirmBtn) confirmBtn.disabled = false;
+    if (btnText) btnText.textContent = 'Send Email';
+  }
+}
+
+function setupEmailInviteUI() {
+  const triggerBtn = document.querySelector('#openGroupEmailModalBtn');
+  if (triggerBtn) {
+    triggerBtn.addEventListener('click', openGroupEmailModal);
+  }
+
+  const modal = document.querySelector('#emailInviteModal');
+  if (!modal) return;
+
+  const closeBtn = document.querySelector('#closeEmailInviteModal');
+  if (closeBtn) closeBtn.addEventListener('click', () => modal.close());
+
+  const cancelBtn = document.querySelector('#cancelEmailInviteBtn');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => modal.close());
+
+  const confirmBtn = document.querySelector('#confirmSendEmailBtn');
+  if (confirmBtn) confirmBtn.addEventListener('click', executeSendGroupEmail);
+
+  // Switch to bulk from single
+  const switchBtn = document.querySelector('#emailSwitchScopeBtn');
+  if (switchBtn) {
+    switchBtn.addEventListener('click', () => {
+      emailModalState.mode = 'bulk';
+      emailModalState.studentId = null;
+      emailModalState.student = null;
+      updateEmailRecipientDisplay();
+      updateEmailTemplatePreview();
+    });
+  }
+
+  // Preset chips
+  document.querySelectorAll('.group-preset-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.group-preset-chip').forEach(c => c.classList.remove('is-active'));
+      chip.classList.add('is-active');
+      const preset = chip.dataset.preset;
+      const joinUrlInput = document.querySelector('#emailJoinUrlInput');
+      const groupNameInput = document.querySelector('#emailGroupNameInput');
+      if (preset && joinUrlInput) {
+        const saved = getBestGroupUrl(preset);
+        if (saved) joinUrlInput.value = saved;
+        if (groupNameInput && emailModalState.student) {
+          const s = emailModalState.student;
+          const sec = (s.section || inferSectionFromMajor(s.major) || 'MISPCE').toUpperCase();
+          groupNameInput.value = `ULFS2 ${s.major || ''} (${sec}) — ${preset}`;
+        }
+        updateEmailTemplatePreview();
+      }
+    });
+  });
+
+  // Inputs live preview debouncing
+  ['#emailGroupNameInput', '#emailJoinUrlInput', '#emailCustomNoteInput'].forEach(selector => {
+    const input = document.querySelector(selector);
+    if (input) {
+      input.addEventListener('input', updateEmailTemplatePreview);
+    }
+  });
+
+  // Radio scopes
+  document.querySelectorAll('input[name="emailScopeOption"]').forEach(radio => {
+    radio.addEventListener('change', () => {
+      emailModalState.scope = radio.value;
+      updateEmailTemplatePreview();
+    });
+  });
+
+  // Device switcher
+  const desktopBtn = document.querySelector('#previewModeDesktop');
+  const mobileBtn = document.querySelector('#previewModeMobile');
+  const previewCol = document.querySelector('.email-dialog-preview');
+  if (desktopBtn && mobileBtn && previewCol) {
+    desktopBtn.addEventListener('click', () => {
+      desktopBtn.classList.add('is-active');
+      mobileBtn.classList.remove('is-active');
+      previewCol.classList.remove('is-mobile');
+    });
+    mobileBtn.addEventListener('click', () => {
+      mobileBtn.classList.add('is-active');
+      desktopBtn.classList.remove('is-active');
+      previewCol.classList.add('is-mobile');
+    });
+  }
+}
+
 // Page Initialization
 document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
@@ -2815,6 +3349,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupClassStatClicks();
   setupSectionSwitchTabs();
   setupVCardExportUI();
+  setupEmailInviteUI();
   if (document.body.dataset.page === 'login') return;
   checkDbConnection();
   if (document.body.dataset.page !== 'kazaa') fetchStudents();

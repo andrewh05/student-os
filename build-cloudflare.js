@@ -13,6 +13,8 @@ const assets = [
   'login.html',
   'signup.html',
   'backup.html',
+  'email-config.html',
+  'email-config.js',
   'styles.css',
   'script.js'
 ];

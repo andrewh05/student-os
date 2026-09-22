@@ -6,6 +6,7 @@ const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, v
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl } = require('./backup');
+const { renderEmailTemplate, sendInviteEmail, getMailerStatus, saveEmailSettings, getEffectiveSettings, sendTestEmail } = require('./emailService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -198,6 +199,107 @@ async function findDuplicateStudent(candidate, excludedId = null) {
     candidate,
     students.filter(student => String(student.id) !== String(excludedId))
   );
+}
+
+async function findStudentById(id) {
+  if (supabase) {
+    const { data, error } = await supabase.from('students').select('*').eq('id', id).maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+    return mapStudent(data);
+  } else {
+    const { rows } = await pool.query(`
+      SELECT 
+        note,
+        kazaa,
+        id, 
+        first_name AS "firstName", 
+        father_name AS "fatherName", 
+        family_name AS "familyName", 
+        origin, 
+        address, 
+        school, 
+        major, 
+        political_affiliation AS "politicalAffiliation",
+        status, 
+        language, 
+        campus, 
+        phone, 
+        email, 
+        in_group AS "inGroup",
+        left_group AS "leftGroup",
+        created_at AS "createdAt"
+      FROM students 
+      WHERE id = $1;
+    `, [id]);
+    if (rows.length === 0) return null;
+    return mapStudent(rows[0]);
+  }
+}
+
+async function setStudentApprovalState(id, linkApproved) {
+  if (supabase) {
+    let updateResult = await supabase
+      .from('students')
+      .update({ in_class: linkApproved })
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /in_class/i.test(updateResult.error.message))) {
+      const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
+      const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+      const newPayload = {
+        text: currentPayload.text,
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved,
+        inClass: linkApproved
+      };
+      const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
+
+      updateResult = await supabase
+        .from('students')
+        .update({ note: encryptedNote })
+        .eq('id', id)
+        .select()
+        .maybeSingle();
+    }
+
+    if (updateResult.error) throw updateResult.error;
+    if (!updateResult.data) return null;
+    return mapStudent(updateResult.data);
+  }
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE students SET in_class = $1 WHERE id = $2 RETURNING *;`,
+      [linkApproved, id]
+    );
+    if (!rows.length) return null;
+    return mapStudent(rows[0]);
+  } catch (pgErr) {
+    if (pgErr.code === '42703' || /in_class/i.test(pgErr.message)) {
+      const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
+      const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
+      const newPayload = {
+        text: currentPayload.text,
+        assignedGroup: currentPayload.assignedGroup || '',
+        section: currentPayload.section || '',
+        linkApproved,
+        inClass: linkApproved
+      };
+      const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
+
+      const { rows } = await pool.query(
+        `UPDATE students SET note = $1 WHERE id = $2 RETURNING *;`,
+        [encryptedNote, id]
+      );
+      if (!rows.length) return null;
+      return mapStudent(rows[0]);
+    }
+    throw pgErr;
+  }
 }
 
 app.use(cors());
@@ -1680,72 +1782,232 @@ app.patch(['/api/students/:id/link-approval', '/api/students/:id/class'], async 
   }
 
   try {
-    if (supabase) {
-      let updateResult = await supabase
-        .from('students')
-        .update({ in_class: linkApproved })
-        .eq('id', id)
-        .select()
-        .maybeSingle();
-
-      if (updateResult.error && (updateResult.error.code === 'PGRST204' || updateResult.error.code === '42703' || /in_class/i.test(updateResult.error.message))) {
-        const { data: studentRecord } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-        const currentPayload = studentRecord ? parseStudentNotePayload(studentRecord.note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
-        const newPayload = {
-          text: currentPayload.text,
-          assignedGroup: currentPayload.assignedGroup || '',
-          section: currentPayload.section || '',
-          linkApproved,
-          inClass: linkApproved
-        };
-        const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
-
-        updateResult = await supabase
-          .from('students')
-          .update({ note: encryptedNote })
-          .eq('id', id)
-          .select()
-          .maybeSingle();
-      }
-
-      if (updateResult.error) throw updateResult.error;
-      if (!updateResult.data) return res.status(404).json({ success: false, error: 'Student not found' });
-      return res.json({ success: true, data: mapStudent(updateResult.data) });
-    }
-
-    try {
-      const { rows } = await pool.query(
-        `UPDATE students SET in_class = $1 WHERE id = $2 RETURNING *;`,
-        [linkApproved, id]
-      );
-      if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
-      return res.json({ success: true, data: mapStudent(rows[0]) });
-    } catch (pgErr) {
-      if (pgErr.code === '42703' || /in_class/i.test(pgErr.message)) {
-        const noteRes = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
-        const currentPayload = noteRes.rows[0] ? parseStudentNotePayload(noteRes.rows[0].note) : { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false };
-        const newPayload = {
-          text: currentPayload.text,
-          assignedGroup: currentPayload.assignedGroup || '',
-          section: currentPayload.section || '',
-          linkApproved,
-          inClass: linkApproved
-        };
-        const encryptedNote = encryptValue(JSON.stringify(newPayload), 'students.note');
-
-        const { rows } = await pool.query(
-          `UPDATE students SET note = $1 WHERE id = $2 RETURNING *;`,
-          [encryptedNote, id]
-        );
-        if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
-        return res.json({ success: true, data: mapStudent(rows[0]) });
-      }
-      throw pgErr;
-    }
+    const updated = await setStudentApprovalState(id, linkApproved);
+    if (!updated) return res.status(404).json({ success: false, error: 'Student not found' });
+    return res.json({ success: true, data: updated });
   } catch (err) {
     console.error('Error updating approval:', err.message);
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
+// GET email subsystem status
+app.get('/api/email/status', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+  return res.json({ success: true, ...getMailerStatus() });
+});
+
+// GET email and group invitation configuration settings (Admin/Superadmin only)
+app.get('/api/email/settings', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const role = (session.role || '').toLowerCase();
+  if (role !== 'admin' && role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Access restricted to administrators' });
+  }
+
+  const settings = getEffectiveSettings();
+  return res.json({ success: true, settings });
+});
+
+// POST save email and group invitation configuration settings (Admin/Superadmin only)
+app.post('/api/email/settings', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const role = (session.role || '').toLowerCase();
+  if (role !== 'admin' && role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Access restricted to administrators' });
+  }
+
+  try {
+    const updated = saveEmailSettings(req.body || {});
+    return res.json({ success: true, settings: updated, message: 'Email and group configuration saved successfully.' });
+  } catch (err) {
+    console.error('Error saving email settings:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST send a test email to verify SMTP delivery (Admin/Superadmin only)
+app.post('/api/email/test-connection', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const role = (session.role || '').toLowerCase();
+  if (role !== 'admin' && role !== 'superadmin') {
+    return res.status(403).json({ success: false, error: 'Access restricted to administrators' });
+  }
+
+  const { testEmail } = req.body || {};
+  if (!testEmail || !testEmail.includes('@')) {
+    return res.status(400).json({ success: false, error: 'Please specify a valid test recipient email address' });
+  }
+
+  try {
+    const senderName = session.fullName || 'ULFS2 Administrator';
+    const result = await sendTestEmail({ to: testEmail.trim(), senderName });
+    return res.json({
+      success: true,
+      message: `Test email dispatched to ${testEmail}. Check your inbox!`,
+      ...result
+    });
+  } catch (err) {
+    console.error('Error sending test email:', err.message);
+    return res.status(500).json({
+      success: false,
+      error: err.message,
+      code: err.code || 'EMAIL_SEND_FAILED'
+    });
+  }
+});
+
+// POST email template live preview
+app.post('/api/email/preview', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  try {
+    const { studentId, student: providedStudent, groupName, joinUrl, customMessage } = req.body || {};
+    let targetStudent = providedStudent;
+
+    if (studentId) {
+      targetStudent = await findStudentById(studentId);
+      if (!targetStudent) return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+
+    if (!targetStudent) {
+      targetStudent = {
+        firstName: 'Student',
+        familyName: 'Name',
+        major: 'Informatics',
+        section: 'mispce',
+        assignedGroup: 'Grp A',
+        campus: 'Fanar',
+        status: 'New',
+        email: 'student@example.com'
+      };
+    }
+
+    const senderName = session.fullName ? `${session.fullName} (ULFS2 Delegation)` : 'ULFS2 Academic Delegation';
+    const rendered = renderEmailTemplate({
+      student: targetStudent,
+      groupName,
+      joinUrl,
+      customMessage,
+      senderName
+    });
+
+    return res.json({ success: true, ...rendered });
+  } catch (err) {
+    console.error('Error previewing email:', err.message);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// POST send group invitation email(s) to student(s)
+app.post('/api/email/send', async (req, res) => {
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  const session = verifySession(token);
+  if (!session) return res.status(401).json({ success: false, error: 'Session expired or invalid', unauthenticated: true });
+
+  const callerRole = (session.role || 'deleg').toLowerCase();
+  const callerSection = (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
+
+  const { studentId, studentIds, groupName, joinUrl, customMessage, markApproved = true } = req.body || {};
+  const ids = Array.isArray(studentIds) ? studentIds.filter(Boolean) : (studentId ? [studentId] : []);
+
+  if (!ids.length) {
+    return res.status(400).json({ success: false, error: 'No student IDs specified for email invitation' });
+  }
+
+  if (!joinUrl || !String(joinUrl).trim()) {
+    return res.status(400).json({ success: false, error: 'Group invitation URL is required' });
+  }
+
+  const effectiveJoinUrl = String(joinUrl).trim();
+  const senderName = session.fullName ? `${session.fullName} (ULFS2 Delegation)` : 'ULFS2 Academic Delegation';
+
+  const results = [];
+  let sentCount = 0;
+
+  for (const id of ids) {
+    try {
+      const student = await findStudentById(id);
+      if (!student) {
+        results.push({ id, success: false, error: 'Student record not found' });
+        continue;
+      }
+
+      if (callerRole === 'deleg' || (callerRole === 'admin' && callerSection !== 'all')) {
+        const studentSection = student.section || inferSectionFromMajor(student.major);
+        if (studentSection !== callerSection) {
+          results.push({ id, name: `${student.firstName} ${student.familyName}`, success: false, error: 'Student is outside your academic section' });
+          continue;
+        }
+      }
+
+      const email = student.email ? String(student.email).trim() : '';
+      if (!email || !email.includes('@')) {
+        results.push({ id, name: `${student.firstName} ${student.familyName}`, success: false, error: 'Student does not have a valid email address' });
+        continue;
+      }
+
+      const studentGroup = groupName || (student.assignedGroup ? `ULFS2 ${student.major} (${student.assignedGroup})` : `ULFS2 ${student.major}`);
+
+      const sendResult = await sendInviteEmail({
+        to: email,
+        student,
+        groupName: studentGroup,
+        joinUrl: effectiveJoinUrl,
+        customMessage: customMessage ? String(customMessage).trim() : '',
+        senderName
+      });
+
+      if (markApproved) {
+        try {
+          await setStudentApprovalState(id, true);
+        } catch (approvalErr) {
+          console.warn(`Could not update approval for student ${id}:`, approvalErr.message);
+        }
+      }
+
+      sentCount++;
+      results.push({
+        id,
+        name: `${student.firstName} ${student.familyName}`,
+        email,
+        success: true,
+        previewUrl: sendResult.previewUrl,
+        isSimulated: sendResult.isSimulated
+      });
+    } catch (err) {
+      console.error(`Error sending email to student ${id}:`, err.message);
+      results.push({ id, success: false, error: err.message });
+    }
+  }
+
+  const firstPreviewUrl = results.find(r => r.previewUrl)?.previewUrl || null;
+  const anySimulated = results.some(r => r.isSimulated);
+
+  return res.json({
+    success: sentCount > 0 || ids.length === 0,
+    sentCount,
+    totalCount: ids.length,
+    results,
+    previewUrl: firstPreviewUrl,
+    simulated: anySimulated,
+    message: sentCount === 1
+      ? `Invitation email sent successfully to ${results[0]?.name || 'student'}.`
+      : `${sentCount} of ${ids.length} invitation email${sentCount === 1 ? '' : 's'} sent successfully.`
+  });
 });
 
 // DELETE student
@@ -1780,6 +2042,8 @@ app.get('/login', servePage('login'));
 app.get('/form', servePage('form'));
 app.get('/dashboard', servePage('dashboard'));
 app.get('/users', servePage('users'));
+app.get('/backup', servePage('backup'));
+app.get(['/email-config', '/settings'], servePage('email-config'));
 
 // Initialize DB and start listening
 async function startServer() {

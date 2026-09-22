@@ -37,6 +37,8 @@
           Add Student
         </a>
         <a href="users.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="4"/><path d="M3 21v-2a6 6 0 0 1 12 0v2M16 11a4 4 0 0 1 5 4v2"/></svg>Users</a>
+        <a href="backup.html" class="nav-link">Backups</a>
+        <a href="email-config.html" class="nav-link"><svg viewBox="0 0 24 24" aria-hidden="true"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>Email Settings</a>
       </nav>
       <div class="user-badge" id="userBadge">
         <span class="user-name" id="userNameDisplay">Admin</span>
@@ -67,6 +69,13 @@
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
           </svg>
           Export vCard
+        </button>
+        <button id="openGroupEmailModalBtn" class="export-btn email-group-trigger-btn" type="button" title="Send official email invitation to students to join group">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect width="20" height="16" x="2" y="4" rx="2"/>
+            <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+          </svg>
+          Send Group Email
         </button>
         <button id="exportBtn" class="export-btn" type="button">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -157,6 +166,154 @@
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
             </svg>
             <span id="confirmVCardBtnText">Export vCard</span>
+          </button>
+        </div>
+      </div>
+    </dialog>
+
+    <dialog id="emailInviteModal" class="export-dialog email-invite-dialog" aria-labelledby="emailInviteModalTitle">
+      <div class="card-heading">
+        <div>
+          <span class="step">GROUP INVITATION</span>
+          <h2 id="emailInviteModalTitle">Send Group Invitation Email</h2>
+        </div>
+        <button type="button" class="editor-close" id="closeEmailInviteModal" aria-label="Close">×</button>
+      </div>
+      <p class="export-desc">
+        Send a beautifully formatted official email inviting students to join their academic group with direct links.
+      </p>
+
+      <div class="email-dialog-grid">
+        <!-- Left Column: Form & Settings -->
+        <div class="email-dialog-form">
+          <!-- Recipient Section -->
+          <div class="export-field-group">
+            <div class="field-label-row">
+              <label class="export-field-label">Recipients</label>
+              <button type="button" class="field-text-btn" id="emailSwitchScopeBtn" style="display:none;">Change target</button>
+            </div>
+            
+            <!-- Single Recipient Card -->
+            <div id="emailSingleRecipientBox" class="email-recipient-card">
+              <div class="recipient-avatar" id="emailRecipientAvatar">ST</div>
+              <div class="recipient-info">
+                <strong id="emailRecipientName">Student Name</strong>
+                <span id="emailRecipientEmail">student@example.com</span>
+                <small id="emailRecipientMeta">Informatics • MISPCE • Grp A</small>
+              </div>
+            </div>
+
+            <!-- Bulk Recipients Selector -->
+            <div id="emailBulkScopeBox" class="email-scope-picker" style="display:none;">
+              <label class="email-scope-card">
+                <input type="radio" name="emailScopeOption" value="not_in_group" checked>
+                <div class="scope-card-text">
+                  <strong>Students not in group yet</strong>
+                  <small id="emailScopeNotInGroupCount">0 students</small>
+                </div>
+              </label>
+              <label class="email-scope-card">
+                <input type="radio" name="emailScopeOption" value="filtered">
+                <div class="scope-card-text">
+                  <strong>Current filtered view</strong>
+                  <small id="emailScopeFilteredCount">0 students</small>
+                </div>
+              </label>
+              <label class="email-scope-card">
+                <input type="radio" name="emailScopeOption" value="all">
+                <div class="scope-card-text">
+                  <strong>All enrolled students</strong>
+                  <small id="emailScopeAllCount">0 students</small>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Group / Track Name -->
+          <div class="export-field-group">
+            <label class="export-field-label" for="emailGroupNameInput">Group / Track Title</label>
+            <input type="text" id="emailGroupNameInput" class="export-text-input" placeholder="e.g. ULFS2 Informatics (MISPCE) - Grp A">
+          </div>
+
+          <!-- Group Join Link -->
+          <div class="export-field-group">
+            <div class="field-label-row">
+              <label class="export-field-label" for="emailJoinUrlInput">Group Invitation Link (WhatsApp / URL) *</label>
+              <span class="field-hint" id="emailUrlSavedBadge">Auto-saved</span>
+            </div>
+            <div class="input-icon-wrap">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <input type="url" id="emailJoinUrlInput" class="export-text-input has-icon" placeholder="https://chat.whatsapp.com/..." required>
+            </div>
+
+            <!-- Quick Preset Chips -->
+            <div class="email-chips-row" id="emailChipsRow">
+              <span class="chips-label">Presets:</span>
+              <button type="button" class="group-preset-chip" data-preset="Grp A">Grp A</button>
+              <button type="button" class="group-preset-chip" data-preset="Grp B">Grp B</button>
+              <button type="button" class="group-preset-chip" data-preset="Grp C,D">Grp C,D</button>
+              <button type="button" class="group-preset-chip" data-preset="Grp E1">Grp E1</button>
+              <button type="button" class="group-preset-chip" data-preset="Grp E2">Grp E2</button>
+              <button type="button" class="group-preset-chip" data-preset="General">General</button>
+            </div>
+          </div>
+
+          <!-- Custom Message from Delegates -->
+          <div class="export-field-group">
+            <label class="export-field-label" for="emailCustomNoteInput">Custom Note / Announcement (Optional)</label>
+            <textarea id="emailCustomNoteInput" rows="2" class="export-textarea" placeholder="e.g. Please join before Monday for schedule updates and classroom distribution."></textarea>
+          </div>
+
+          <!-- Auto-mark approved checkbox -->
+          <div class="export-field-group">
+            <label class="checkbox-option-label">
+              <input type="checkbox" id="emailMarkApprovedCheck" checked>
+              <span>Mark student as <b>"Link Sent &amp; Approved"</b> upon sending</span>
+            </label>
+          </div>
+
+          <!-- Mailer Status Banner -->
+          <div class="mailer-status-banner" id="emailMailerStatusBanner">
+            <span class="status-indicator-dot"></span>
+            <span id="emailMailerStatusText">Checking email delivery service...</span>
+          </div>
+        </div>
+
+        <!-- Right Column: Live Template Preview -->
+        <div class="email-dialog-preview">
+          <div class="preview-toolbar">
+            <span class="preview-toolbar-title">Live Template Preview</span>
+            <div class="device-segmented" role="tablist">
+              <button type="button" class="device-tab is-active" id="previewModeDesktop" aria-label="Desktop view">Desktop</button>
+              <button type="button" class="device-tab" id="previewModeMobile" aria-label="Mobile view">Mobile</button>
+            </div>
+          </div>
+          <div class="preview-container" id="emailPreviewContainer">
+            <iframe id="emailPreviewFrame" class="preview-iframe" title="Email template preview"></iframe>
+          </div>
+        </div>
+      </div>
+
+      <!-- Popup Actions -->
+      <div class="popup-actions email-dialog-actions">
+        <div class="email-dialog-left-actions">
+          <a id="emailMailtoBtn" href="#" class="btn-action email-mailto-btn" target="_blank" rel="noopener noreferrer" title="Open directly in mail client">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+            Mail App (mailto)
+          </a>
+        </div>
+        <div class="email-dialog-right-actions">
+          <button type="button" class="popup-cancel" id="cancelEmailInviteBtn">Cancel</button>
+          <button type="button" class="popup-confirm" id="confirmSendEmailBtn">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;">
+              <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            <span id="confirmSendEmailBtnText">Send Email</span>
           </button>
         </div>
       </div>
