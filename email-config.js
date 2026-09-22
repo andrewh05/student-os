@@ -200,8 +200,12 @@ async function handleSaveSettings() {
   const btnText = document.querySelector('#btnSaveConfigText');
   const spinner = btn?.querySelector('.button-spinner');
 
+  const btnSmtp = document.querySelector('#btnSaveSmtpOnly');
+  const btnSmtpText = document.querySelector('#btnSaveSmtpText');
+  const spinnerSmtp = btnSmtp?.querySelector('.button-spinner');
+
   const host = document.querySelector('#cfgSmtpHost')?.value?.trim() || '';
-  const port = parseInt(document.querySelector('#cfgSmtpPort')?.value || '587', 10);
+  const port = parseInt(document.querySelector('#cfgSmtpPort')?.value || '465', 10);
   const secure = document.querySelector('#cfgSmtpSecure')?.value === 'true';
   const user = document.querySelector('#cfgSmtpUser')?.value?.trim() || '';
   const pass = document.querySelector('#cfgSmtpPass')?.value || '';
@@ -221,6 +225,10 @@ async function handleSaveSettings() {
   if (btn) btn.disabled = true;
   if (spinner) spinner.style.display = 'inline-block';
   if (btnText) btnText.textContent = 'Saving…';
+
+  if (btnSmtp) btnSmtp.disabled = true;
+  if (spinnerSmtp) spinnerSmtp.style.display = 'inline-block';
+  if (btnSmtpText) btnSmtpText.textContent = 'Saving…';
 
   try {
     const res = await fetch(`${API_BASE}/email/settings`, {
@@ -263,6 +271,10 @@ async function handleSaveSettings() {
     if (btn) btn.disabled = false;
     if (spinner) spinner.style.display = 'none';
     if (btnText) btnText.textContent = 'Save All Settings';
+
+    if (btnSmtp) btnSmtp.disabled = false;
+    if (spinnerSmtp) spinnerSmtp.style.display = 'none';
+    if (btnSmtpText) btnSmtpText.textContent = '💾 Save SMTP Credentials';
   }
 }
 
@@ -373,6 +385,9 @@ async function handleSendTestEmail() {
 function initEmailConfigPage() {
   const saveBtn = document.querySelector('#btnSaveConfig');
   if (saveBtn) saveBtn.addEventListener('click', handleSaveSettings);
+
+  const saveSmtpOnlyBtn = document.querySelector('#btnSaveSmtpOnly');
+  if (saveSmtpOnlyBtn) saveSmtpOnlyBtn.addEventListener('click', handleSaveSettings);
 
   const testBtn = document.querySelector('#btnSendTestEmail');
   if (testBtn) testBtn.addEventListener('click', handleSendTestEmail);

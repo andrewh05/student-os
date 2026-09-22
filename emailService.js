@@ -453,6 +453,18 @@ const baseDirectory = typeof __dirname !== 'undefined'
 const CONFIG_FILE = baseDirectory ? path.join(baseDirectory, 'email_settings.json') : null;
 let inMemorySettings = null;
 
+let dbModule = null;
+function getSupabaseClient() {
+  if (dbModule === null) {
+    try {
+      dbModule = require('./db');
+    } catch {
+      dbModule = false;
+    }
+  }
+  return dbModule && dbModule.supabase ? dbModule.supabase : null;
+}
+
 function loadSavedSettings() {
   if (inMemorySettings) return inMemorySettings;
   try {
@@ -476,6 +488,35 @@ function loadSavedSettings() {
   return inMemorySettings;
 }
 
+async function syncEmailSettingsFromDb() {
+  const supabase = getSupabaseClient();
+  if (!supabase) return inMemorySettings;
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .select('note')
+      .eq('id', '00000000-0000-0000-0000-000000000001')
+      .maybeSingle();
+
+    if (!error && data && data.note && cryptoHelpers && typeof cryptoHelpers.decryptValue === 'function') {
+      const decrypted = cryptoHelpers.decryptValue(data.note, 'system.email_settings');
+      const parsed = JSON.parse(decrypted);
+      if (parsed && typeof parsed === 'object') {
+        let pass = parsed.smtpPass || '';
+        if (pass.startsWith('enc:v1:')) {
+          try {
+            pass = cryptoHelpers.decryptValue(pass, 'email_settings.smtp_pass');
+          } catch {}
+        }
+        inMemorySettings = { ...(inMemorySettings || {}), ...parsed, smtpPass: pass };
+      }
+    }
+  } catch (err) {
+    // Ignore network / schema errors
+  }
+  return inMemorySettings;
+}
+
 function getSmtpConfig() {
   const saved = loadSavedSettings() || {};
   const host = saved.smtpHost !== undefined ? saved.smtpHost : (process.env.SMTP_HOST || '');
@@ -490,7 +531,7 @@ function getSmtpConfig() {
   return { host, port, user, pass, secure, from, isConfigured };
 }
 
-function saveEmailSettings(settings) {
+async function saveEmailSettings(settings) {
   const current = loadSavedSettings() || {};
   let passwordToStore = settings.smtpPass !== undefined && settings.smtpPass !== ''
     ? settings.smtpPass
@@ -533,7 +574,7 @@ function saveEmailSettings(settings) {
     defaultCustomNote: settings.defaultCustomNote !== undefined ? settings.defaultCustomNote : (current.defaultCustomNote || '')
   };
 
-  inMemorySettings = payload;
+  inMemorySettings = { ...payload, smtpPass: passwordToStore };
 
   if (CONFIG_FILE && fs && typeof fs.writeFileSync === 'function') {
     try {
@@ -569,6 +610,30 @@ function saveEmailSettings(settings) {
       fs.writeFileSync(envPath, content, 'utf8');
     } catch (e) {
       console.warn('Could not sync .env:', e.message);
+    }
+  }
+
+  // Persist to Supabase if available so settings survive Worker isolate recycling
+  const supabase = getSupabaseClient();
+  if (supabase && process.env.NODE_ENV !== 'test' && cryptoHelpers && typeof cryptoHelpers.encryptValue === 'function') {
+    try {
+      const encryptedConfig = cryptoHelpers.encryptValue(JSON.stringify(payload), 'system.email_settings');
+      await supabase.from('students').upsert({
+        id: '00000000-0000-0000-0000-000000000001',
+        first_name: '__SYSTEM_CONFIG__',
+        father_name: 'CONFIG',
+        family_name: 'EMAIL_SETTINGS',
+        school: 'SYSTEM',
+        major: 'SYSTEM',
+        status: 'SYSTEM',
+        language: 'SYSTEM',
+        campus: 'SYSTEM',
+        phone: 'SYSTEM',
+        email: 'system@student-os.local',
+        note: encryptedConfig
+      }, { onConflict: 'id' });
+    } catch (supaErr) {
+      console.warn('Could not persist email settings to Supabase:', supaErr.message);
     }
   }
 
@@ -832,5 +897,6 @@ module.exports = {
   getSmtpConfig,
   saveEmailSettings,
   getEffectiveSettings,
+  syncEmailSettingsFromDb,
   escapeHtml
 };

@@ -6,7 +6,7 @@ const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, v
 
 const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
 const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl } = require('./backup');
-const { renderEmailTemplate, sendInviteEmail, getMailerStatus, saveEmailSettings, getEffectiveSettings, sendTestEmail } = require('./emailService');
+const { renderEmailTemplate, sendInviteEmail, getMailerStatus, saveEmailSettings, getEffectiveSettings, sendTestEmail, syncEmailSettingsFromDb } = require('./emailService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -121,6 +121,13 @@ const mapStudent = row => {
   };
 };
 
+const isSystemStudent = row => {
+  if (!row) return false;
+  const idStr = String(row.id || '');
+  const fnStr = String(row.first_name || row.firstName || '');
+  return idStr === '00000000-0000-0000-0000-000000000001' || fnStr.startsWith('__SYSTEM');
+};
+
 const toStudentRow = student => {
   const targetSection = student.section || inferSectionFromMajor(student.major);
   const isApproved = student.linkApproved !== undefined ? Boolean(student.linkApproved) : Boolean(student.inClass);
@@ -180,7 +187,7 @@ async function findDuplicateStudent(candidate, excludedId = null) {
       .from('students')
       .select('id, first_name, father_name, family_name, phone, email');
     if (error) throw error;
-    students = (data || []).map(mapStudent);
+    students = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
   } else {
     const { rows } = await pool.query(
       'SELECT id, first_name, father_name, family_name, phone, email FROM students'
@@ -939,7 +946,7 @@ app.get('/api/students', async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      studentList = (data || []).map(mapStudent);
+      studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
     } else {
       const { rows } = await pool.query(`
         SELECT 
@@ -1092,7 +1099,7 @@ app.get('/api/students/export/vcard', async (req, res) => {
     if (supabase) {
       const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
       if (error) throw error;
-      studentList = (data || []).map(mapStudent);
+      studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
     } else {
       const { rows } = await pool.query(`
         SELECT 
@@ -1810,6 +1817,9 @@ app.get('/api/email/settings', async (req, res) => {
     return res.status(403).json({ success: false, error: 'Access restricted to administrators' });
   }
 
+  if (typeof syncEmailSettingsFromDb === 'function') {
+    await syncEmailSettingsFromDb();
+  }
   const settings = getEffectiveSettings();
   return res.json({ success: true, settings });
 });
@@ -1826,7 +1836,7 @@ app.post('/api/email/settings', async (req, res) => {
   }
 
   try {
-    const updated = saveEmailSettings(req.body || {});
+    const updated = await saveEmailSettings(req.body || {});
     return res.json({ success: true, settings: updated, message: 'Email and group configuration saved successfully.' });
   } catch (err) {
     console.error('Error saving email settings:', err.message);
