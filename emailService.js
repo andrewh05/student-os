@@ -644,9 +644,6 @@ async function getTransporter(overrideConfig = null) {
       auth: {
         user: config.user,
         pass: config.pass
-      },
-      tls: {
-        rejectUnauthorized: false
       }
     };
 
