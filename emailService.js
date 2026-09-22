@@ -93,16 +93,9 @@ ${effectiveJoinUrl}
 • Status: ${status}
 • Language Track: ${language}
 
-${customMessage ? `Note from your delegates:\n${customMessage}\n\n` : ''}
-Important Instructions:
-1. Please ensure your WhatsApp/messaging display name matches your university registered name (${fullName}) so group administrators can verify and accept your request promptly.
-2. Official announcements, lecture notes, hall assignments, and exam schedules are coordinated inside this group.
-3. If you have questions or need assistance, contact your class delegates.
-
-Best regards,
+${customMessage ? `Note from your delegates:\n${customMessage}\n\n` : ''}Best regards,
 ${senderName}
 Lebanese University — Faculty of Sciences II
-student-os.com
 `.trim();
 
   // Modern, high-conversion, responsive HTML template
@@ -429,18 +422,6 @@ student-os.com
             <strong>Having trouble with the button?</strong> Copy and paste this link into your browser:<br>
             <a href="${escapeHtml(effectiveJoinUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(effectiveJoinUrl)}</a>
           </div>
-
-          <!-- IMPORTANT INSTRUCTIONS -->
-          <div class="instructions-card">
-            <div class="instructions-title">
-              <span>📌</span> Important Instructions for Joining:
-            </div>
-            <ol class="instructions-list">
-              <li>Set your messaging display name to your official university name (<strong>${escapeHtml(fullName)}</strong>) so group administrators can verify and accept your request.</li>
-              <li>Official timetable changes, exam rooms, lecture notes, and syllabus materials are pinned in this group.</li>
-              <li>Please keep discussions respectful and academic-focused.</li>
-            </ol>
-          </div>
         </td>
       </tr>
 
@@ -448,13 +429,7 @@ student-os.com
       <tr>
         <td class="footer">
           <div class="footer-logo">Faculty of Sciences II — Fanar &amp; Amshit</div>
-          <p style="margin: 0 0 10px;">
-            Sent by ${escapeHtml(senderName)} via <strong style="color:#431407;">student-os.com</strong>
-          </p>
-          <div class="footer-links">
-            <a href="https://student-os.com" target="_blank" rel="noopener noreferrer">student-os.com</a> •
-            <a href="mailto:support@student-os.com">Contact Delegation</a>
-          </div>
+          ${senderName ? `<div style="margin-top:6px;font-size:12px;color:#9a3412;">${escapeHtml(senderName)}</div>` : ''}
         </td>
       </tr>
     </table>
