@@ -250,6 +250,7 @@
               <button type="button" class="group-preset-chip" data-preset="Grp C,D">Grp C,D</button>
               <button type="button" class="group-preset-chip" data-preset="Grp E1">Grp E1</button>
               <button type="button" class="group-preset-chip" data-preset="Grp E2">Grp E2</button>
+              <button type="button" class="group-preset-chip" data-preset="Amchit">Amchit</button>
               <button type="button" class="group-preset-chip" data-preset="General">General</button>
             </div>
           </div>
@@ -474,6 +475,17 @@
               </div>
             </div>
           </div>
+          <div class="class-stat" data-group="Amchit">
+            <div class="class-stat-top"><span>Amchit</span><b id="grpAmchitCount">0</b></div>
+            <div class="class-progress"><i id="grpAmchitBar"></i></div>
+            <div class="class-stat-meta">
+              <small id="grpAmchitPercent">0% of students</small>
+              <div class="class-stat-tags">
+                <span class="stat-pill pill-new"><b id="grpAmchitNew">0</b> New</span>
+                <span class="stat-pill pill-mu3id"><b id="grpAmchitMu3id">0</b> Mu3id</span>
+              </div>
+            </div>
+          </div>
           <div class="class-stat" data-group="unassigned">
             <div class="class-stat-top"><span>Unassigned section</span><b id="unassignedCount">0</b></div>
             <div class="class-progress"><i id="unassignedBar"></i></div>
@@ -503,6 +515,7 @@
             <button type="button" class="political-group-tab" data-group="Grp C,D">Grp C,D</button>
             <button type="button" class="political-group-tab" data-group="Grp E1">Grp E1</button>
             <button type="button" class="political-group-tab" data-group="Grp E2">Grp E2</button>
+            <button type="button" class="political-group-tab" data-group="Amchit">Amchit</button>
             <button type="button" class="political-group-tab" data-group="in_group">All in group</button>
             <button type="button" class="political-group-tab" data-group="not_in_group">Not in group</button>
           </div>
@@ -546,6 +559,7 @@
           <option value="Grp C,D">Grp C,D</option>
           <option value="Grp E1">Grp E1</option>
           <option value="Grp E2">Grp E2</option>
+          <option value="Amchit">Amchit</option>
           <option value="unassigned">Unassigned section</option>
         </select></label>
         <button type="button" id="clearFilters" class="clear-filters">

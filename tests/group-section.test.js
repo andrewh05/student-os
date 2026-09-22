@@ -187,6 +187,7 @@ test('group section normalization correctly classifies sections', () => {
     if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
     if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
     if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+    if (norm === 'amchit' || norm === 'amshit' || norm === 'grp amchit' || norm === 'grp amshit') return 'Amchit';
     return '';
   }
 
@@ -202,6 +203,11 @@ test('group section normalization correctly classifies sections', () => {
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'e1' }), 'Grp E1');
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp E2' }), 'Grp E2');
   assert.equal(getStudentAssignedGroup({ assignedGroup: 'e2' }), 'Grp E2');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'Amchit' }), 'Amchit');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'amchit' }), 'Amchit');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'Amshit' }), 'Amchit');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'amshit' }), 'Amchit');
+  assert.equal(getStudentAssignedGroup({ assignedGroup: 'Grp Amchit' }), 'Amchit');
   assert.equal(getStudentAssignedGroup({ assignedGroup: '' }), '');
   assert.equal(getStudentAssignedGroup(null), '');
 });
@@ -419,5 +425,73 @@ test('filterStudentsPredicate correctly filters without reference errors', () =>
   assert.equal(runFilter('', '', 'approved').length, 1);
   assert.equal(runFilter('', '', 'pending').length, 1);
 });
+
+test('student campus Amchit renders single Amchit group button regardless of language', () => {
+  function getStudentAssignedGroup(student) {
+    const norm = (student?.assignedGroup || '').trim().toLowerCase();
+    if (norm === 'grp a' || norm === 'a') return 'Grp A';
+    if (norm === 'grp b' || norm === 'b') return 'Grp B';
+    if (norm === 'grp a,b' || norm === 'a,b') return 'Grp A,B';
+    if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
+    if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
+    if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+    if (norm === 'amchit' || norm === 'amshit' || norm === 'grp amchit' || norm === 'grp amshit') return 'Amchit';
+    return '';
+  }
+
+  function getGroupButtons(student) {
+    const campus = (student.campus || '').trim().toLowerCase();
+    const isAmchit = campus.includes('amchit') || campus.includes('amshit');
+    const lang = (student.language || '').trim().toLowerCase();
+    const isFrench = lang.includes('french');
+    const isEnglish = lang.includes('english');
+    const assigned = getStudentAssignedGroup(student);
+
+    if (isAmchit) {
+      return [{ group: 'Amchit', isActive: assigned === 'Amchit' }];
+    } else if (isFrench) {
+      return [
+        { group: 'Grp A', isActive: assigned === 'Grp A' },
+        { group: 'Grp B', isActive: assigned === 'Grp B' },
+        { group: 'Grp C,D', isActive: assigned === 'Grp C,D' }
+      ];
+    } else if (isEnglish) {
+      return [
+        { group: 'Grp E1', isActive: assigned === 'Grp E1' },
+        { group: 'Grp E2', isActive: assigned === 'Grp E2' }
+      ];
+    }
+    return [];
+  }
+
+  // Amchit campus with French language
+  const sAmchitFrench = { campus: 'Amshit', language: 'French', assignedGroup: 'Amchit' };
+  const btnsAmchitFr = getGroupButtons(sAmchitFrench);
+  assert.equal(btnsAmchitFr.length, 1);
+  assert.equal(btnsAmchitFr[0].group, 'Amchit');
+  assert.equal(btnsAmchitFr[0].isActive, true);
+
+  // Amchit campus with English language
+  const sAmchitEnglish = { campus: 'Amchit', language: 'English', assignedGroup: '' };
+  const btnsAmchitEn = getGroupButtons(sAmchitEnglish);
+  assert.equal(btnsAmchitEn.length, 1);
+  assert.equal(btnsAmchitEn[0].group, 'Amchit');
+  assert.equal(btnsAmchitEn[0].isActive, false);
+
+  // Fanar campus with French language (retains Grp A, Grp B, Grp C,D)
+  const sFanarFr = { campus: 'Fanar', language: 'French', assignedGroup: 'Grp A' };
+  const btnsFanarFr = getGroupButtons(sFanarFr);
+  assert.equal(btnsFanarFr.length, 3);
+  assert.deepEqual(btnsFanarFr.map(b => b.group), ['Grp A', 'Grp B', 'Grp C,D']);
+  assert.equal(btnsFanarFr[0].isActive, true);
+
+  // Fanar campus with English language (retains Grp E1, Grp E2)
+  const sFanarEn = { campus: 'Fanar', language: 'English', assignedGroup: 'Grp E2' };
+  const btnsFanarEn = getGroupButtons(sFanarEn);
+  assert.equal(btnsFanarEn.length, 2);
+  assert.deepEqual(btnsFanarEn.map(b => b.group), ['Grp E1', 'Grp E2']);
+  assert.equal(btnsFanarEn[1].isActive, true);
+});
+
 
 

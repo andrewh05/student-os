@@ -92,6 +92,7 @@ function getStudentAssignedGroup(student) {
   if (norm === 'grp c,d' || norm === 'c,d') return 'Grp C,D';
   if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
   if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
+  if (norm === 'amchit' || norm === 'amshit' || norm === 'grp amchit' || norm === 'grp amshit') return 'Amchit';
   return '';
 }
 let systemUsers = [];
@@ -867,6 +868,8 @@ function renderStudents(query = '') {
     const fullName = `${student.firstName} ${student.fatherName} ${student.familyName}`;
     const initials = `${student.firstName?.[0] || ''}${student.familyName?.[0] || ''}`.toUpperCase();
     const lang = (student.language || '').trim().toLowerCase();
+    const campus = (student.campus || '').trim().toLowerCase();
+    const isAmchit = campus.includes('amchit') || campus.includes('amshit');
     const isFrench = lang.includes('french');
     const isEnglish = lang.includes('english');
     const isLeft = Boolean(student.leftGroup);
@@ -874,7 +877,20 @@ function renderStudents(query = '') {
 
     let groupButtonsHtml = '';
     const assigned = getStudentAssignedGroup(student);
-    if (isFrench) {
+    if (isAmchit) {
+      const isAmchitActive = assigned === 'Amchit';
+      groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isAmchitActive ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'Amchit', this)"
+              aria-pressed="${isAmchitActive ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isAmchitActive ? '✓ Amchit' : 'Amchit'}
+            </button>
+          </div>
+      `;
+    } else if (isFrench) {
       const isA = assigned === 'Grp A';
       const isB = assigned === 'Grp B';
       const isCD = assigned === 'Grp C,D';
@@ -1260,6 +1276,7 @@ function updateStats() {
   const grpCDStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
   const grpE1Students = students.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
   const grpE2Students = students.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
+  const grpAmchitStudents = students.filter(s => getStudentAssignedGroup(s) === 'Amchit');
   const unassignedStudents = students.filter(s => !getStudentAssignedGroup(s));
 
   const grpA = grpAStudents.length;
@@ -1268,6 +1285,7 @@ function updateStats() {
   const grpCD = grpCDStudents.length;
   const grpE1 = grpE1Students.length;
   const grpE2 = grpE2Students.length;
+  const grpAmchit = grpAmchitStudents.length;
   const unassigned = unassignedStudents.length;
 
   setText('#grpACount', grpA);
@@ -1276,6 +1294,7 @@ function updateStats() {
   setText('#grpCDCount', grpCD);
   setText('#grpE1Count', grpE1);
   setText('#grpE2Count', grpE2);
+  setText('#grpAmchitCount', grpAmchit);
   setText('#unassignedCount', unassigned);
 
   setText('#grpANew', grpAStudents.filter(isNew).length);
@@ -1288,6 +1307,8 @@ function updateStats() {
   setText('#grpE1Mu3id', grpE1Students.filter(isMu3id).length);
   setText('#grpE2New', grpE2Students.filter(isNew).length);
   setText('#grpE2Mu3id', grpE2Students.filter(isMu3id).length);
+  setText('#grpAmchitNew', grpAmchitStudents.filter(isNew).length);
+  setText('#grpAmchitMu3id', grpAmchitStudents.filter(isMu3id).length);
   setText('#unassignedNew', unassignedStudents.filter(isNew).length);
   setText('#unassignedMu3id', unassignedStudents.filter(isMu3id).length);
 
@@ -1297,6 +1318,7 @@ function updateStats() {
   setText('#grpCDPercent', `${percent(grpCD)}% of students`);
   setText('#grpE1Percent', `${percent(grpE1)}% of students`);
   setText('#grpE2Percent', `${percent(grpE2)}% of students`);
+  setText('#grpAmchitPercent', `${percent(grpAmchit)}% of students`);
   setText('#unassignedPercent', `${percent(unassigned)}% of students`);
 
   const grpABar = document.querySelector('#grpABar');
@@ -1305,6 +1327,7 @@ function updateStats() {
   const grpCDBar = document.querySelector('#grpCDBar');
   const grpE1Bar = document.querySelector('#grpE1Bar');
   const grpE2Bar = document.querySelector('#grpE2Bar');
+  const grpAmchitBar = document.querySelector('#grpAmchitBar');
   const unassignedBar = document.querySelector('#unassignedBar');
 
   if (grpABar) grpABar.style.width = `${percent(grpA)}%`;
@@ -1313,6 +1336,7 @@ function updateStats() {
   if (grpCDBar) grpCDBar.style.width = `${percent(grpCD)}%`;
   if (grpE1Bar) grpE1Bar.style.width = `${percent(grpE1)}%`;
   if (grpE2Bar) grpE2Bar.style.width = `${percent(grpE2)}%`;
+  if (grpAmchitBar) grpAmchitBar.style.width = `${percent(grpAmchit)}%`;
   if (unassignedBar) unassignedBar.style.width = `${percent(unassigned)}%`;
 
   if (!isCurrentUserDeleg()) {
@@ -1368,6 +1392,7 @@ function getStudentsForPoliticalGroup(groupKey) {
   if (groupKey === 'Grp C,D') return students.filter(s => getStudentAssignedGroup(s) === 'Grp C,D');
   if (groupKey === 'Grp E1') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E1');
   if (groupKey === 'Grp E2') return students.filter(s => getStudentAssignedGroup(s) === 'Grp E2');
+  if (groupKey === 'Amchit') return students.filter(s => getStudentAssignedGroup(s) === 'Amchit');
   if (groupKey === 'in_group') return students.filter(s => s.inGroup && !s.leftGroup);
   if (groupKey === 'not_in_group') return students.filter(s => !s.inGroup && !s.leftGroup);
   return students;
@@ -1381,6 +1406,7 @@ const POLITICAL_GROUP_LABELS = {
   'Grp C,D': 'Grp C,D (French)',
   'Grp E1': 'Grp E1 (English)',
   'Grp E2': 'Grp E2 (English)',
+  'Amchit': 'Amchit',
   in_group: 'All in group',
   not_in_group: 'Not in group'
 };
