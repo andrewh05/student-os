@@ -1948,18 +1948,23 @@ app.post('/api/email/send', async (req, res) => {
   const callerRole = (session.role || 'deleg').toLowerCase();
   const callerSection = (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
 
-  const { studentId, studentIds, groupName, joinUrl, customMessage, markApproved = true } = req.body || {};
+  const { studentId, studentIds, groupName, joinUrl, customMessage, markApproved = true, automatic = false } = req.body || {};
   const ids = Array.isArray(studentIds) ? studentIds.filter(Boolean) : (studentId ? [studentId] : []);
 
   if (!ids.length) {
     return res.status(400).json({ success: false, error: 'No student IDs specified for email invitation' });
   }
 
-  if (!joinUrl || !String(joinUrl).trim()) {
+  if (!automatic && (!joinUrl || !String(joinUrl).trim())) {
     return res.status(400).json({ success: false, error: 'Group invitation URL is required' });
   }
 
-  const effectiveJoinUrl = String(joinUrl).trim();
+  if (automatic && typeof syncEmailSettingsFromDb === 'function') {
+    await syncEmailSettingsFromDb();
+  }
+  const savedEmailSettings = automatic ? getEffectiveSettings() : null;
+  const configuredGroupLinks = savedEmailSettings?.groupLinks || {};
+  const explicitJoinUrl = joinUrl ? String(joinUrl).trim() : '';
   const senderName = session.fullName ? `${session.fullName} (ULFS2 Delegation)` : 'ULFS2 Academic Delegation';
 
   const results = [];
@@ -1987,14 +1992,33 @@ app.post('/api/email/send', async (req, res) => {
         continue;
       }
 
+      const assignedGroup = String(student.assignedGroup || '').trim();
+      const campus = String(student.campus || '').trim().toLowerCase();
+      const automaticGroupKey = assignedGroup || ((campus.includes('amchit') || campus.includes('amshit')) ? 'Amchit' : 'general');
+      const effectiveJoinUrl = explicitJoinUrl
+        || String(configuredGroupLinks[automaticGroupKey] || configuredGroupLinks.general || '').trim();
+
+      if (!effectiveJoinUrl) {
+        results.push({
+          id,
+          name: `${student.firstName} ${student.familyName}`,
+          success: false,
+          error: `No invitation link is configured for ${automaticGroupKey === 'general' ? 'the general group' : automaticGroupKey}`
+        });
+        continue;
+      }
+
       const studentGroup = groupName || (student.assignedGroup ? `ULFS2 ${student.major} (${student.assignedGroup})` : `ULFS2 ${student.major}`);
+      const effectiveCustomMessage = customMessage !== undefined
+        ? String(customMessage).trim()
+        : String(savedEmailSettings?.defaultCustomNote || '').trim();
 
       const sendResult = await sendInviteEmail({
         to: email,
         student,
         groupName: studentGroup,
         joinUrl: effectiveJoinUrl,
-        customMessage: customMessage ? String(customMessage).trim() : '',
+        customMessage: effectiveCustomMessage,
         senderName
       });
 
@@ -2012,6 +2036,7 @@ app.post('/api/email/send', async (req, res) => {
         name: `${student.firstName} ${student.familyName}`,
         email,
         success: true,
+        groupKey: automaticGroupKey,
         previewUrl: sendResult.previewUrl,
         isSimulated: sendResult.isSimulated
       });

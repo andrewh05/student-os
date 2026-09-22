@@ -268,6 +268,30 @@ test('POST /api/email/settings updates configuration and restricts delegates', a
   assert.equal(data.settings.smtpPass, '');
 });
 
+test('POST /api/email/send automatically uses the saved group link', async () => {
+  testStudent.in_class = false;
+
+  const res = await fetch(`${baseUrl}/api/email/send`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${delegToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      studentId: testStudent.id,
+      automatic: true,
+      markApproved: true
+    })
+  });
+
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.success, true);
+  assert.equal(data.sentCount, 1);
+  assert.equal(data.results[0].groupKey, 'general');
+  assert.equal(testStudent.in_class, true);
+});
+
 test('POST /api/email/test-connection verifies SMTP and rejects invalid inputs or delegates', async () => {
   // 403 delegate
   const resDeleg = await fetch(`${baseUrl}/api/email/test-connection`, {
@@ -306,4 +330,3 @@ test('POST /api/email/test-connection verifies SMTP and rejects invalid inputs o
   assert.equal(data.recipient, 'admin.verify@student-os.com');
   assert.ok(data.messageId);
 });
-

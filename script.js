@@ -1066,7 +1066,7 @@ function renderStudents(query = '') {
           ` : student.leftGroup ? '<span class="left-group-status">Left group</span>' : ''}
           <button type="button"
             class="btn-action email-invite-card-btn"
-            onclick="openEmailModalForStudent('${student.id}')"
+            onclick="sendStudentEmailAutomatically('${student.id}', this)"
             title="Send an invitation email to ${escapeHtml(fullName)}">
             <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect width="20" height="16" x="2" y="4" rx="2"/>
@@ -3154,6 +3154,77 @@ function openEmailModalForStudent(studentId) {
   updateEmailTemplatePreview();
 
   modal.showModal();
+}
+
+const automaticEmailSends = new Set();
+
+async function sendStudentEmailAutomatically(studentId, button) {
+  const id = String(studentId);
+  if (automaticEmailSends.has(id)) return;
+
+  const pool = getRecipientPool();
+  const student = pool.find(item => String(item.id) === id);
+  if (!student) {
+    showToast('Email Not Sent', 'Could not locate the student record.');
+    return;
+  }
+  if (!student.email || !String(student.email).trim().includes('@')) {
+    showToast('Email Not Sent', 'This student does not have a valid email address.');
+    return;
+  }
+
+  automaticEmailSends.add(id);
+  const originalHtml = button?.innerHTML || '';
+  if (button) {
+    button.disabled = true;
+    button.classList.add('is-sending');
+    button.textContent = 'Sending…';
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/email/send`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify({
+        studentId: student.id,
+        automatic: true,
+        markApproved: true
+      })
+    });
+    const data = await parseApiResponse(response);
+    if (!data.success || data.sentCount !== 1) {
+      throw new Error(data.results?.[0]?.error || data.error || 'Could not send the invitation email.');
+    }
+
+    for (const list of [students, allStudentsMaster]) {
+      if (!Array.isArray(list)) continue;
+      const record = list.find(item => String(item.id) === id);
+      if (record) {
+        record.linkApproved = true;
+        record.inClass = true;
+      }
+    }
+    updateStats();
+    scheduleRenderStudents(searchInput ? searchInput.value : '');
+
+    const groupLabel = data.results?.[0]?.groupKey;
+    showToast(
+      data.simulated ? 'Email Prepared' : 'Email Sent',
+      `Invitation sent to ${student.firstName || 'student'}${groupLabel ? ` using the ${groupLabel} link` : ''}.`
+    );
+  } catch (err) {
+    showToast('Email Not Sent', err.message || 'Could not send the invitation email.');
+  } finally {
+    automaticEmailSends.delete(id);
+    if (button?.isConnected) {
+      button.disabled = false;
+      button.classList.remove('is-sending');
+      button.innerHTML = originalHtml;
+    }
+  }
 }
 
 function openGroupEmailModal() {

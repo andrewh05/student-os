@@ -13,6 +13,8 @@ test('dashboard pages include the email modal and student cards expose a send-em
 
   const controller = fs.readFileSync(path.join(projectRoot, 'script.js'), 'utf8');
   assert.match(controller, /class="btn-action email-invite-card-btn"/);
-  assert.match(controller, /onclick="openEmailModalForStudent\('\$\{student\.id\}'\)"/);
+  assert.match(controller, /onclick="sendStudentEmailAutomatically\('\$\{student\.id\}', this\)"/);
+  assert.match(controller, /async function sendStudentEmailAutomatically\(studentId, button\)/);
+  assert.match(controller, /automatic: true/);
   assert.match(controller, />\s*Send Email\s*<\/button>/);
 });
