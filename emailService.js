@@ -445,11 +445,17 @@ student-os.com
 let cachedTransporter = null;
 let etherealAccount = null;
 
-const CONFIG_FILE = path.join(__dirname, 'email_settings.json');
+const baseDirectory = typeof __dirname !== 'undefined'
+  ? __dirname
+  : (typeof process !== 'undefined' && typeof process.cwd === 'function' ? process.cwd() : null);
+
+const CONFIG_FILE = baseDirectory ? path.join(baseDirectory, 'email_settings.json') : null;
+let inMemorySettings = null;
 
 function loadSavedSettings() {
+  if (inMemorySettings) return inMemorySettings;
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
+    if (CONFIG_FILE && fs && typeof fs.existsSync === 'function' && fs.existsSync(CONFIG_FILE)) {
       const raw = fs.readFileSync(CONFIG_FILE, 'utf8');
       const data = JSON.parse(raw);
       if (data && typeof data === 'object') {
@@ -459,13 +465,14 @@ function loadSavedSettings() {
             pass = cryptoHelpers.decryptValue(pass, 'email_settings.smtp_pass');
           } catch {}
         }
-        return { ...data, smtpPass: pass };
+        inMemorySettings = { ...data, smtpPass: pass };
+        return inMemorySettings;
       }
     }
   } catch (err) {
     console.warn('Could not read email_settings.json:', err.message);
   }
-  return null;
+  return inMemorySettings;
 }
 
 function getSmtpConfig() {
@@ -524,15 +531,19 @@ function saveEmailSettings(settings) {
     defaultCustomNote: settings.defaultCustomNote !== undefined ? settings.defaultCustomNote : (current.defaultCustomNote || '')
   };
 
-  try {
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(payload, null, 2), 'utf8');
-  } catch (err) {
-    console.warn('Could not write email_settings.json:', err.message);
+  inMemorySettings = payload;
+
+  if (CONFIG_FILE && fs && typeof fs.writeFileSync === 'function') {
+    try {
+      fs.writeFileSync(CONFIG_FILE, JSON.stringify(payload, null, 2), 'utf8');
+    } catch (err) {
+      console.warn('Could not write email_settings.json:', err.message);
+    }
   }
 
   // Also sync to .env file if it exists (not in test mode)
-  const envPath = path.join(__dirname, '.env');
-  if (process.env.NODE_ENV !== 'test' && fs.existsSync(envPath)) {
+  const envPath = baseDirectory ? path.join(baseDirectory, '.env') : null;
+  if (envPath && process.env.NODE_ENV !== 'test' && fs && typeof fs.existsSync === 'function' && fs.existsSync(envPath)) {
     try {
       let content = fs.readFileSync(envPath, 'utf8');
       const envUpdates = {
