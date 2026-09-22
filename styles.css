@@ -1089,7 +1089,14 @@ legend { padding: 0; }
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  margin-bottom: 4px;
+}
+.student-name-row h3 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .btn-save-contact-icon {

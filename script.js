@@ -936,11 +936,6 @@ function renderStudents(query = '') {
           <div class="student-top-info">
             <div class="student-name-row">
               <h3>${escapeHtml(fullName)}</h3>
-              <button type="button" class="btn-save-contact-icon" onclick="saveStudentContact('${student.id}')" title="Save ${escapeHtml(fullName)} to Contacts" aria-label="Save ${escapeHtml(fullName)} to phone contacts">
-                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-                </svg>
-              </button>
               <button type="button"
                 class="btn-approve-class-icon ${Boolean(student.linkApproved) ? 'is-approved' : ''}"
                 onclick="toggleStudentLinkApproval('${student.id}', ${!Boolean(student.linkApproved)}, this)"
