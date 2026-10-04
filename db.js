@@ -63,6 +63,15 @@ async function initDb() {
       console.log('Default superadmin user created (username: admin, password: admin123)');
     }
 
+    const andrewRes = await client.query(`SELECT COUNT(*) FROM users WHERE username = 'andrew';`);
+    if (parseInt(andrewRes.rows[0].count, 10) === 0) {
+      await client.query(`
+        INSERT INTO users (username, password, full_name, role)
+        VALUES ('andrew', 'andrew123', 'Andrew Haddad', 'superadmin');
+      `);
+      console.log('Default superadmin user created (username: andrew, password: andrew123)');
+    }
+
     // 2. Create students table with username & password fields
     await client.query(`
       CREATE TABLE IF NOT EXISTS students (

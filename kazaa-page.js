@@ -534,7 +534,32 @@
     const userSec = (user?.section || (role === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
     const isSuper = role === 'superadmin' || userSec === 'all';
 
+    const isAndrew = (typeof isCurrentUserAndrew === 'function' ? isCurrentUserAndrew() : ((user?.username || '').toLowerCase() === 'andrew'));
+
     if (isSuper) {
+      if (isAndrew && !switchTabs.querySelector('[data-section="l2"]')) {
+        const l2Btn = document.createElement('button');
+        l2Btn.type = 'button';
+        l2Btn.className = 'hero-section-btn';
+        l2Btn.dataset.section = 'l2';
+        l2Btn.textContent = 'L2';
+
+        const l3Btn = document.createElement('button');
+        l3Btn.type = 'button';
+        l3Btn.className = 'hero-section-btn';
+        l3Btn.dataset.section = 'l3';
+        l3Btn.textContent = 'L3';
+
+        const m1Btn = document.createElement('button');
+        m1Btn.type = 'button';
+        m1Btn.className = 'hero-section-btn';
+        m1Btn.dataset.section = 'm1';
+        m1Btn.textContent = 'M1';
+
+        switchTabs.appendChild(l2Btn);
+        switchTabs.appendChild(l3Btn);
+        switchTabs.appendChild(m1Btn);
+      }
       switchTabs.style.display = 'inline-flex';
       switchTabs.querySelectorAll('.hero-section-btn').forEach(tab => {
         tab.addEventListener('click', () => {

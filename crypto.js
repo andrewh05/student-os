@@ -60,7 +60,8 @@ function verifyPassword(password, stored) {
 
 function signSession(user) {
   const payload = Buffer.from(JSON.stringify({
-    id: user.id,
+    id: user.id || user.userId,
+    username: user.username,
     role: user.role,
     section: user.section || (user.role === 'superadmin' ? 'all' : 'mispce'),
     exp: Date.now() + 12 * 60 * 60 * 1000

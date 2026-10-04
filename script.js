@@ -139,6 +139,11 @@ function getStudentAssignedGroup(student) {
   if (norm === 'grp e1' || norm === 'e1') return 'Grp E1';
   if (norm === 'grp e2' || norm === 'e2') return 'Grp E2';
   if (norm === 'amchit' || norm === 'amshit' || norm === 'grp amchit' || norm === 'grp amshit') return 'Amchit';
+  if (norm === 'l2 fr' || norm === 'l2_fr' || norm === 'l2fr') return 'L2 FR';
+  if (norm === 'l2 eng' || norm === 'l2_eng' || norm === 'l2eng') return 'L2 ENG';
+  if (norm === 'l3 fr' || norm === 'l3_fr' || norm === 'l3fr') return 'L3 FR';
+  if (norm === 'l3 eng' || norm === 'l3_eng' || norm === 'l3eng') return 'L3 ENG';
+  if (norm === 'm1 fr' || norm === 'm1_fr' || norm === 'm1fr') return 'M1 FR';
   const campus = (student?.campus || '').trim().toLowerCase();
   if ((campus.includes('amchit') || campus.includes('amshit')) && student?.inGroup && !student?.leftGroup) return 'Amchit';
   return '';
@@ -150,12 +155,17 @@ const escapeHtml = (value = '') => String(value || '').replace(/[&<>'"]/g, char 
 // Academic Section Configuration
 const MISPCE_MAJORS_LIST = ['Mathematics', 'Informatics', 'Statistics', 'Physics', 'Chemistry', 'Electronics'];
 const CSVT_MAJORS_LIST = ['Biology', 'Biochemistry', 'Chemistry'];
+const ADVANCED_CS_SECTIONS = ['l2', 'l3', 'm1'];
+const ADVANCED_CS_MAJORS_LIST = ['Computer Science'];
 
 function inferSectionFromMajor(major = '') {
   const norm = String(major || '').trim().toLowerCase();
   if (['biology', 'bio', 'biologie', 'biochemistry', 'biochimie', 'ciochimie'].includes(norm)) {
     return 'csvt';
   }
+  if (norm.includes('m1')) return 'm1';
+  if (norm.includes('l3')) return 'l3';
+  if (norm.includes('l2')) return 'l2';
   return 'mispce';
 }
 
@@ -165,6 +175,11 @@ function getCurrentUser() {
   } catch {
     return {};
   }
+}
+
+function isCurrentUserAndrew() {
+  const user = getCurrentUser();
+  return String(user?.username || '').trim().toLowerCase() === 'andrew';
 }
 
 // Authentication Protection
@@ -561,11 +576,30 @@ async function loadAllUsers() {
   }
 }
 
+function setupUserSectionOptions() {
+  if (!isCurrentUserAndrew()) return;
+  const selects = [
+    document.querySelector('#userForm select[name="section"]'),
+    document.querySelector('#userEditorForm select[name="section"]')
+  ];
+  selects.forEach(sel => {
+    if (sel && !sel.querySelector('option[value="l2"]')) {
+      sel.insertAdjacentHTML('beforeend', `
+        <option value="l2">L2</option>
+        <option value="l3">L3</option>
+        <option value="m1">M1</option>
+      `);
+      sel._rebuildCustomSelect?.();
+    }
+  });
+}
+
 function openUserEditor(id) {
   const user = systemUsers.find(item => item.id === id);
   const overlay = document.querySelector('#userEditorOverlay');
   const editor = document.querySelector('#userEditorForm');
   if (!user || !overlay || !editor) return;
+  setupUserSectionOptions();
   editor.elements.id.value = user.id;
   editor.elements.fullName.value = user.fullName || '';
   editor.elements.username.value = user.username || '';
@@ -961,7 +995,78 @@ function renderStudents(query = '') {
 
     let groupButtonsHtml = '';
     const assigned = getStudentAssignedGroup(student);
-    if (isAmchit) {
+    const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
+
+    if (studentSec === 'l2') {
+      if (isFrench) {
+        const isL2FR = assigned === 'L2 FR';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL2FR ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L2 FR', this)"
+              aria-pressed="${isL2FR ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL2FR ? '✓ L2 FR' : 'L2 FR'}
+            </button>
+          </div>
+        `;
+      } else if (isEnglish) {
+        const isL2ENG = assigned === 'L2 ENG';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL2ENG ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L2 ENG', this)"
+              aria-pressed="${isL2ENG ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL2ENG ? '✓ L2 ENG' : 'L2 ENG'}
+            </button>
+          </div>
+        `;
+      }
+    } else if (studentSec === 'l3') {
+      if (isFrench) {
+        const isL3FR = assigned === 'L3 FR';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL3FR ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L3 FR', this)"
+              aria-pressed="${isL3FR ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL3FR ? '✓ L3 FR' : 'L3 FR'}
+            </button>
+          </div>
+        `;
+      } else if (isEnglish) {
+        const isL3ENG = assigned === 'L3 ENG';
+        groupButtonsHtml = `
+          <div class="group-section-actions">
+            <button type="button"
+              class="btn-action group-section-btn ${isL3ENG ? 'is-active' : ''}"
+              onclick="setStudentAssignedGroup('${student.id}', 'L3 ENG', this)"
+              aria-pressed="${isL3ENG ? 'true' : 'false'}"
+              ${groupDisabledAttr}>
+              ${isL3ENG ? '✓ L3 ENG' : 'L3 ENG'}
+            </button>
+          </div>
+        `;
+      }
+    } else if (studentSec === 'm1') {
+      const isM1FR = assigned === 'M1 FR';
+      groupButtonsHtml = `
+        <div class="group-section-actions">
+          <button type="button"
+            class="btn-action group-section-btn ${isM1FR ? 'is-active' : ''}"
+            onclick="setStudentAssignedGroup('${student.id}', 'M1 FR', this)"
+            aria-pressed="${isM1FR ? 'true' : 'false'}"
+            ${groupDisabledAttr}>
+            ${isM1FR ? '✓ M1 FR' : 'M1 FR'}
+          </button>
+        </div>
+      `;
+    } else if (isAmchit) {
       const isAmchitActive = assigned === 'Amchit';
       groupButtonsHtml = `
           <div class="group-section-actions">
@@ -1025,8 +1130,6 @@ function renderStudents(query = '') {
           </div>
       `;
     }
-
-    const studentSec = (student.section || inferSectionFromMajor(student.major) || 'mispce').toLowerCase();
 
     return `
       <article class="student-card ${Boolean(student.emailSent) ? 'has-email-sent' : ''}">
@@ -1377,12 +1480,18 @@ function updateStats() {
   const userSec = getCurrentUserSection();
   const isSuper = userRole === 'superadmin' || userSec === 'all';
   const activeSection = isSuper ? currentDashboardSection : userSec;
+  const isAndrew = isCurrentUserAndrew();
 
   let visibleMajors = ['Mathematics', 'Informatics', 'Statistics', 'Physics', 'Chemistry', 'Electronics', 'Biology', 'Biochemistry'];
+  if (isAndrew && (activeSection === 'all' || ADVANCED_CS_SECTIONS.includes(activeSection))) {
+    visibleMajors = ['Mathematics', 'Informatics', 'Statistics', 'Physics', 'Chemistry', 'Electronics', 'Biology', 'Biochemistry', 'Computer Science'];
+  }
   if (activeSection === 'mispce') {
     visibleMajors = MISPCE_MAJORS_LIST;
   } else if (activeSection === 'csvt') {
     visibleMajors = CSVT_MAJORS_LIST;
+  } else if (ADVANCED_CS_SECTIONS.includes(activeSection)) {
+    visibleMajors = ADVANCED_CS_MAJORS_LIST;
   }
 
   const majorCountBadge = document.querySelector('#majorCountBadge');
@@ -1504,8 +1613,45 @@ function setupSectionSwitchTabs() {
   const userRole = getCurrentUserRole();
   const userSec = getCurrentUserSection();
   const isSuper = userRole === 'superadmin' || userSec === 'all';
+  const isAndrew = isCurrentUserAndrew();
 
   if (isSuper) {
+    if (isAndrew && !switchTabs.querySelector('[data-section="l2"]')) {
+      const l2Btn = document.createElement('button');
+      l2Btn.type = 'button';
+      l2Btn.className = 'hero-section-btn';
+      l2Btn.dataset.section = 'l2';
+      l2Btn.textContent = 'L2';
+
+      const l3Btn = document.createElement('button');
+      l3Btn.type = 'button';
+      l3Btn.className = 'hero-section-btn';
+      l3Btn.dataset.section = 'l3';
+      l3Btn.textContent = 'L3';
+
+      const m1Btn = document.createElement('button');
+      m1Btn.type = 'button';
+      m1Btn.className = 'hero-section-btn';
+      m1Btn.dataset.section = 'm1';
+      m1Btn.textContent = 'M1';
+
+      switchTabs.appendChild(l2Btn);
+      switchTabs.appendChild(l3Btn);
+      switchTabs.appendChild(m1Btn);
+    }
+
+    if (isAndrew && groupFilter && !groupFilter.querySelector('option[value="L2 FR"]')) {
+      const grpOptions = [
+        '<option value="L2 FR">L2 FR</option>',
+        '<option value="L2 ENG">L2 ENG</option>',
+        '<option value="L3 FR">L3 FR</option>',
+        '<option value="L3 ENG">L3 ENG</option>',
+        '<option value="M1 FR">M1 FR</option>'
+      ].join('');
+      groupFilter.insertAdjacentHTML('beforeend', grpOptions);
+      groupFilter._rebuildCustomSelect?.();
+    }
+
     switchTabs.style.display = 'inline-flex';
     switchTabs.querySelectorAll('.hero-section-btn').forEach(tab => {
       tab.onclick = () => {
@@ -2001,10 +2147,41 @@ async function deleteStudentRecord(id) {
   }
 }
 
+function updateLanguageOptionsForSection(sec) {
+  const normSec = String(sec || '').toLowerCase();
+  const frenchRadio = form?.querySelector('input[name="language"][value="French"]');
+  const englishRadio = form?.querySelector('input[name="language"][value="English"]');
+  if (!englishRadio) return;
+
+  const englishLabel = englishRadio.closest('label');
+  if (normSec === 'm1') {
+    if (frenchRadio) frenchRadio.checked = true;
+    englishRadio.disabled = true;
+    if (englishLabel) {
+      englishLabel.style.opacity = '0.4';
+      englishLabel.style.cursor = 'not-allowed';
+      englishLabel.title = 'M1 is French only';
+    }
+  } else {
+    englishRadio.disabled = false;
+    if (englishLabel) {
+      englishLabel.style.opacity = '';
+      englishLabel.style.cursor = '';
+      englishLabel.title = '';
+    }
+  }
+}
+
 function updateMajorSelectOptions(section, selectedMajor = '') {
   const majorSelect = document.querySelector('#studentMajorSelect');
   if (!majorSelect) return;
-  const majors = (section === 'csvt') ? CSVT_MAJORS_LIST : MISPCE_MAJORS_LIST;
+  const normSec = String(section || '').toLowerCase();
+  let majors = MISPCE_MAJORS_LIST;
+  if (normSec === 'csvt') {
+    majors = CSVT_MAJORS_LIST;
+  } else if (ADVANCED_CS_SECTIONS.includes(normSec)) {
+    majors = ADVANCED_CS_MAJORS_LIST;
+  }
   const options = ['<option value="" disabled>Select a major</option>'];
   majors.forEach(m => {
     options.push(`<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`);
@@ -2012,6 +2189,8 @@ function updateMajorSelectOptions(section, selectedMajor = '') {
   majorSelect.innerHTML = options.join('');
   if (selectedMajor && majors.some(m => m.toLowerCase() === selectedMajor.toLowerCase())) {
     majorSelect.value = selectedMajor;
+  } else if (majors.length === 1) {
+    majorSelect.value = majors[0];
   } else {
     majorSelect.selectedIndex = 0;
   }
@@ -2023,6 +2202,7 @@ function initStudentForm() {
   const userRole = getCurrentUserRole();
   const userSec = getCurrentUserSection();
   const isSuper = userRole === 'superadmin' || userSec === 'all';
+  const isAndrew = isCurrentUserAndrew();
 
   const sectionSelect = document.querySelector('#studentSectionSelect');
   const formBadge = document.querySelector('#formBadge');
@@ -2042,16 +2222,29 @@ function initStudentForm() {
       formBadge.textContent = `${assignedSec.toUpperCase()} SECTION`;
     }
     updateMajorSelectOptions(assignedSec);
+    updateLanguageOptionsForSection(assignedSec);
   } else {
     if (sectionSelect) {
-      sectionSelect.innerHTML = `
-        <option value="mispce" selected>MISPCE</option>
-        <option value="csvt">CSVT</option>
-      `;
+      if (isAndrew) {
+        sectionSelect.innerHTML = `
+          <option value="mispce" selected>MISPCE</option>
+          <option value="csvt">CSVT</option>
+          <option value="l2">L2</option>
+          <option value="l3">L3</option>
+          <option value="m1">M1</option>
+        `;
+      } else {
+        sectionSelect.innerHTML = `
+          <option value="mispce" selected>MISPCE</option>
+          <option value="csvt">CSVT</option>
+        `;
+      }
       sectionSelect.value = 'mispce';
       updateMajorSelectOptions('mispce');
+      updateLanguageOptionsForSection('mispce');
       sectionSelect.addEventListener('change', () => {
         updateMajorSelectOptions(sectionSelect.value);
+        updateLanguageOptionsForSection(sectionSelect.value);
       });
     }
   }
@@ -2078,6 +2271,11 @@ if (form) {
     }
 
     const studentData = Object.fromEntries(new FormData(form).entries());
+    if (studentData.section === 'm1' && String(studentData.language).toLowerCase() !== 'french') {
+      const msg = document.querySelector('#formMessage');
+      if (msg) msg.textContent = 'M1 only offers French for Computer Science.';
+      return;
+    }
     const submitBtn = document.querySelector('#submitBtn');
     if (submitBtn) submitBtn.disabled = true;
 
@@ -2171,6 +2369,7 @@ async function initFormEditMode() {
         sectionSelect._syncCustomSelect?.();
       }
       updateMajorSelectOptions(isSuper ? sec : (userSec || 'mispce'), student.major);
+      updateLanguageOptionsForSection(sec);
 
       Object.entries(student).forEach(([key, value]) => {
         if (key === 'section' || key === 'major') return;
@@ -3622,6 +3821,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupThemeToggle();
   if (!checkAuth()) return;
   initStudentForm();
+  setupUserSectionOptions();
   initCustomSelects();
   setupNotes();
   setupPoliticalTabs();

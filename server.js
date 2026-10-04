@@ -24,14 +24,41 @@ const {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-const VALID_SECTIONS = ['mispce', 'csvt', 'all'];
-const MISPCE_MAJORS = ['mathematics', 'informatics', 'statistics', 'physics', 'chemistry', 'electronics'];
+const VALID_SECTIONS = ['mispce', 'csvt', 'all', 'l2', 'l3', 'm1'];
+const MISPCE_MAJORS = ['mathematics', 'informatics', 'statistics', 'physics', 'chemistry', 'electronics', 'computer science'];
 const CSVT_MAJORS = ['biology', 'biochemistry', 'chemistry'];
+const ADVANCED_CS_SECTIONS = ['l2', 'l3', 'm1'];
+const ADVANCED_CS_MAJORS = ['computer science', 'informatics'];
+
+async function isCallerAndrew(session) {
+  if (!session) return false;
+  if (session.username && String(session.username).trim().toLowerCase() === 'andrew') {
+    return true;
+  }
+  if (session.id) {
+    try {
+      const user = await getUserById(session.id);
+      if (user && String(user.username || '').trim().toLowerCase() === 'andrew') {
+        return true;
+      }
+    } catch {}
+  }
+  return false;
+}
 
 function inferSectionFromMajor(major = '') {
   const norm = String(major || '').trim().toLowerCase();
   if (['biology', 'bio', 'biologie', 'biochemistry', 'biochimie', 'ciochimie'].includes(norm)) {
     return 'csvt';
+  }
+  if (norm.includes('m1')) {
+    return 'm1';
+  }
+  if (norm.includes('l3')) {
+    return 'l3';
+  }
+  if (norm.includes('l2')) {
+    return 'l2';
   }
   return 'mispce';
 }
@@ -664,7 +691,9 @@ app.post('/api/users', async (req, res) => {
   } else {
     assignedRole = 'deleg';
   }
-  let assignedSection = ['mispce', 'csvt', 'all'].includes(String(section || '').toLowerCase())
+  const isAndrew = await isCallerAndrew(session);
+  const allowedUserSections = ['mispce', 'csvt', 'all', ...(isAndrew ? ADVANCED_CS_SECTIONS : [])];
+  let assignedSection = allowedUserSections.includes(String(section || '').toLowerCase())
     ? String(section).toLowerCase()
     : 'mispce';
   if (assignedRole !== 'superadmin' && assignedSection === 'all') {
@@ -836,7 +865,9 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
   }
 
   const assignedRole = role === 'staff' ? 'deleg' : role;
-  let assignedSection = ['mispce', 'csvt', 'all'].includes(String(section || '').toLowerCase())
+  const isAndrew = await isCallerAndrew(session);
+  const allowedUserSections = ['mispce', 'csvt', 'all', ...(isAndrew ? ADVANCED_CS_SECTIONS : [])];
+  let assignedSection = allowedUserSections.includes(String(section || '').toLowerCase())
     ? String(section).toLowerCase()
     : (target.section || 'mispce');
   if (assignedRole !== 'superadmin' && assignedSection === 'all') {
@@ -862,7 +893,7 @@ app.put('/api/users/:id', requireAdmin, async (req, res) => {
 
     let freshToken = null;
     if (session && session.id === req.params.id) {
-      freshToken = signSession({ id: req.params.id, role: assignedRole, section: assignedSection });
+      freshToken = signSession({ id: req.params.id, username: username.trim(), role: assignedRole, section: assignedSection });
     }
 
     return res.json({
@@ -916,6 +947,7 @@ app.get('/api/auth/me', async (req, res) => {
 
     const freshToken = signSession({
       id: user.id,
+      username: user.username,
       role: user.role,
       section: user.section
     });
@@ -973,7 +1005,7 @@ app.post('/api/login', async (req, res) => {
       return res.json({
         success: true,
         message: 'Login successful',
-        token: signSession({ id: data.id, role: decryptedRole, section: userSection }),
+        token: signSession({ id: data.id, username: decryptedUsername, role: decryptedRole, section: userSection }),
         user: { id: data.id, username: decryptedUsername, fullName: parsed.fullName || decryptedUsername, role: decryptedRole, section: userSection }
       });
     }
@@ -1002,7 +1034,7 @@ app.post('/api/login', async (req, res) => {
     res.json({
       success: true,
       message: 'Login successful',
-      token: signSession({ id: user.id, role: decryptedRole, section: userSection }),
+      token: signSession({ id: user.id, username: decryptedUsername, role: decryptedRole, section: userSection }),
       user: {
         id: user.id,
         username: decryptedUsername,
@@ -1085,9 +1117,15 @@ app.get('/api/students', async (req, res) => {
     }
 
     // Filter by section
+    const isAndrew = await isCallerAndrew(session);
+    if (!isAndrew) {
+      studentList = studentList.filter(s => !ADVANCED_CS_SECTIONS.includes(String(s.section || '').toLowerCase()));
+    }
+
+    const allowedQuerySections = ['mispce', 'csvt', ...(isAndrew ? ADVANCED_CS_SECTIONS : [])];
     if (callerRole === 'deleg' || (callerRole === 'admin' && callerSection !== 'all')) {
       studentList = studentList.filter(s => s.section === callerSection);
-    } else if (querySection && ['mispce', 'csvt'].includes(querySection)) {
+    } else if (querySection && allowedQuerySections.includes(querySection)) {
       studentList = studentList.filter(s => s.section === querySection);
     }
 
@@ -1305,6 +1343,11 @@ app.get('/api/students/:id', async (req, res) => {
       mapped = mapStudent(rows[0]);
     }
 
+    const isAndrew = await isCallerAndrew(session);
+    if (ADVANCED_CS_SECTIONS.includes(String(mapped.section || '').toLowerCase()) && !isAndrew) {
+      return res.status(404).json({ success: false, error: 'Student not found' });
+    }
+
     if (callerRole === 'deleg' || (callerRole === 'admin' && callerSection !== 'all')) {
       if (mapped.section !== callerSection) {
         return res.status(404).json({ success: false, error: 'Student not found in your section' });
@@ -1490,6 +1533,7 @@ app.post('/api/students', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Please sign in to add a student.' });
   }
 
+  const isAndrew = await isCallerAndrew(session);
   const callerRole = (session.role || 'deleg').toLowerCase();
   const callerSection = (session.section || (callerRole === 'superadmin' ? 'all' : 'mispce')).toLowerCase();
 
@@ -1499,25 +1543,58 @@ app.post('/api/students', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Missing required fields' });
   }
 
+  const requestedSection = String(section || '').trim().toLowerCase();
+  if (ADVANCED_CS_SECTIONS.includes(requestedSection) && !isAndrew) {
+    return res.status(403).json({
+      success: false,
+      error: 'Only user andrew can add L2, L3, and M1 students.'
+    });
+  }
+
   // Determine target section
   let targetSection = 'mispce';
+  const allowedSections = ['mispce', 'csvt', ...(isAndrew ? ADVANCED_CS_SECTIONS : [])];
   if (callerRole === 'deleg' || (callerRole === 'admin' && callerSection !== 'all')) {
     targetSection = callerSection;
   } else {
-    targetSection = section && ['mispce', 'csvt'].includes(String(section).toLowerCase())
-      ? String(section).toLowerCase()
+    targetSection = requestedSection && allowedSections.includes(requestedSection)
+      ? requestedSection
       : inferSectionFromMajor(major);
   }
 
   // Validate that major belongs to targetSection
   const normMajor = String(major).trim().toLowerCase();
-  const allowedMajors = targetSection === 'csvt' ? CSVT_MAJORS : MISPCE_MAJORS;
+  let allowedMajors = MISPCE_MAJORS;
+  if (targetSection === 'csvt') {
+    allowedMajors = CSVT_MAJORS;
+  } else if (ADVANCED_CS_SECTIONS.includes(targetSection)) {
+    allowedMajors = ADVANCED_CS_MAJORS;
+  }
+
   const isAllowed = allowedMajors.some(m => normMajor.includes(m) || m.includes(normMajor));
   if (!isAllowed) {
     return res.status(400).json({
       success: false,
       error: `Selected major "${major}" is not offered in section ${targetSection.toUpperCase()}`
     });
+  }
+
+  // Validate language constraints
+  const normLang = String(language).trim().toLowerCase();
+  if (targetSection === 'm1') {
+    if (normLang !== 'french') {
+      return res.status(400).json({
+        success: false,
+        error: 'M1 only offers French for Computer Science'
+      });
+    }
+  } else if (['l2', 'l3'].includes(targetSection)) {
+    if (!['french', 'english'].includes(normLang)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Language must be French or English'
+      });
+    }
   }
 
   const cleanAffiliation = callerRole === 'deleg' ? '' : (politicalAffiliation || '');
@@ -1603,16 +1680,77 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
       });
     }
 
-    let studentPayload = { ...req.body };
+    const isAndrew = await isCallerAndrew(req.session);
+
+    let curPayload = { text: '', assignedGroup: '', section: '', inClass: false, emailSent: false };
     if (supabase) {
       const { data: cur } = await supabase.from('students').select('note').eq('id', id).maybeSingle();
-      const curPayload = cur ? parseStudentNotePayload(cur.note) : { text: '', assignedGroup: '', section: '', inClass: false, emailSent: false };
-      studentPayload.note = req.body.note !== undefined ? req.body.note : curPayload.text;
-      studentPayload.assignedGroup = curPayload.assignedGroup;
-      studentPayload.section = req.body.section || curPayload.section || inferSectionFromMajor(major);
-      studentPayload.inClass = req.body.inClass !== undefined ? Boolean(req.body.inClass) : curPayload.inClass;
-      studentPayload.emailSent = req.body.emailSent !== undefined ? Boolean(req.body.emailSent) : Boolean(curPayload.emailSent);
+      if (cur) curPayload = parseStudentNotePayload(cur.note);
+    } else {
+      const { rows } = await pool.query('SELECT note FROM students WHERE id = $1', [id]);
+      if (rows && rows.length) curPayload = parseStudentNotePayload(rows[0].note);
+    }
 
+    const requestedSection = req.body.section !== undefined ? String(req.body.section).trim().toLowerCase() : '';
+    const currentSection = String(curPayload.section || '').trim().toLowerCase();
+    const isTargetAdvanced = ADVANCED_CS_SECTIONS.includes(requestedSection);
+    const isCurrentAdvanced = ADVANCED_CS_SECTIONS.includes(currentSection);
+
+    if ((isTargetAdvanced || isCurrentAdvanced) && !isAndrew) {
+      return res.status(403).json({
+        success: false,
+        error: 'Only user andrew can modify L2, L3, and M1 students.'
+      });
+    }
+
+    const allowedSections = ['mispce', 'csvt', ...(isAndrew ? ADVANCED_CS_SECTIONS : [])];
+    const targetSection = requestedSection && allowedSections.includes(requestedSection)
+      ? requestedSection
+      : (curPayload.section || inferSectionFromMajor(major));
+
+    // Validate that major belongs to targetSection
+    const normMajor = String(major).trim().toLowerCase();
+    let allowedMajors = MISPCE_MAJORS;
+    if (targetSection === 'csvt') {
+      allowedMajors = CSVT_MAJORS;
+    } else if (ADVANCED_CS_SECTIONS.includes(targetSection)) {
+      allowedMajors = ADVANCED_CS_MAJORS;
+    }
+
+    const isAllowed = allowedMajors.some(m => normMajor.includes(m) || m.includes(normMajor));
+    if (!isAllowed) {
+      return res.status(400).json({
+        success: false,
+        error: `Selected major "${major}" is not offered in section ${targetSection.toUpperCase()}`
+      });
+    }
+
+    // Validate language
+    const normLang = String(language).trim().toLowerCase();
+    if (targetSection === 'm1') {
+      if (normLang !== 'french') {
+        return res.status(400).json({
+          success: false,
+          error: 'M1 only offers French for Computer Science'
+        });
+      }
+    } else if (['l2', 'l3'].includes(targetSection)) {
+      if (!['french', 'english'].includes(normLang)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Language must be French or English'
+        });
+      }
+    }
+
+    let studentPayload = { ...req.body };
+    studentPayload.note = req.body.note !== undefined ? req.body.note : curPayload.text;
+    studentPayload.assignedGroup = curPayload.assignedGroup;
+    studentPayload.section = targetSection;
+    studentPayload.inClass = req.body.inClass !== undefined ? Boolean(req.body.inClass) : curPayload.inClass;
+    studentPayload.emailSent = req.body.emailSent !== undefined ? Boolean(req.body.emailSent) : Boolean(curPayload.emailSent);
+
+    if (supabase) {
       const { data, error } = await supabase.from('students').update(toStudentRow(studentPayload)).eq('id', id).select().maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
@@ -1777,16 +1915,15 @@ app.patch('/api/students/:id/group', async (req, res) => {
 
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
+  const isAndrew = await isCallerAndrew(session);
+  const targetStudent = await findStudentById(id);
+  if (targetStudent && ADVANCED_CS_SECTIONS.includes(String(targetStudent.section || '').toLowerCase()) && !isAndrew) {
+    return res.status(403).json({ success: false, error: 'Only user andrew can modify L2, L3, and M1 students.' });
+  }
   if (session && (session.role === 'deleg' || (session.role === 'admin' && session.section !== 'all'))) {
     const callerSection = session.section || 'mispce';
-    if (supabase) {
-      const { data: checkStudent } = await supabase.from('students').select('note, major').eq('id', id).maybeSingle();
-      if (checkStudent) {
-        const studentSection = parseStudentNotePayload(checkStudent.note).section || inferSectionFromMajor(checkStudent.major);
-        if (studentSection !== callerSection) {
-          return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
-        }
-      }
+    if (targetStudent && targetStudent.section !== callerSection) {
+      return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
     }
   }
 
@@ -1896,16 +2033,15 @@ app.patch(['/api/students/:id/link-approval', '/api/students/:id/class'], async 
 
   const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   const session = verifySession(token);
+  const isAndrew = await isCallerAndrew(session);
+  const targetStudent = await findStudentById(id);
+  if (targetStudent && ADVANCED_CS_SECTIONS.includes(String(targetStudent.section || '').toLowerCase()) && !isAndrew) {
+    return res.status(403).json({ success: false, error: 'Only user andrew can modify L2, L3, and M1 students.' });
+  }
   if (session && (session.role === 'deleg' || (session.role === 'admin' && session.section !== 'all'))) {
     const callerSection = session.section || 'mispce';
-    if (supabase) {
-      const { data: checkStudent } = await supabase.from('students').select('note, major').eq('id', id).maybeSingle();
-      if (checkStudent) {
-        const studentSection = parseStudentNotePayload(checkStudent.note).section || inferSectionFromMajor(checkStudent.major);
-        if (studentSection !== callerSection) {
-          return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
-        }
-      }
+    if (targetStudent && targetStudent.section !== callerSection) {
+      return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
     }
   }
 
@@ -1936,16 +2072,15 @@ app.patch('/api/students/:id/email-sent', async (req, res) => {
     return res.status(401).json({ success: false, error: 'Please sign in again.' });
   }
 
+  const isAndrew = await isCallerAndrew(session);
+  const targetStudent = await findStudentById(id);
+  if (targetStudent && ADVANCED_CS_SECTIONS.includes(String(targetStudent.section || '').toLowerCase()) && !isAndrew) {
+    return res.status(403).json({ success: false, error: 'Only user andrew can modify L2, L3, and M1 students.' });
+  }
   if (session && (session.role === 'deleg' || (session.role === 'admin' && session.section !== 'all'))) {
     const callerSection = session.section || 'mispce';
-    if (supabase) {
-      const { data: checkStudent } = await supabase.from('students').select('note, major').eq('id', id).maybeSingle();
-      if (checkStudent) {
-        const studentSection = parseStudentNotePayload(checkStudent.note).section || inferSectionFromMajor(checkStudent.major);
-        if (studentSection !== callerSection) {
-          return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
-        }
-      }
+    if (targetStudent && targetStudent.section !== callerSection) {
+      return res.status(403).json({ success: false, error: 'Cannot modify students outside your section' });
     }
   }
 
@@ -2353,7 +2488,7 @@ app.get('/api/email/recipients', async (req, res) => {
     let withoutEmail = 0;
     let uninvited = 0;
     let invited = 0;
-    const bySection = { mispce: 0, csvt: 0, other: 0 };
+    const bySection = { mispce: 0, csvt: 0, l2: 0, l3: 0, m1: 0, other: 0 };
     const byCampus = { fanar: 0, amchit: 0, other: 0 };
 
     const recipients = studentList.map(s => {
@@ -2368,6 +2503,9 @@ app.get('/api/email/recipients', async (req, res) => {
 
       if (sec === 'mispce') bySection.mispce++;
       else if (sec === 'csvt') bySection.csvt++;
+      else if (sec === 'l2') bySection.l2++;
+      else if (sec === 'l3') bySection.l3++;
+      else if (sec === 'm1') bySection.m1++;
       else bySection.other++;
 
       if (camp.includes('am')) byCampus.amchit++;
@@ -2461,6 +2599,11 @@ app.delete('/api/email/logs', async (req, res) => {
 // DELETE student
 app.delete('/api/students/:id', requireAdmin, async (req, res) => {
   const { id } = req.params;
+  const isAndrew = await isCallerAndrew(req.session);
+  const targetStudent = await findStudentById(id);
+  if (targetStudent && ADVANCED_CS_SECTIONS.includes(String(targetStudent.section || '').toLowerCase()) && !isAndrew) {
+    return res.status(403).json({ success: false, error: 'Only user andrew can delete L2, L3, and M1 students.' });
+  }
   try {
     if (supabase) {
       const { data, error } = await supabase.from('students').delete().eq('id', id).select('id').maybeSingle();
