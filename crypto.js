@@ -77,6 +77,9 @@ function verifySession(token) {
     if (!signature || signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
     const session = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (!session || session.exp <= Date.now()) return null;
+    if (!session.id && session.userId) {
+      session.id = session.userId;
+    }
     if (!session.section) {
       session.section = session.role === 'superadmin' ? 'all' : 'mispce';
     }

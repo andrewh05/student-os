@@ -1,4 +1,4 @@
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.4.1';
 const API_BASE = window.location.protocol === 'file:'
   ? 'http://localhost:3000/api'
   : '/api';
@@ -182,6 +182,20 @@ function isCurrentUserAndrew() {
   const user = getCurrentUser();
   return String(user?.username || '').trim().toLowerCase() === 'andrew';
 }
+
+function getAuthHeaders(extra = {}) {
+  const token = getAuthToken();
+  const headers = { ...extra };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const user = getCurrentUser();
+  if (user && user.username) {
+    headers['X-User-Username'] = String(user.username).trim();
+  }
+  return headers;
+}
+window.getAuthHeaders = getAuthHeaders;
 
 // Authentication Protection
 function getCurrentUserRole() {
@@ -1890,7 +1904,7 @@ async function setStudentAssignedGroup(id, targetGroup, button) {
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         inGroup: nextInGroup,
         assignedGroup: nextGroup,
@@ -1930,7 +1944,7 @@ async function toggleStudentLinkApproval(id, linkApproved, button) {
   try {
     const response = await fetch(`${API_BASE}/students/${id}/link-approval`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ linkApproved })
     });
     const json = await parseApiResponse(response);
@@ -1967,10 +1981,7 @@ async function toggleStudentEmailSent(id, emailSent, button) {
   try {
     const response = await fetch(`${API_BASE}/students/${id}/email-sent`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`
-      },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ emailSent })
     });
     const json = await parseApiResponse(response);
@@ -2003,7 +2014,7 @@ async function toggleGroupMembership(id, inGroup, button) {
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ inGroup, assignedGroup: inGroup ? undefined : '' })
     });
     const json = await parseApiResponse(response);
@@ -2038,7 +2049,7 @@ async function markStudentLeftGroup(id, button) {
   try {
     const response = await fetch(`${API_BASE}/students/${id}/group`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: getAuthHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ inGroup: false, leftGroup: true, assignedGroup: '' })
     });
     const json = await parseApiResponse(response);

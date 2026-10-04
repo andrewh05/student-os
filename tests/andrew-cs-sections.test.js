@@ -633,6 +633,22 @@ test('Andrew can assign L2, L3, M1 groups via PATCH /api/students/:id/group', as
   assert.equal(jsonAndrew.success, true);
   assert.equal(jsonAndrew.data.assignedGroup, 'L2 FR');
   assert.equal(jsonAndrew.data.inGroup, true);
+
+  // Old token without username in payload can also update group for Andrew
+  const oldAndrewToken = signSession({ userId: 'user-andrew', role: 'superadmin', section: 'all' });
+  const patchOldToken = await fetch(url(`/api/students/${id}/group`), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${oldAndrewToken}`,
+      'X-User-Username': 'andrew'
+    },
+    body: JSON.stringify({ inGroup: true, assignedGroup: 'L2 ENG' })
+  });
+  assert.equal(patchOldToken.status, 200);
+  const jsonOld = await patchOldToken.json();
+  assert.equal(jsonOld.success, true);
+  assert.equal(jsonOld.data.assignedGroup, 'L2 ENG');
 });
 
 test('Campus Amchit is strictly rejected for L2, L3, and M1 students (400)', async () => {

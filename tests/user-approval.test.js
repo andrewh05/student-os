@@ -261,7 +261,7 @@ test('GET /api/auth/me returns latest user data and refreshed token for approved
   assert.equal(json.user.role, 'admin');
   assert.equal(json.user.approved, true);
   assert.ok(json.token);
-  assert.equal(json.version, '2.4.0');
+  assert.equal(json.version, '2.4.1');
 });
 
 test('GET /api/auth/me returns 403 unauthenticated for unapproved user', async () => {
@@ -289,5 +289,5 @@ test('GET /api/version returns application version', async () => {
   assert.equal(res.status, 200);
   const json = await res.json();
   assert.equal(json.success, true);
-  assert.equal(json.version, '2.4.0');
+  assert.equal(json.version, '2.4.1');
 });
