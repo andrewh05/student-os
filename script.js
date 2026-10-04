@@ -145,7 +145,8 @@ function getStudentAssignedGroup(student) {
   if (norm === 'l3 eng' || norm === 'l3_eng' || norm === 'l3eng') return 'L3 ENG';
   if (norm === 'm1 fr' || norm === 'm1_fr' || norm === 'm1fr') return 'M1 FR';
   const campus = (student?.campus || '').trim().toLowerCase();
-  if ((campus.includes('amchit') || campus.includes('amshit')) && student?.inGroup && !student?.leftGroup) return 'Amchit';
+  const sec = (student?.section || (typeof inferSectionFromMajor === 'function' ? inferSectionFromMajor(student?.major) : '') || '').toLowerCase();
+  if (!ADVANCED_CS_SECTIONS.includes(sec) && (campus.includes('amchit') || campus.includes('amshit')) && student?.inGroup && !student?.leftGroup) return 'Amchit';
   return '';
 }
 let systemUsers = [];
@@ -1514,6 +1515,16 @@ function updateStats() {
 
   updateMajorFilterOptions(visibleMajors);
 
+  const isAdvancedSec = ADVANCED_CS_SECTIONS.includes(activeSection);
+  const amchitCampusOption = campusFilter?.querySelector('option[value="Amchit"]') || campusFilter?.querySelector('option[value="Amshit"]');
+  if (amchitCampusOption) {
+    amchitCampusOption.disabled = isAdvancedSec;
+    if (isAdvancedSec && campusFilter.value && campusFilter.value.toLowerCase().includes('am')) {
+      campusFilter.value = '';
+      campusFilter._syncCustomSelect?.();
+    }
+  }
+
   const grpAStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp A');
   const grpBStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp B');
   const grpABStudents = students.filter(s => getStudentAssignedGroup(s) === 'Grp A,B');
@@ -2172,6 +2183,31 @@ function updateLanguageOptionsForSection(sec) {
   }
 }
 
+function updateCampusOptionsForSection(sec) {
+  const normSec = String(sec || '').toLowerCase();
+  const fanarRadio = form?.querySelector('input[name="campus"][value="Fanar"]');
+  const amshitRadio = form?.querySelector('input[name="campus"][value="Amshit"]') || form?.querySelector('input[name="campus"][value="Amchit"]');
+  if (!amshitRadio) return;
+
+  const amshitLabel = amshitRadio.closest('label');
+  if (ADVANCED_CS_SECTIONS.includes(normSec)) {
+    if (fanarRadio) fanarRadio.checked = true;
+    amshitRadio.disabled = true;
+    if (amshitLabel) {
+      amshitLabel.style.opacity = '0.4';
+      amshitLabel.style.cursor = 'not-allowed';
+      amshitLabel.title = `${normSec.toUpperCase()} is only offered at Fanar campus`;
+    }
+  } else {
+    amshitRadio.disabled = false;
+    if (amshitLabel) {
+      amshitLabel.style.opacity = '';
+      amshitLabel.style.cursor = '';
+      amshitLabel.title = '';
+    }
+  }
+}
+
 function updateMajorSelectOptions(section, selectedMajor = '') {
   const majorSelect = document.querySelector('#studentMajorSelect');
   if (!majorSelect) return;
@@ -2223,6 +2259,7 @@ function initStudentForm() {
     }
     updateMajorSelectOptions(assignedSec);
     updateLanguageOptionsForSection(assignedSec);
+    updateCampusOptionsForSection(assignedSec);
   } else {
     if (sectionSelect) {
       if (isAndrew) {
@@ -2242,9 +2279,11 @@ function initStudentForm() {
       sectionSelect.value = 'mispce';
       updateMajorSelectOptions('mispce');
       updateLanguageOptionsForSection('mispce');
+      updateCampusOptionsForSection('mispce');
       sectionSelect.addEventListener('change', () => {
         updateMajorSelectOptions(sectionSelect.value);
         updateLanguageOptionsForSection(sectionSelect.value);
+        updateCampusOptionsForSection(sectionSelect.value);
       });
     }
   }
@@ -2274,6 +2313,11 @@ if (form) {
     if (studentData.section === 'm1' && String(studentData.language).toLowerCase() !== 'french') {
       const msg = document.querySelector('#formMessage');
       if (msg) msg.textContent = 'M1 only offers French for Computer Science.';
+      return;
+    }
+    if (ADVANCED_CS_SECTIONS.includes(studentData.section) && String(studentData.campus || '').trim().toLowerCase().includes('am')) {
+      const msg = document.querySelector('#formMessage');
+      if (msg) msg.textContent = `${studentData.section.toUpperCase()} is only offered at Fanar campus.`;
       return;
     }
     const submitBtn = document.querySelector('#submitBtn');
@@ -2370,6 +2414,7 @@ async function initFormEditMode() {
       }
       updateMajorSelectOptions(isSuper ? sec : (userSec || 'mispce'), student.major);
       updateLanguageOptionsForSection(sec);
+      updateCampusOptionsForSection(sec);
 
       Object.entries(student).forEach(([key, value]) => {
         if (key === 'section' || key === 'major') return;

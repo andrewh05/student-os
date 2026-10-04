@@ -1597,6 +1597,15 @@ app.post('/api/students', async (req, res) => {
     }
   }
 
+  // Validate campus constraints (L2, L3, M1 only at Fanar, no Amchit)
+  const normCampus = String(campus || '').trim().toLowerCase();
+  if (ADVANCED_CS_SECTIONS.includes(targetSection) && normCampus.includes('am')) {
+    return res.status(400).json({
+      success: false,
+      error: `Section ${targetSection.toUpperCase()} is only offered at Fanar campus (Amchit is not available).`
+    });
+  }
+
   const cleanAffiliation = callerRole === 'deleg' ? '' : (politicalAffiliation || '');
   const studentPayload = {
     ...req.body,
@@ -1741,6 +1750,15 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
           error: 'Language must be French or English'
         });
       }
+    }
+
+    // Validate campus constraints (L2, L3, M1 only at Fanar, no Amchit)
+    const normCampus = String(campus || '').trim().toLowerCase();
+    if (ADVANCED_CS_SECTIONS.includes(targetSection) && normCampus.includes('am')) {
+      return res.status(400).json({
+        success: false,
+        error: `Section ${targetSection.toUpperCase()} is only offered at Fanar campus (Amchit is not available).`
+      });
     }
 
     let studentPayload = { ...req.body };

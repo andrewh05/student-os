@@ -634,3 +634,115 @@ test('Andrew can assign L2, L3, M1 groups via PATCH /api/students/:id/group', as
   assert.equal(jsonAndrew.data.assignedGroup, 'L2 FR');
   assert.equal(jsonAndrew.data.inGroup, true);
 });
+
+test('Campus Amchit is strictly rejected for L2, L3, and M1 students (400)', async () => {
+  // 1. Attempt to create L2 with Amchit campus
+  const resL2 = await fetch(url('/api/students'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'NoAmchit',
+      fatherName: 'Two',
+      familyName: 'Sec',
+      school: 'School',
+      major: 'Computer Science',
+      section: 'l2',
+      status: 'New',
+      language: 'French',
+      campus: 'Amchit',
+      phone: '+961 71 333 001',
+      email: 'noamchit.l2@example.com'
+    })
+  });
+  assert.equal(resL2.status, 400);
+  const jsonL2 = await resL2.json();
+  assert.match(jsonL2.error, /only offered at Fanar campus/i);
+
+  // 2. Attempt to create L3 with Amchit campus
+  const resL3 = await fetch(url('/api/students'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'NoAmchit',
+      fatherName: 'Three',
+      familyName: 'Sec',
+      school: 'School',
+      major: 'Computer Science',
+      section: 'l3',
+      status: 'New',
+      language: 'English',
+      campus: 'Amchit',
+      phone: '+961 71 333 002',
+      email: 'noamchit.l3@example.com'
+    })
+  });
+  assert.equal(resL3.status, 400);
+  const jsonL3 = await resL3.json();
+  assert.match(jsonL3.error, /only offered at Fanar campus/i);
+
+  // 3. Attempt to create M1 with Amshit campus
+  const resM1 = await fetch(url('/api/students'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'NoAmshit',
+      fatherName: 'One',
+      familyName: 'Master',
+      school: 'School',
+      major: 'Computer Science',
+      section: 'm1',
+      status: 'New',
+      language: 'French',
+      campus: 'Amshit',
+      phone: '+961 71 333 003',
+      email: 'noamshit.m1@example.com'
+    })
+  });
+  assert.equal(resM1.status, 400);
+  const jsonM1 = await resM1.json();
+  assert.match(jsonM1.error, /only offered at Fanar campus/i);
+
+  // 4. Create valid L2 with Fanar
+  const createValid = await fetch(url('/api/students'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'ValidFanar',
+      fatherName: 'Student',
+      familyName: 'Sec',
+      school: 'School',
+      major: 'Computer Science',
+      section: 'l2',
+      status: 'New',
+      language: 'French',
+      campus: 'Fanar',
+      phone: '+961 71 333 004',
+      email: 'validfanar.l2@example.com'
+    })
+  });
+  assert.equal(createValid.status, 201);
+  const validData = await createValid.json();
+
+  // 5. Attempt to update valid student to Amchit via PUT
+  const updateRes = await fetch(url(`/api/students/${validData.data.id}`), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'ValidFanar',
+      fatherName: 'Student',
+      familyName: 'Sec',
+      school: 'School',
+      major: 'Computer Science',
+      section: 'l2',
+      status: 'New',
+      language: 'French',
+      campus: 'Amchit',
+      phone: '+961 71 333 004',
+      email: 'validfanar.l2@example.com'
+    })
+  });
+  assert.equal(updateRes.status, 400);
+  const updateJson = await updateRes.json();
+  assert.match(updateJson.error, /only offered at Fanar campus/i);
+});
+
