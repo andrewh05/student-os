@@ -226,7 +226,7 @@
             ${s.email ? `<div class="report-contact-item"><a href="mailto:${encodeURIComponent(s.email)}">✉️ ${escape(s.email)}</a></div>` : ''}
           </td>
           <td>
-            <div><strong>${escape(s.major || '—')}</strong></div>
+            <div><strong>${escape(s.major || '—')}</strong>${s.fileNumber ? ` <span style="font-size: 11px; color: var(--orange-primary); font-weight: 700;">(File #${escape(s.fileNumber)})</span>` : ''}</div>
             <div style="font-size: 11px; color: var(--muted);">${escape(s.school || '—')}</div>
             <div style="font-size: 10px; color: var(--muted); margin-top: 2px;">Campus: ${escape(s.campus || '—')} · Lang: ${escape(s.language || '—')}</div>
           </td>
@@ -256,6 +256,7 @@
         'Address',
         'School/Faculty',
         'Major',
+        'File Number',
         'Campus',
         'Language',
         'Status',
@@ -279,6 +280,7 @@
         s.address || '',
         s.school || '',
         s.major || '',
+        s.fileNumber || '',
         s.campus || '',
         s.language || '',
         s.status || '',

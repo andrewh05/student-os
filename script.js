@@ -1177,12 +1177,13 @@ function renderStudents(query = '') {
                 `}
               </button>
             </div>
-            <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}</p>
+            <p>${escapeHtml(student.major)} • ${escapeHtml(studentSec.toUpperCase())}${student.fileNumber ? ` • File #${escapeHtml(student.fileNumber)}` : ''}</p>
           </div>
         </div>
         <div class="student-details">
           <div class="detail"><small>Major</small><span title="${escapeHtml(student.major)}">${escapeHtml(student.major)}</span></div>
           <div class="detail"><small>Section</small><span>${escapeHtml(studentSec.toUpperCase())}</span></div>
+          ${student.fileNumber ? `<div class="detail"><small>File Number</small><span title="File #${escapeHtml(student.fileNumber)}"><b>#${escapeHtml(student.fileNumber)}</b></span></div>` : ''}
           <div class="detail"><small>School</small><span title="${escapeHtml(student.school)}">${escapeHtml(student.school)}</span></div>
           <div class="detail"><small>Campus</small><span>${escapeHtml(student.campus)}</span></div>
           <div class="detail"><small>Language</small><span>${escapeHtml(student.language)}</span></div>
@@ -2208,6 +2209,14 @@ function updateCampusOptionsForSection(sec) {
   }
 }
 
+function updateFileNumberFieldForSection(sec) {
+  const normSec = String(sec || '').toLowerCase();
+  const fileContainer = form?.querySelector('#fileNumberContainer') || document.querySelector('#fileNumberContainer');
+  if (!fileContainer) return;
+  const isAdvanced = ADVANCED_CS_SECTIONS.includes(normSec);
+  fileContainer.style.display = isAdvanced ? 'block' : 'none';
+}
+
 function updateMajorSelectOptions(section, selectedMajor = '') {
   const majorSelect = document.querySelector('#studentMajorSelect');
   if (!majorSelect) return;
@@ -2260,6 +2269,7 @@ function initStudentForm() {
     updateMajorSelectOptions(assignedSec);
     updateLanguageOptionsForSection(assignedSec);
     updateCampusOptionsForSection(assignedSec);
+    updateFileNumberFieldForSection(assignedSec);
   } else {
     if (sectionSelect) {
       if (isAndrew) {
@@ -2280,10 +2290,12 @@ function initStudentForm() {
       updateMajorSelectOptions('mispce');
       updateLanguageOptionsForSection('mispce');
       updateCampusOptionsForSection('mispce');
+      updateFileNumberFieldForSection('mispce');
       sectionSelect.addEventListener('change', () => {
         updateMajorSelectOptions(sectionSelect.value);
         updateLanguageOptionsForSection(sectionSelect.value);
         updateCampusOptionsForSection(sectionSelect.value);
+        updateFileNumberFieldForSection(sectionSelect.value);
       });
     }
   }
@@ -2415,6 +2427,7 @@ async function initFormEditMode() {
       updateMajorSelectOptions(isSuper ? sec : (userSec || 'mispce'), student.major);
       updateLanguageOptionsForSection(sec);
       updateCampusOptionsForSection(sec);
+      updateFileNumberFieldForSection(sec);
 
       Object.entries(student).forEach(([key, value]) => {
         if (key === 'section' || key === 'major') return;

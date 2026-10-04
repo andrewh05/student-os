@@ -746,3 +746,73 @@ test('Campus Amchit is strictly rejected for L2, L3, and M1 students (400)', asy
   assert.match(updateJson.error, /only offered at Fanar campus/i);
 });
 
+test('Andrew can create, retrieve, and update fileNumber for L2, L3, and M1 students', async () => {
+  // 1. Create L2 student with fileNumber
+  const resL2 = await fetch(url('/api/students'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'FileNumber',
+      fatherName: 'Test',
+      familyName: 'Student',
+      school: 'College',
+      major: 'Computer Science',
+      section: 'l2',
+      fileNumber: '28491/2024',
+      status: 'New',
+      language: 'French',
+      campus: 'Fanar',
+      phone: '+961 71 222 001',
+      email: 'fileno.l2@example.com'
+    })
+  });
+  assert.equal(resL2.status, 201);
+  const dataL2 = await resL2.json();
+  assert.equal(dataL2.success, true);
+  assert.equal(dataL2.data.fileNumber, '28491/2024');
+  const studentId = dataL2.data.id;
+
+  // 2. Fetch student by ID and verify fileNumber is preserved
+  const resGet = await fetch(url(`/api/students/${studentId}`), {
+    headers: { Authorization: `Bearer ${andrewToken}` }
+  });
+  assert.equal(resGet.status, 200);
+  const dataGet = await resGet.json();
+  assert.equal(dataGet.success, true);
+  assert.equal(dataGet.data.fileNumber, '28491/2024');
+
+  // 3. Update fileNumber via PUT
+  const resPut = await fetch(url(`/api/students/${studentId}`), {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${andrewToken}` },
+    body: JSON.stringify({
+      firstName: 'FileNumber',
+      fatherName: 'Test',
+      familyName: 'Student',
+      school: 'College',
+      major: 'Computer Science',
+      section: 'l2',
+      fileNumber: '29999/2024',
+      status: 'New',
+      language: 'French',
+      campus: 'Fanar',
+      phone: '+961 71 222 001',
+      email: 'fileno.l2@example.com'
+    })
+  });
+  assert.equal(resPut.status, 200);
+  const dataPut = await resPut.json();
+  assert.equal(dataPut.success, true);
+  assert.equal(dataPut.data.fileNumber, '29999/2024');
+
+  // 4. Verify in GET /api/students
+  const resList = await fetch(url('/api/students?section=l2'), {
+    headers: { Authorization: `Bearer ${andrewToken}` }
+  });
+  const dataList = await resList.json();
+  const found = dataList.data.find(s => s.id === studentId);
+  assert.ok(found);
+  assert.equal(found.fileNumber, '29999/2024');
+});
+
+

@@ -85,31 +85,33 @@ function buildUserFullNamePayload(fullName = '', section = 'mispce') {
 }
 
 function parseStudentNotePayload(value) {
-  if (!value) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+  if (!value) return { text: '', assignedGroup: '', section: '', fileNumber: '', linkApproved: false, inClass: false, emailSent: false };
   try {
     const decrypted = decryptValue(value, 'students.note');
-    if (!decrypted) return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+    if (!decrypted) return { text: '', assignedGroup: '', section: '', fileNumber: '', linkApproved: false, inClass: false, emailSent: false };
     const parsed = JSON.parse(decrypted);
     const approved = Boolean(parsed.linkApproved !== undefined ? parsed.linkApproved : parsed.inClass);
     return {
       text: typeof parsed.text === 'string' ? parsed.text : '',
       assignedGroup: typeof parsed.assignedGroup === 'string' ? parsed.assignedGroup : '',
       section: typeof parsed.section === 'string' ? parsed.section.toLowerCase() : '',
+      fileNumber: typeof parsed.fileNumber === 'string' ? parsed.fileNumber : (typeof parsed.file_number === 'string' ? parsed.file_number : ''),
       linkApproved: approved,
       inClass: approved,
       emailSent: Boolean(parsed.emailSent)
     };
   } catch {
-    return { text: '', assignedGroup: '', section: '', linkApproved: false, inClass: false, emailSent: false };
+    return { text: '', assignedGroup: '', section: '', fileNumber: '', linkApproved: false, inClass: false, emailSent: false };
   }
 }
 
-function buildStudentNotePayload(text = '', assignedGroup = '', section = '', linkApproved = false, emailSent = false) {
+function buildStudentNotePayload(text = '', assignedGroup = '', section = '', linkApproved = false, emailSent = false, fileNumber = '') {
   const approved = Boolean(linkApproved);
   return JSON.stringify({
     text: text || '',
     assignedGroup: assignedGroup || '',
     section: section || '',
+    fileNumber: String(fileNumber || '').trim(),
     linkApproved: approved,
     inClass: approved,
     emailSent: Boolean(emailSent)
@@ -127,6 +129,9 @@ const mapStudent = row => {
     : (row.assignedGroup || notePayload.assignedGroup || '');
   const major = decryptValue(row.major, 'students.major');
   const section = (row.section ? decryptValue(row.section, 'students.section') : (notePayload.section || inferSectionFromMajor(major))).toLowerCase();
+  const fileNumber = row.file_number
+    ? decryptValue(row.file_number, 'students.file_number')
+    : (row.fileNumber || notePayload.fileNumber || '');
   const linkApproved = Boolean(
     row.link_approved !== undefined ? row.link_approved :
     row.linkApproved !== undefined ? row.linkApproved :
@@ -153,6 +158,7 @@ const mapStudent = row => {
     school: decryptValue(row.school, 'students.school'),
     major,
     section,
+    fileNumber,
     politicalAffiliation: decryptValue(row.political_affiliation, 'students.political_affiliation'),
     status: decryptValue(row.status, 'students.status'),
     language: decryptValue(row.language, 'students.language'),
@@ -185,7 +191,8 @@ const toStudentRow = student => {
     student.assignedGroup || '',
     targetSection,
     isApproved,
-    isEmailSent
+    isEmailSent,
+    student.fileNumber || student.file_number || ''
   );
 
   const row = {
@@ -1765,6 +1772,7 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
     studentPayload.note = req.body.note !== undefined ? req.body.note : curPayload.text;
     studentPayload.assignedGroup = curPayload.assignedGroup;
     studentPayload.section = targetSection;
+    studentPayload.fileNumber = req.body.fileNumber !== undefined ? req.body.fileNumber : (req.body.file_number !== undefined ? req.body.file_number : curPayload.fileNumber);
     studentPayload.inClass = req.body.inClass !== undefined ? Boolean(req.body.inClass) : curPayload.inClass;
     studentPayload.emailSent = req.body.emailSent !== undefined ? Boolean(req.body.emailSent) : Boolean(curPayload.emailSent);
 
