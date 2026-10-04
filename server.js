@@ -4,7 +4,22 @@ const path = require('path');
 require('dotenv').config();
 const { encryptValue, decryptValue, hashPassword, verifyPassword, signSession, verifySession } = require('./crypto');
 
-const { pool, supabase, supabaseRequested, initDb, checkDbConnection } = require('./db');
+const db = require('./db');
+const { pool, initDb, checkDbConnection } = db;
+let supabase = db.supabase;
+let supabaseRequested = db.supabaseRequested;
+
+function refreshDbClient() {
+  try {
+    if (db && db.supabase !== undefined) {
+      supabase = db.supabase;
+    }
+    if (db && db.supabaseRequested !== undefined) {
+      supabaseRequested = db.supabaseRequested;
+    }
+  } catch (_) {}
+  return supabase;
+}
 const { getSettings, runGoogleDriveBackup, exchangeGoogleCode, googleAuthorizationUrl } = require('./backup');
 const {
   renderEmailTemplate,
@@ -366,6 +381,7 @@ async function setStudentApprovalState(id, linkApproved) {
 
     if (updateResult.error) throw updateResult.error;
     if (!updateResult.data) return null;
+    invalidateStudentsCache();
     return mapStudent(updateResult.data);
   }
 
@@ -375,6 +391,7 @@ async function setStudentApprovalState(id, linkApproved) {
       [linkApproved, id]
     );
     if (!rows.length) return null;
+    invalidateStudentsCache();
     return mapStudent(rows[0]);
   } catch (pgErr) {
     if (pgErr.code === '42703' || /in_class/i.test(pgErr.message)) {
@@ -395,6 +412,7 @@ async function setStudentApprovalState(id, linkApproved) {
         [encryptedNote, id]
       );
       if (!rows.length) return null;
+      invalidateStudentsCache();
       return mapStudent(rows[0]);
     }
     throw pgErr;
@@ -434,6 +452,7 @@ async function setStudentEmailSentState(id, emailSent) {
 
     if (updateResult.error) throw updateResult.error;
     if (!updateResult.data) return null;
+    invalidateStudentsCache();
     return mapStudent(updateResult.data);
   }
 
@@ -443,6 +462,7 @@ async function setStudentEmailSentState(id, emailSent) {
       [sent, id]
     );
     if (!rows.length) return null;
+    invalidateStudentsCache();
     return mapStudent(rows[0]);
   } catch (pgErr) {
     if (pgErr.code === '42703' || /email_sent/i.test(pgErr.message)) {
@@ -463,6 +483,7 @@ async function setStudentEmailSentState(id, emailSent) {
         [encryptedNote, id]
       );
       if (!rows.length) return null;
+      invalidateStudentsCache();
       return mapStudent(rows[0]);
     }
     throw pgErr;
@@ -471,6 +492,10 @@ async function setStudentEmailSentState(id, emailSent) {
 
 app.use(cors());
 app.use(express.json());
+app.use((req, res, next) => {
+  refreshDbClient();
+  next();
+});
 const APP_VERSION = '2.4.1';
 
 const userCache = new Map();
@@ -482,6 +507,15 @@ function invalidateUserCache(id) {
   } else {
     userCache.clear();
   }
+}
+
+let studentsMasterCache = null;
+let studentsMasterCacheTime = 0;
+const STUDENTS_CACHE_TTL = 15000;
+
+function invalidateStudentsCache() {
+  studentsMasterCache = null;
+  studentsMasterCacheTime = 0;
 }
 
 const hasLocalFilesystem = typeof __dirname !== 'undefined';
@@ -633,6 +667,7 @@ app.post('/api/kazaa/batch', requireAdmin, async (req, res) => {
         await pool.query('UPDATE students SET kazaa = $1 WHERE id = $2', [encrypted, item.id]);
       }
     }
+    invalidateStudentsCache();
     res.json({ success: true, count: assignments.length });
   } catch (err) {
     console.error('Error batch updating kazaa:', err.message);
@@ -689,6 +724,7 @@ app.patch('/api/backup/settings', requireAdmin, async (req, res) => {
 });
 
 app.use(['/api/students', '/api/users'], (req, res, next) => {
+  refreshDbClient();
   if (supabaseRequested && !supabase) {
     return res.status(503).json({
       success: false,
@@ -1108,49 +1144,55 @@ app.get('/api/students', async (req, res) => {
 
   try {
     let studentList = [];
-    if (supabase) {
-      const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
-      if (error) throw error;
-      studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
+    if (studentsMasterCache && (Date.now() - studentsMasterCacheTime < STUDENTS_CACHE_TTL)) {
+      studentList = studentsMasterCache.map(s => ({ ...s }));
     } else {
-      const { rows } = await pool.query(`
-        SELECT 
-          note,
-          kazaa,
-          id, 
-          first_name AS "firstName", 
-          father_name AS "fatherName", 
-          family_name AS "familyName", 
-          origin, 
-          address, 
-          school, 
-          major, 
-          political_affiliation AS "politicalAffiliation",
-          status, 
-          language, 
-          campus, 
-          phone, 
-          email, 
-          in_group AS "inGroup",
-          left_group AS "leftGroup",
-          created_at AS "createdAt"
-        FROM students 
-        ORDER BY created_at DESC;
-      `);
-      studentList = rows.map(row => {
-        const mapped = mapStudent(row);
-        return {
-          ...row,
-          ...mapped,
-          note: readStudentNote(row.note),
-          kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
-          section: mapped.section,
-          linkApproved: mapped.linkApproved,
-          inClass: mapped.inClass,
-          emailSent: mapped.emailSent,
-          assignedGroup: mapped.assignedGroup
-        };
-      });
+      if (supabase) {
+        const { data, error } = await supabase.from('students').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        studentList = (data || []).filter(r => !isSystemStudent(r)).map(mapStudent);
+      } else {
+        const { rows } = await pool.query(`
+          SELECT 
+            note,
+            kazaa,
+            id, 
+            first_name AS "firstName", 
+            father_name AS "fatherName", 
+            family_name AS "familyName", 
+            origin, 
+            address, 
+            school, 
+            major, 
+            political_affiliation AS "politicalAffiliation",
+            status, 
+            language, 
+            campus, 
+            phone, 
+            email, 
+            in_group AS "inGroup",
+            left_group AS "leftGroup",
+            created_at AS "createdAt"
+          FROM students 
+          ORDER BY created_at DESC;
+        `);
+        studentList = rows.map(row => {
+          const mapped = mapStudent(row);
+          return {
+            ...row,
+            ...mapped,
+            note: readStudentNote(row.note),
+            kazaa: row.kazaa ? decryptValue(row.kazaa, 'students.kazaa') : '',
+            section: mapped.section,
+            linkApproved: mapped.linkApproved,
+            inClass: mapped.inClass,
+            emailSent: mapped.emailSent,
+            assignedGroup: mapped.assignedGroup
+          };
+        });
+      }
+      studentsMasterCache = studentList;
+      studentsMasterCacheTime = Date.now();
     }
 
     // Filter by section
@@ -1667,6 +1709,7 @@ app.post('/api/students', async (req, res) => {
         mapped.politicalAffiliation = '';
         mapped.note = '';
       }
+      invalidateStudentsCache();
       return res.status(201).json({ success: true, provider: 'Supabase', data: mapped, message: 'Student created successfully in Supabase' });
     }
     const encrypted = toStudentRow(studentPayload);
@@ -1701,6 +1744,7 @@ app.post('/api/students', async (req, res) => {
       mapped.politicalAffiliation = '';
       mapped.note = '';
     }
+    invalidateStudentsCache();
     res.status(201).json({ success: true, provider: 'PostgreSQL', data: mapped, message: 'Student created successfully' });
   } catch (err) {
     console.error('Error creating student:', err.message);
@@ -1810,6 +1854,7 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
       const { data, error } = await supabase.from('students').update(toStudentRow(studentPayload)).eq('id', id).select().maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      invalidateStudentsCache();
       return res.json({ success: true, data: mapStudent(data), message: 'Student updated successfully' });
     }
     const encrypted = toStudentRow(studentPayload);
@@ -1856,6 +1901,7 @@ app.put('/api/students/:id', requireAdmin, async (req, res) => {
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
 
+    invalidateStudentsCache();
     res.json({ success: true, data: mapStudent(rows[0]), message: 'Student updated successfully' });
   } catch (err) {
     console.error('Error updating student:', err.message);
@@ -1910,6 +1956,7 @@ app.patch('/api/students/:id/note', requireAdmin, async (req, res) => {
       row = rows[0];
     }
     if (!row) return res.status(404).json({ success: false, error: 'Student not found.' });
+    invalidateStudentsCache();
     res.json({ success: true, data: { id: row.id, note: note.trim() } });
   } catch (err) {
     console.error('Error saving student note:', err.message);
@@ -1942,6 +1989,7 @@ app.patch('/api/students/:id/kazaa', async (req, res) => {
       row = rows[0];
     }
     if (!row) return res.status(404).json({ success: false, error: 'Student not found.' });
+    invalidateStudentsCache();
     res.json({ success: true, data: { id: row.id, kazaa: districtValue } });
   } catch (err) {
     console.error('Error saving student kazaa:', err.message);
@@ -2026,6 +2074,7 @@ app.patch('/api/students/:id/group', async (req, res) => {
 
       if (updateResult.error) throw updateResult.error;
       if (!updateResult.data) return res.status(404).json({ success: false, error: 'Student not found' });
+      invalidateStudentsCache();
       return res.json({ success: true, data: mapStudent(updateResult.data) });
     }
 
@@ -2037,6 +2086,7 @@ app.patch('/api/students/:id/group', async (req, res) => {
         [nextInGroup, leftGroup, nextAssignedGroup || '', id]
       );
       if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
+      invalidateStudentsCache();
       return res.json({ success: true, data: rows[0] });
     } catch (pgErr) {
       if (pgErr.code === '42703' || /assigned_group/i.test(pgErr.message)) {
@@ -2060,6 +2110,7 @@ app.patch('/api/students/:id/group', async (req, res) => {
           [nextInGroup, leftGroup, encryptedNote, id]
         );
         if (!rows.length) return res.status(404).json({ success: false, error: 'Student not found' });
+        invalidateStudentsCache();
         return res.json({ success: true, data: { ...rows[0], assignedGroup: newPayload.assignedGroup } });
       }
       throw pgErr;
@@ -2665,12 +2716,14 @@ app.delete('/api/students/:id', requireAdmin, async (req, res) => {
       const { data, error } = await supabase.from('students').delete().eq('id', id).select('id').maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ success: false, error: 'Student not found' });
+      invalidateStudentsCache();
       return res.json({ success: true, message: 'Student deleted successfully' });
     }
     const { rowCount } = await pool.query('DELETE FROM students WHERE id = $1;', [id]);
     if (rowCount === 0) {
       return res.status(404).json({ success: false, error: 'Student not found' });
     }
+    invalidateStudentsCache();
     res.json({ success: true, message: 'Student deleted successfully' });
   } catch (err) {
     console.error('Error deleting student:', err.message);

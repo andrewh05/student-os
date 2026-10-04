@@ -24,10 +24,16 @@ function encryptValue(value, field = '') {
   return `${ENCRYPTED_PREFIX}${Buffer.concat([iv, tag, ciphertext]).toString('base64')}`;
 }
 
+const decryptCache = new Map();
+const MAX_DECRYPT_CACHE = 10000;
+
 function decryptValue(value, field = '') {
   if (value === null || value === undefined || value === '') return value ?? '';
   const encoded = String(value);
   if (!encoded.startsWith(ENCRYPTED_PREFIX)) return encoded;
+  const cached = decryptCache.get(encoded);
+  if (cached !== undefined) return cached;
+
   const payload = Buffer.from(encoded.slice(ENCRYPTED_PREFIX.length), 'base64');
   const iv = payload.subarray(0, 12);
   const tag = payload.subarray(12, 28);
@@ -35,7 +41,14 @@ function decryptValue(value, field = '') {
   const decipher = crypto.createDecipheriv('aes-256-gcm', getEncryptionKey(), iv);
   decipher.setAAD(Buffer.from(field));
   decipher.setAuthTag(tag);
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
+
+  if (decryptCache.size >= MAX_DECRYPT_CACHE) {
+    const firstKey = decryptCache.keys().next().value;
+    decryptCache.delete(firstKey);
+  }
+  decryptCache.set(encoded, decrypted);
+  return decrypted;
 }
 
 function hashPassword(password) {

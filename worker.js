@@ -2,6 +2,7 @@ import http from 'node:http';
 import { httpServerHandler } from 'cloudflare:node';
 import app from './server.js';
 import backupModule from './backup.js';
+import dbModule from './db.js';
 
 const server = http.createServer(app);
 const httpHandler = httpServerHandler(server);
@@ -12,6 +13,9 @@ function applyRuntimeEnvironment(env) {
   process.env.CLOUDFLARE_WORKER = 'true';
   for (const name of ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'DATA_ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'GROQ_API_KEY', 'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_SECURE', 'EMAIL_FROM']) {
     if (typeof env[name] === 'string') process.env[name] = env[name];
+  }
+  if (dbModule && typeof dbModule.initSupabase === 'function') {
+    dbModule.initSupabase();
   }
 }
 

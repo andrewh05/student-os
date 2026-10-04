@@ -2,18 +2,28 @@ const { Pool } = require('pg');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://tcwapqlphdxuqpgyrybq.supabase.co';
-const supabaseKey = [
-  process.env.SUPABASE_SECRET_KEY,
-  process.env.SUPABASE_PUBLISHABLE_KEY,
-  process.env.SUPABASE_ANON_KEY
-].find(key => key && !key.includes('...') && key.length >= 40);
-const supabaseRequested = Boolean(process.env.SUPABASE_URL);
+let _supabaseClient = null;
+let _lastSupabaseKey = null;
 
-// Create Supabase JS Client if credentials are fully configured
-const supabase = (supabaseUrl && supabaseKey)
-  ? createClient(supabaseUrl, supabaseKey)
-  : null;
+function getSupabase() {
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://tcwapqlphdxuqpgyrybq.supabase.co';
+  const supabaseKey = [
+    process.env.SUPABASE_SECRET_KEY,
+    process.env.SUPABASE_PUBLISHABLE_KEY,
+    process.env.SUPABASE_ANON_KEY
+  ].find(key => key && !key.includes('...') && key.length >= 40);
+
+  if (!supabaseUrl || !supabaseKey) return null;
+  if (!_supabaseClient || _lastSupabaseKey !== supabaseKey) {
+    _supabaseClient = createClient(supabaseUrl, supabaseKey);
+    _lastSupabaseKey = supabaseKey;
+  }
+  return _supabaseClient;
+}
+
+function isSupabaseRequested() {
+  return Boolean(process.env.SUPABASE_URL);
+}
 
 // PostgreSQL Pool connection (supports Supabase Postgres or local Postgres)
 const connectionString = process.env.DATABASE_URL;
@@ -122,8 +132,9 @@ async function initDb() {
 
 async function checkDbConnection() {
   try {
-    if (supabase) {
-      const { count, error } = await supabase.from('students').select('*', { count: 'exact', head: true });
+    const client = getSupabase();
+    if (client) {
+      const { count, error } = await client.from('students').select('*', { count: 'exact', head: true });
       if (error) throw error;
       return {
         connected: true,
@@ -133,7 +144,7 @@ async function checkDbConnection() {
         message: 'Connected through the Supabase API'
       };
     }
-    if (supabaseRequested) {
+    if (isSupabaseRequested()) {
       return {
         connected: false,
         provider: 'Supabase',
@@ -142,9 +153,9 @@ async function checkDbConnection() {
         message: 'SUPABASE_SECRET_KEY or SUPABASE_PUBLISHABLE_KEY is missing or invalid'
       };
     }
-    const client = await pool.connect();
-    const res = await client.query('SELECT COUNT(*) FROM students;');
-    client.release();
+    const clientPool = await pool.connect();
+    const res = await clientPool.query('SELECT COUNT(*) FROM students;');
+    clientPool.release();
     const isSupabase = connectionString && (connectionString.includes('supabase.co') || connectionString.includes('supabase.com'));
     return {
       connected: true,
@@ -164,10 +175,22 @@ async function checkDbConnection() {
   }
 }
 
-module.exports = {
+const dbExport = {
   pool,
-  supabase,
-  supabaseRequested,
+  get supabase() {
+    return getSupabase();
+  },
+  set supabase(client) {
+    _supabaseClient = client;
+  },
+  get supabaseRequested() {
+    return isSupabaseRequested();
+  },
   initDb,
   checkDbConnection,
+  getSupabase,
+  isSupabaseRequested,
+  initSupabase: getSupabase
 };
+
+module.exports = dbExport;
